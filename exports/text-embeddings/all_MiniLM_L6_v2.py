@@ -1,0 +1,161 @@
+"""
+This script exports the `sentence-transformers/all-MiniLM-L6-v2` model
+to Executorch format, partitions it for XNNPACK backend, and tests the exported model.
+
+The model is wrapped in a custom PyTorch module that handles the postprocessing:
+ - mean pooling
+ - L2 normalization
+
+Max sequence length is adjusted to 254 to account for the CLS and SEP tokens.
+"""
+
+from transformers import AutoTokenizer, AutoModel
+import torch
+import torch.nn.functional as F
+
+from executorch.backends.xnnpack.partition.xnnpack_partitioner import XnnpackPartitioner
+from executorch.exir import to_edge_transform_and_lower
+from torch.export import Dim, export
+
+from executorch.runtime import Runtime
+
+import time
+
+torch.set_printoptions(precision=8)
+
+# Input Preparation
+tokenizer = AutoTokenizer.from_pretrained("sentence-transformers/all-MiniLM-L6-v2")
+sentences = ["Hello, World!"]
+encoded_input = tokenizer(sentences, padding=True, truncation=True, return_tensors="pt")
+
+print("Encoded input:", encoded_input)
+print("Shape of input_ids:", encoded_input["input_ids"].shape)
+print("Shape of attention_mask:", encoded_input["attention_mask"].shape)
+
+print("Input IDs type:", encoded_input["input_ids"].dtype)
+print("Attention mask type:", encoded_input["attention_mask"].dtype)
+
+cls_token = torch.tensor(
+    tokenizer.cls_token_id, dtype=encoded_input["input_ids"].dtype
+)  # CLS token ID for the start of the sequence
+sep_token = torch.tensor(
+    tokenizer.sep_token_id, dtype=encoded_input["input_ids"].dtype
+)  # SEP token ID for the end of the sequence
+print("Start token:", cls_token, tokenizer.decode(cls_token))
+print("End token:", sep_token, tokenizer.decode(sep_token))
+
+
+# Model Preparation
+class AllMiniLML6V2(torch.nn.Module):
+    def __init__(self):
+        super().__init__()
+        self.model = AutoModel.from_pretrained("sentence-transformers/all-MiniLM-L6-v2")
+        print(self.model.forward.__doc__)
+
+    # Mean Pooling - Take attention mask into account for correct averaging
+    def mean_pooling(self, model_output, attention_mask):
+        token_embeddings = model_output[
+            0
+        ]  # First element of model_output contains all token embeddings
+        input_mask_expanded = (
+            attention_mask.unsqueeze(-1).expand(token_embeddings.size()).float()
+        )
+        return torch.sum(token_embeddings * input_mask_expanded, 1) / torch.clamp(
+            input_mask_expanded.sum(1), min=1e-9
+        )
+
+    def forward(self, input_ids, attention_mask):
+        batch_size = input_ids.shape[0]
+
+        cls_tokens = torch.tensor(
+            [[101]], dtype=input_ids.dtype
+        )  # CLS token ID for the start of the sequence
+        sep_tokens = torch.tensor(
+            [[102]], dtype=input_ids.dtype
+        )  # SEP token ID for the end of the sequence
+
+        input_ids = torch.cat([cls_tokens, input_ids, sep_tokens], dim=1)
+
+        cls_attention = torch.ones((batch_size, 1), dtype=attention_mask.dtype)
+        sep_attention = torch.ones((batch_size, 1), dtype=attention_mask.dtype)
+
+        attention_mask = torch.cat(
+            [cls_attention, attention_mask, sep_attention], dim=1
+        )
+
+        model_output = self.model(
+            input_ids=input_ids,  # Exclude CLS and SEP tokens
+            attention_mask=attention_mask,
+        )
+
+        sentence_embeddings = self.mean_pooling(model_output, attention_mask)
+        sentence_embeddings = F.normalize(sentence_embeddings, p=2, dim=1)
+
+        return sentence_embeddings
+
+
+model = AllMiniLML6V2()
+
+with torch.no_grad():
+    sentence_embeddings = model(
+        encoded_input["input_ids"], encoded_input["attention_mask"]
+    )
+
+print("Sentence embeddings:", sentence_embeddings)
+print("Shape of sentence embeddings:", sentence_embeddings.shape)
+print("Type of sentence embeddings:", sentence_embeddings.dtype)
+
+# Export and Lowering
+model_name = "all-MiniLM-L6-v2_xnnpack.pte"
+
+dynamic_shapes = {
+    "input_ids": {
+        1: Dim(
+            "tokens", min=1, max=254
+        ),  # Adjusted max length to 254 = 256 - 2 (CLS and SEP tokens)
+    },
+    "attention_mask": {
+        1: Dim(
+            "tokens", min=1, max=254
+        ),  # Adjusted max length to 254 = 256 - 2 (CLS and SEP tokens)
+    },
+}
+
+inputs = (encoded_input["input_ids"], encoded_input["attention_mask"])
+print("Inputs:", inputs)
+print(inputs[0].dtype, inputs[1].dtype)
+exported_program = export(model, inputs, dynamic_shapes=dynamic_shapes)
+
+executorch_program = to_edge_transform_and_lower(
+    exported_program, partitioner=[XnnpackPartitioner()]
+).to_executorch()
+
+# Save the executorch program to a file
+with open(f"{model_name}", "wb") as file:
+    file.write(executorch_program.buffer)
+
+# Testing the Model
+runtime = Runtime.get()
+
+program = runtime.load_program(f"{model_name}")
+method = program.load_method("forward")
+outputs = method.execute([encoded_input["input_ids"], encoded_input["attention_mask"]])
+
+print("Outputs:", outputs)
+print("Shape of outputs:", outputs[0].shape)
+print("Type of outputs:", outputs[0].dtype)
+
+assert torch.allclose(
+    outputs[0], sentence_embeddings, atol=1e-6
+), "Outputs do not match the expected sentence embeddings."
+print("Outputs match the expected sentence embeddings.")
+
+# Benchmarks
+tik = time.time()
+for _ in range(100):
+    outputs = method.execute(
+        [encoded_input["input_ids"], encoded_input["attention_mask"]]
+    )
+tok = time.time()
+
+print("Execution time for 100 iterations:", tok - tik, "seconds")
