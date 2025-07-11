@@ -46,7 +46,7 @@ print("End token:", end_token, tokenizer.decode(end_token))
 
 
 # Model Preparation
-class AllMiniLML6V2(torch.nn.Module):
+class AllMpnetBaseV2(torch.nn.Module):
     def __init__(self):
         super().__init__()
         self.model = AutoModel.from_pretrained(
@@ -96,7 +96,8 @@ class AllMiniLML6V2(torch.nn.Module):
         return sentence_embeddings
 
 
-model = AllMiniLML6V2()
+model = AllMpnetBaseV2()
+model.eval()
 
 with torch.no_grad():
     sentence_embeddings = model(

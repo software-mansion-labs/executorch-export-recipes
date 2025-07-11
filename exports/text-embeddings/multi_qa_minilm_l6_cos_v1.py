@@ -48,7 +48,7 @@ print("End token:", sep_token, tokenizer.decode(sep_token))
 
 
 # Model Preparation
-class AllMiniLML6V2(torch.nn.Module):
+class MultiQaMinilmL6CosV1(torch.nn.Module):
     def __init__(self):
         super().__init__()
         self.model = AutoModel.from_pretrained(
@@ -98,7 +98,8 @@ class AllMiniLML6V2(torch.nn.Module):
         return sentence_embeddings
 
 
-model = AllMiniLML6V2()
+model = MultiQaMinilmL6CosV1()
+model.eval()
 
 with torch.no_grad():
     sentence_embeddings = model(

@@ -46,7 +46,7 @@ print("End token:", sep_token, tokenizer.decode(sep_token))
 
 
 # Model Preparation
-class AllMiniLML6V2(torch.nn.Module):
+class AllMinilmL6V2(torch.nn.Module):
     def __init__(self):
         super().__init__()
         self.model = AutoModel.from_pretrained("sentence-transformers/all-MiniLM-L6-v2")
@@ -94,7 +94,8 @@ class AllMiniLML6V2(torch.nn.Module):
         return sentence_embeddings
 
 
-model = AllMiniLML6V2()
+model = AllMinilmL6V2()
+model.eval()
 
 with torch.no_grad():
     sentence_embeddings = model(
