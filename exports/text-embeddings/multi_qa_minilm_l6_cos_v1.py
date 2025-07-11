@@ -69,8 +69,6 @@ class MultiQaMinilmL6CosV1(torch.nn.Module):
         )
 
     def forward(self, input_ids, attention_mask):
-        batch_size = input_ids.shape[0]
-
         cls_tokens = torch.tensor(
             [[101]], dtype=input_ids.dtype
         )  # CLS token ID for the start of the sequence
@@ -80,17 +78,14 @@ class MultiQaMinilmL6CosV1(torch.nn.Module):
 
         input_ids = torch.cat([cls_tokens, input_ids, sep_tokens], dim=1)
 
-        cls_attention = torch.ones((batch_size, 1), dtype=attention_mask.dtype)
-        sep_attention = torch.ones((batch_size, 1), dtype=attention_mask.dtype)
+        cls_attention = torch.tensor([[1]], dtype=attention_mask.dtype)
+        sep_attention = torch.tensor([[1]], dtype=attention_mask.dtype)
 
         attention_mask = torch.cat(
             [cls_attention, attention_mask, sep_attention], dim=1
         )
 
-        model_output = self.model(
-            input_ids=input_ids,  # Exclude CLS and SEP tokens
-            attention_mask=attention_mask,
-        )
+        model_output = self.model(input_ids=input_ids, attention_mask=attention_mask)
 
         sentence_embeddings = self.mean_pooling(model_output, attention_mask)
         sentence_embeddings = F.normalize(sentence_embeddings, p=2, dim=1)

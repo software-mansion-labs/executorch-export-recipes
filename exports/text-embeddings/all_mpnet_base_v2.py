@@ -67,8 +67,6 @@ class AllMpnetBaseV2(torch.nn.Module):
         )
 
     def forward(self, input_ids, attention_mask):
-        batch_size = input_ids.shape[0]
-
         start_tokens = torch.tensor(
             [[0]], dtype=input_ids.dtype
         )  # <s> token ID for the start of the sequence
@@ -78,17 +76,14 @@ class AllMpnetBaseV2(torch.nn.Module):
 
         input_ids = torch.cat([start_tokens, input_ids, end_tokens], dim=1)
 
-        start_attention = torch.ones((batch_size, 1), dtype=attention_mask.dtype)
-        end_attention = torch.ones((batch_size, 1), dtype=attention_mask.dtype)
+        start_attention = torch.tensor([[1]], dtype=attention_mask.dtype)
+        end_attention = torch.tensor([[1]], dtype=attention_mask.dtype)
 
         attention_mask = torch.cat(
             [start_attention, attention_mask, end_attention], dim=1
         )
 
-        model_output = self.model(
-            input_ids=input_ids,  # Exclude <s> and </s> tokens
-            attention_mask=attention_mask,
-        )
+        model_output = self.model(input_ids=input_ids, attention_mask=attention_mask)
 
         sentence_embeddings = self.mean_pooling(model_output, attention_mask)
         sentence_embeddings = F.normalize(sentence_embeddings, p=2, dim=1)
