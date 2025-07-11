@@ -1,12 +1,12 @@
 """
-This script exports the `sentence-transformers/all-MiniLM-L6-v2` model
+This script exports the `sentence-transformers/multi-qa-mpnet-base-dot-v1` model
 to Executorch format, partitions it for XNNPACK backend, and tests the exported model.
 
 The model is wrapped in a custom PyTorch module that handles the postprocessing:
- - mean pooling
+ - cls pooling
  - L2 normalization
 
-Max sequence length is adjusted to 254 to account for the CLS and SEP tokens.
+Max sequence length is adjusted to 510 to account for the <s> and </s> tokens.
 """
 
 from transformers import AutoTokenizer, AutoModel
