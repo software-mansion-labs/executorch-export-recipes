@@ -31,7 +31,7 @@ def get_model(ModelClass, model_path, config_path=None):
     return Model(method, config)
 
 
-def run_pipeline(prompt, model_dir, num_steps):
+def run_pipeline(prompt, model_dir, num_steps, dim):
     device="cpu"
     tokenizer_dir = os.path.join(model_dir, "tokenizer")
     if not os.path.exists(tokenizer_dir):
@@ -69,8 +69,6 @@ def run_pipeline(prompt, model_dir, num_steps):
     print("\nPipeline components loaded successfully")
 
 
-    height = 512
-    width = 512
     guidance_scale = 7.5
     generator = torch.manual_seed(0)
     batch_size = 1
@@ -89,7 +87,7 @@ def run_pipeline(prompt, model_dir, num_steps):
     text_embeddings = torch.cat([uncond_embeddings, text_embeddings])
 
     latents = torch.randn(
-        (batch_size, unet.config.in_channels, height // 8, width // 8),
+        (batch_size, unet.config.in_channels, dim // 8, dim // 8),
         generator=generator,
     ).to(device)
     latents = latents * scheduler.init_noise_sigma
@@ -112,6 +110,7 @@ def run_pipeline(prompt, model_dir, num_steps):
     latents = 1 / 0.18215 * latents
     with torch.no_grad():
         image = vae.forward(latents)[0]
+    print("Image:", image.shape)
 
     image = (image / 2 + 0.5).clamp(0, 1).squeeze()
     image = (image.permute(1, 2, 0) * 255).to(torch.uint8).cpu().numpy()
@@ -141,6 +140,12 @@ if __name__ == "__main__":
         type=int,
         default=10,
     )
+    parser.add_argument(
+        "--resolution", 
+        required=False, 
+        type=int,
+        default=512,
+    )
     args = parser.parse_args()
 
-    run_pipeline(args.prompt, args.model_dir, args.num_steps)
+    run_pipeline(args.prompt, args.model_dir, args.num_steps, args.resolution)

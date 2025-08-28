@@ -13,7 +13,7 @@ import argparse
 import os
 
 
-def export_pipeline(model_id, model_dir):
+def export_pipeline(model_id, model_dir, dim):
     os.makedirs(model_dir, exist_ok=True)
 
     device = "cpu"
@@ -44,15 +44,15 @@ def export_pipeline(model_id, model_dir):
     print("Text encoder exported")
 
     input = (
-        torch.rand(2, 4, 64, 64, dtype=torch.float32),
+        torch.rand(2, 4, dim // 8, dim // 8, dtype=torch.float32),
         torch.tensor([999], dtype=torch.int64),
-        torch.rand(2, 77, 768, dtype=torch.float32)
+        torch.rand(2, 77, unet.cross_attention_dim, dtype=torch.float32)
     )
     model_subdir = os.path.join(model_dir, "unet")
     export_unet(unet, input, model_subdir)
     print("UNet exported")
 
-    input = (torch.rand(1, 4, 64, 64, dtype=torch.float32),)
+    input = (torch.rand(1, 4, dim // 8, dim // 8, dtype=torch.float32),)
     model_subdir = os.path.join(model_dir, "vae")
     export_vae(vae, input, model_subdir)
     print("VAE exported")
@@ -71,6 +71,12 @@ if __name__ == "__main__":
         type=str,
         default="./",
     )
+    parser.add_argument(
+        "--resolution", 
+        required=False, 
+        type=int,
+        default=512,
+    )
     args = parser.parse_args()
 
-    export_pipeline(args.model_id, args.model_dir)
+    export_pipeline(args.model_id, args.model_dir, args.resolution)
