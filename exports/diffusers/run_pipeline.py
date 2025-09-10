@@ -11,7 +11,9 @@ from diffusers import AutoencoderKL, UNet2DConditionModel, PNDMScheduler
 from PIL import Image
 import argparse
 import os
- 
+
+IMAGE_PATH = "generated_image.png"
+
 def get_model(ModelClass, model_path, config_path=None):
     class Model(ModelClass):
         def __init__(self, forward_fn, config=None):
@@ -110,15 +112,13 @@ def run_pipeline(prompt, model_dir, num_steps, dim):
     latents = 1 / 0.18215 * latents
     with torch.no_grad():
         image = vae.forward(latents)[0]
-    print("Image:", image.shape)
 
-    image = (image / 2 + 0.5).clamp(0, 1).squeeze()
-    image = (image.permute(1, 2, 0) * 255).to(torch.uint8).cpu().numpy()
+    image = image.to(torch.uint8).cpu().numpy()
     image = Image.fromarray(image)
-    image_path = "generated_image.png"
-    image.save(image_path)
+    
+    image.save(IMAGE_PATH)
     image.show()
-    print(f"Image saved as {image_path}")
+    print(f"Image saved as {IMAGE_PATH}")
 
 
 if __name__ == "__main__":

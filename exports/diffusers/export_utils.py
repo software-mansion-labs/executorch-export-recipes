@@ -191,7 +191,15 @@ def export_vae(vae, input, model_dir):
             self.vae = vae
 
         def forward(self, input: torch.Tensor) -> torch.Tensor:
-            output = self.vae.decode(input)
+            output = self.vae.decode(input)[0]
+
+            if output.shape[0] == 1:
+                output = output.squeeze(0)
+            output = output.permute(1, 2, 0)
+            output = output / 2 + 0.5
+            output = torch.clamp(output, 0.0, 1.0)
+            output = output * 255
+
             return output
     
     vae_wrapper = VaeDecoderWrapper(vae)
