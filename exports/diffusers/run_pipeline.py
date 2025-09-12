@@ -80,11 +80,11 @@ def run_pipeline(prompt, model_dir, num_steps, dim):
     )
     
     with torch.no_grad():
-        text_embeddings = text_encoder(text_input.input_ids.to(device))[0]
+        text_embeddings = text_encoder(text_input.input_ids.to(device), text_input.attention_mask.to(device))[0]
 
     max_length = text_input.input_ids.shape[-1]
     uncond_input = tokenizer([""] * batch_size, padding="max_length", max_length=max_length, return_tensors="pt")
-    uncond_embeddings = text_encoder(uncond_input.input_ids.to(device))[0]
+    uncond_embeddings = text_encoder(uncond_input.input_ids.to(device), uncond_input.attention_mask.to(device))[0]
 
     text_embeddings = torch.cat([uncond_embeddings, text_embeddings])
 

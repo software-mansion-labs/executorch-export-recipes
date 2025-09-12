@@ -38,7 +38,10 @@ def export_pipeline(model_id, model_dir, dim):
     ).to(device)
     print("\nPipeline components loaded successfully\n")
 
-    input = (torch.randint(low=0, high=10000, size=(1, 77), dtype=torch.int64),)
+    input = (
+        torch.randint(low=0, high=10000, size=(1, 77), dtype=torch.int64),
+        torch.randint(low=0, high=10000, size=(1, 77), dtype=torch.int64),
+    )
     model_subdir = os.path.join(model_dir, "text_encoder")
     export_encoder(text_encoder, input, model_subdir)
     print("Text encoder exported")
@@ -46,7 +49,7 @@ def export_pipeline(model_id, model_dir, dim):
     input = (
         torch.rand(2, 4, dim // 8, dim // 8, dtype=torch.float32),
         torch.tensor([999], dtype=torch.int64),
-        torch.rand(2, 77, unet.cross_attention_dim, dtype=torch.float32)
+        torch.rand(2, 77, unet.config.cross_attention_dim, dtype=torch.float32)
     )
     model_subdir = os.path.join(model_dir, "unet")
     export_unet(unet, input, model_subdir)
