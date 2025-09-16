@@ -33,7 +33,7 @@ def get_model(ModelClass, model_path, config_path=None):
     return Model(method, config)
 
 
-def run_pipeline(prompt, model_dir, num_steps, dim):
+def run_pipeline(prompt, model_dir, num_steps, image_size):
     device="cpu"
     tokenizer_dir = os.path.join(model_dir, "tokenizer")
     if not os.path.exists(tokenizer_dir):
@@ -68,7 +68,7 @@ def run_pipeline(prompt, model_dir, num_steps, dim):
         AutoencoderKL, model_path
     ).to(device)
 
-    print("\nPipeline components loaded successfully")
+    print("\nPipeline loaded successfully\n")
 
 
     guidance_scale = 7.5
@@ -89,7 +89,7 @@ def run_pipeline(prompt, model_dir, num_steps, dim):
     text_embeddings = torch.cat([uncond_embeddings, text_embeddings])
 
     latents = torch.randn(
-        (batch_size, unet.config.in_channels, dim // 8, dim // 8),
+        (batch_size, unet.config.in_channels, image_size // 8, image_size // 8),
         generator=generator,
     ).to(device)
     latents = latents * scheduler.init_noise_sigma
@@ -141,11 +141,11 @@ if __name__ == "__main__":
         default=10,
     )
     parser.add_argument(
-        "--resolution", 
+        "--image_size",
         required=False, 
         type=int,
         default=512,
     )
     args = parser.parse_args()
 
-    run_pipeline(args.prompt, args.model_dir, args.num_steps, args.resolution)
+    run_pipeline(args.prompt, args.model_dir, args.num_steps, args.image_size)

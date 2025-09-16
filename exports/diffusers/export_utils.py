@@ -7,13 +7,18 @@ import torch
 import torch.nn as nn
 from executorch.backends.xnnpack.partition.xnnpack_partitioner import XnnpackPartitioner
 from executorch.exir import to_edge_transform_and_lower
-from torch.export import export
+from torch.export import Dim, export
 import json
 import os
 
-def export_model(model, input, model_dir):
+MIN_IMAGE_SIZE = 128
+MAX_IMAGE_SIZE = 512
+H_DIM = Dim('_h', min=MIN_IMAGE_SIZE // 32, max=MAX_IMAGE_SIZE // 32)
+W_DIM = Dim('_w', min=MIN_IMAGE_SIZE // 32, max=MAX_IMAGE_SIZE // 32)
+
+def export_model(model, model_dir, input, dynamic_shapes={}):
     with torch.no_grad():
-        exported_program = export(model, input)
+        exported_program = export(model, input, dynamic_shapes=dynamic_shapes)
         executorch_program = to_edge_transform_and_lower(
             exported_program,
             partitioner = [XnnpackPartitioner()],
@@ -170,20 +175,28 @@ def export_scheduler(scheduler, model_dir):
     scheduler.save_pretrained(scheduler_path)
 
 
-def export_encoder(model, input, model_dir):
-    export_model(model, input, model_dir)
+def export_encoder(model, model_dir, input):
+    export_model(model, model_dir, input)
     config_path = os.path.join(model_dir, "config.json")
     model.config.to_json_file(config_path)
 
 
-def export_unet(model, input, model_dir):
-    export_model(model, input, model_dir)
+def export_unet(model, model_dir, input):
+    dynamic_shapes = {
+        "sample": {
+            2: 4 * H_DIM,
+            3: 4 * W_DIM,
+        },
+        "timestep": {},
+        "encoder_hidden_states": {}
+    }
+    export_model(model, model_dir, input, dynamic_shapes)
     config_path = os.path.join(model_dir, "config.json")
     with open(config_path, "w") as file:
         json.dump(model.config, file)
 
 
-def export_vae(vae, input, model_dir):
+def export_vae(vae, model_dir, input):
 
     class VaeDecoderWrapper(nn.Module):
         def __init__(self, vae: nn.Module):
@@ -203,4 +216,10 @@ def export_vae(vae, input, model_dir):
             return output
     
     vae_wrapper = VaeDecoderWrapper(vae)
-    export_model(vae_wrapper, input, model_dir)
+    dynamic_shapes = {
+        "input": {
+            2: 4 * H_DIM,
+            3: 4 * W_DIM,
+        }
+    }
+    export_model(vae_wrapper, model_dir, input, dynamic_shapes)
