@@ -175,28 +175,42 @@ def export_scheduler(scheduler, model_dir):
     scheduler.save_pretrained(scheduler_path)
 
 
-def export_encoder(model, model_dir, input):
+def export_encoder(model, model_dir):
+    input = (
+        torch.randint(low=0, high=10000, size=(1, 77), dtype=torch.int64),
+        torch.randint(low=0, high=10000, size=(1, 77), dtype=torch.int64),
+    )
     export_model(model, model_dir, input)
     config_path = os.path.join(model_dir, "config.json")
     model.config.to_json_file(config_path)
 
 
-def export_unet(model, model_dir, input):
-    dynamic_shapes = {
-        "sample": {
-            2: 4 * H_DIM,
-            3: 4 * W_DIM,
-        },
-        "timestep": {},
-        "encoder_hidden_states": {}
-    }
+def export_unet(model, model_dir, image_size):
+    if image_size is None:
+        image_size = 512
+        dynamic_shapes = {
+            "sample": {
+                2: 4 * H_DIM,
+                3: 4 * W_DIM,
+            },
+            "timestep": {},
+            "encoder_hidden_states": {}
+        }
+    else:
+        dynamic_shapes = {}
+
+    input = (
+        torch.rand(2, 4, image_size // 8, image_size // 8, dtype=torch.float32),
+        torch.tensor([999], dtype=torch.int64),
+        torch.rand(2, 77, model.config.cross_attention_dim, dtype=torch.float32)
+    )
     export_model(model, model_dir, input, dynamic_shapes)
     config_path = os.path.join(model_dir, "config.json")
     with open(config_path, "w") as file:
         json.dump(model.config, file)
 
 
-def export_vae(vae, model_dir, input):
+def export_vae(vae, model_dir, image_size):
 
     class VaeDecoderWrapper(nn.Module):
         def __init__(self, vae: nn.Module):
@@ -216,10 +230,19 @@ def export_vae(vae, model_dir, input):
             return output
     
     vae_wrapper = VaeDecoderWrapper(vae)
-    dynamic_shapes = {
-        "input": {
-            2: 4 * H_DIM,
-            3: 4 * W_DIM,
+
+    if image_size is None:
+        image_size = 512
+        dynamic_shapes = {
+            "input": {
+                2: 4 * H_DIM,
+                3: 4 * W_DIM,
+            }
         }
-    }
+    else:
+        dynamic_shapes = {}
+
+    input = (
+        torch.rand(1, 4, image_size // 8, image_size // 8, dtype=torch.float32),
+    )
     export_model(vae_wrapper, model_dir, input, dynamic_shapes)
