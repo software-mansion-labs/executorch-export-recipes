@@ -78,11 +78,18 @@ if __name__ == "__main__":
         type=str,
         default="./"
     )
-    # If image_size is provided, export is static
+    # Max image size in dynamic export
+    def check_image_size(value):
+        ivalue = int(value)
+        if ivalue < 128:
+            raise argparse.ArgumentTypeError("Image size must greater or equal to 128.")
+        return ivalue
+
     parser.add_argument(
         "--image_size",
         required=False,
-        type=int,
+        type=check_image_size,
+        default=512
     )
     args = parser.parse_args()
 

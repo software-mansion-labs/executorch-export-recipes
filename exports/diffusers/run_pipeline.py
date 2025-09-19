@@ -12,7 +12,7 @@ from PIL import Image
 import argparse
 import os
 
-IMAGE_PATH = "generated_image.png"
+IMAGE_PATH = "image.png"
 
 def get_model(ModelClass, model_path, config_path=None):
     class Model(ModelClass):

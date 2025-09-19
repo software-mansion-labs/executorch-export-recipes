@@ -12,9 +12,6 @@ import json
 import os
 
 MIN_IMAGE_SIZE = 128
-MAX_IMAGE_SIZE = 512
-H_DIM = Dim('_h', min=MIN_IMAGE_SIZE // 32, max=MAX_IMAGE_SIZE // 32)
-W_DIM = Dim('_w', min=MIN_IMAGE_SIZE // 32, max=MAX_IMAGE_SIZE // 32)
 
 def export_model(model, model_dir, input, dynamic_shapes={}):
     with torch.no_grad():
@@ -186,18 +183,16 @@ def export_encoder(model, model_dir):
 
 
 def export_unet(model, model_dir, image_size):
-    if image_size is None:
-        image_size = 512
-        dynamic_shapes = {
-            "sample": {
-                2: 4 * H_DIM,
-                3: 4 * W_DIM,
-            },
-            "timestep": {},
-            "encoder_hidden_states": {}
-        }
-    else:
-        dynamic_shapes = {}
+    H_DIM = Dim('_h', min=MIN_IMAGE_SIZE // 32, max=image_size // 32)
+    W_DIM = Dim('_w', min=MIN_IMAGE_SIZE // 32, max=image_size // 32)
+    dynamic_shapes = {
+        "sample": {
+            2: 4 * H_DIM,
+            3: 4 * W_DIM,
+        },
+        "timestep": {},
+        "encoder_hidden_states": {}
+    }
 
     input = (
         torch.rand(2, 4, image_size // 8, image_size // 8, dtype=torch.float32),
@@ -230,18 +225,14 @@ def export_vae(vae, model_dir, image_size):
             return output
     
     vae_wrapper = VaeDecoderWrapper(vae)
-
-    if image_size is None:
-        image_size = 512
-        dynamic_shapes = {
-            "input": {
-                2: 4 * H_DIM,
-                3: 4 * W_DIM,
-            }
+    H_DIM = Dim('_h', min=MIN_IMAGE_SIZE // 32, max=image_size // 32)
+    W_DIM = Dim('_w', min=MIN_IMAGE_SIZE // 32, max=image_size // 32)
+    dynamic_shapes = {
+        "input": {
+            2: 4 * H_DIM,
+            3: 4 * W_DIM,
         }
-    else:
-        dynamic_shapes = {}
-
+    }
     input = (
         torch.rand(1, 4, image_size // 8, image_size // 8, dtype=torch.float32),
     )
