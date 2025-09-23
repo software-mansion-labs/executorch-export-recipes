@@ -9,19 +9,18 @@ from transformers import (
 )
 from torch.export import Dim
 from typing import Callable, Optional
-import lovely_tensors
 
 from executorch.exir import to_edge
 from executorch.backends.xnnpack import XnnpackPartitioner
 
-lovely_tensors.monkey_patch()
 
 START_TOKEN = 50257
 EOS_TOKEN = 50256
 EXPORT_WITH_STATIC_CACHE = False
-MODEL_NAME = "openai/whisper-tiny"
+name = "whisper-tiny.en"
+MODEL_NAME = f"openai/{name}"
 EXAMPLE_AUDIO_PATH = "/Users/jakubchmura/Desktop/SWM_AI/executorch/audio_2.mp3"
-MAX_SEQ_LEN = 256
+MAX_SEQ_LEN = 128
 GENERATION_CONFIG = GenerationConfig(
     use_cache=True,
     cache_implementation="static",
@@ -78,8 +77,7 @@ class DecoderWrapper(torch.nn.Module):
             input_ids=input_ids, encoder_hidden_states=encoder_output, use_cache=False
         )
         logits = self.proj_out(output[0])
-        next_token_ids = torch.argmax(logits[:, -1, :], dim=-1, keepdim=True)
-        return next_token_ids
+        return logits
 
 
 class EncoderWrapper(torch.nn.Module):
@@ -134,7 +132,9 @@ def export_encoder(
     edge_program = to_edge(exported_program)
     if to_xnnpack:
         edge_program = edge_program.to_backend(XnnpackPartitioner())
-        output_filename = "xnnpack_" + output_filename
+        output_filename = (
+            name.replace("-", "_").replace(".", "_") + "_encoder_xnnpack.pte"
+        )
 
     exec_program = edge_program.to_executorch()
 
@@ -150,7 +150,7 @@ def export_decoder(
     output_filename: str = "whisper_decoder.pte",
 ) -> None:
     print("Exporting decoder...")
-    dim = Dim("dim1_x", min=1, max=128)
+    dim = Dim("dim1_x", min=1, max=MAX_SEQ_LEN)
     dynamic_shapes = {"input_ids": {1: dim}, "encoder_output": {}}
     exported_program = torch.export.export(
         decoder,
@@ -163,7 +163,9 @@ def export_decoder(
     edge_program = to_edge(exported_program)
     if to_xnnpack:
         edge_program = edge_program.to_backend(XnnpackPartitioner())
-        output_filename = "xnnpack_" + output_filename
+        output_filename = (
+            name.replace("-", "_").replace(".", "_") + "_decoder_xnnpack.pte"
+        )
 
     exec_program = edge_program.to_executorch()
 
