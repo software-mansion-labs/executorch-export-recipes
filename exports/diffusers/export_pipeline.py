@@ -36,7 +36,7 @@ def export_pipeline(model_id, model_dir, image_size):
         # Text encoder
         pbar.set_description("Export text encoder")
         text_encoder = CLIPTextModel.from_pretrained(
-            model_id, subfolder="text_encoder", use_safetensors=True
+            model_id, subfolder="text_encoder"
         ).to(device)
 
         model_subdir = os.path.join(model_dir, "text_encoder")
