@@ -46,7 +46,7 @@ def export_pipeline(model_id, model_dir, image_size):
         # UNet
         pbar.set_description("Export UNet")
         unet = UNet2DConditionModel.from_pretrained(
-            model_id, subfolder="unet", use_safetensors=True
+            model_id, subfolder="unet"
         ).to(device)
         model_subdir = os.path.join(model_dir, "unet")
         export_unet(unet, model_subdir, image_size)
@@ -55,7 +55,7 @@ def export_pipeline(model_id, model_dir, image_size):
         # VAE
         pbar.set_description("Export VAE")
         vae = AutoencoderKL.from_pretrained(
-            model_id, subfolder="vae", use_safetensors=True
+            model_id, subfolder="vae"
         ).to(device)
 
         model_subdir = os.path.join(model_dir, "vae")
