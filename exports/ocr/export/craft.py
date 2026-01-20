@@ -1,21 +1,22 @@
+from collections import OrderedDict, namedtuple
+
+import cv2
+import numpy as np
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
 import torch.nn.init as init
 import torchvision
-from torchvision import models
-from collections import OrderedDict
+from executorch.backends.xnnpack.partition.xnnpack_partitioner import XnnpackPartitioner
 from executorch.backends.xnnpack.quantizer.xnnpack_quantizer import (
     XNNPACKQuantizer,
     get_symmetric_quantization_config,
 )
-from executorch.backends.xnnpack.partition.xnnpack_partitioner import XnnpackPartitioner
 from executorch.exir import to_edge_transform_and_lower
-from torchao.quantization.pt2e.quantize_pt2e import convert_pt2e, prepare_pt2e
 from packaging import version
-import cv2
-import numpy as np
-from collections import namedtuple
+from torch.export import exported_program
+from torchao.quantization.pt2e.quantize_pt2e import convert_pt2e, prepare_pt2e
+from torchvision import models
 
 
 def init_weights(modules):
@@ -232,15 +233,15 @@ def export_model_for_size(height, width):
     # Export non-quantized model
     print(f"Exporting non-quantized model for {height}x{width}...")
     exported_program = torch.export.export(model, sample_inputs)
-    et_program_non_quant = to_edge_transform_and_lower(
-        exported_program,
-        partitioner=[XnnpackPartitioner()],
-    ).to_executorch()
+    # et_program_non_quant = to_edge_transform_and_lower(
+    #     exported_program,
+    #     partitioner=[XnnpackPartitioner()],
+    # ).to_executorch()
 
-    non_quant_filename = f"xnnpack_craft_{width}.pte"
-    with open(non_quant_filename, "wb") as f:
-        f.write(et_program_non_quant.buffer)
-    print(f"Non-quantized model saved to {non_quant_filename}")
+    # non_quant_filename = f"xnnpack_craft_{width}.pte"
+    # with open(non_quant_filename, "wb") as f:
+    #     f.write(et_program_non_quant.buffer)
+    # print(f"Non-quantized model saved to {non_quant_filename}")
 
     # Export quantized model with calibration
     print(f"\nExporting quantized model for {height}x{width}...")
@@ -280,21 +281,61 @@ def export_model_for_size(height, width):
                 prepared_model(cal_sample)
 
     quantized_model = convert_pt2e(prepared_model)
+    exported_program_quant = torch.export.export(quantized_model, sample_inputs)
 
-    et_program = to_edge_transform_and_lower(
-        torch.export.export(quantized_model, sample_inputs),
-        partitioner=[XnnpackPartitioner()],
-    ).to_executorch()
+    # et_program = to_edge_transform_and_lower(
+    #     exported_program_quant,
+    #     partitioner=[XnnpackPartitioner()],
+    # ).to_executorch()
 
-    quant_filename = f"xnnpack_craft_{width}_quantized.pte"
-    with open(quant_filename, "wb") as f:
-        f.write(et_program.buffer)
-    print(f"Quantized model saved to {quant_filename}")
-    print(f"✓ Completed export for {height}x{width}\n")
+    # quant_filename = f"xnnpack_craft_{width}_quantized.pte"
+    # with open(quant_filename, "wb") as f:
+    #     f.write(et_program.buffer)
+    # print(f"Quantized model saved to {quant_filename}")
+    # print(f"✓ Completed export for {height}x{width}\n")
+    return exported_program_quant, exported_program
 
 
 # Export models for all three sizes
-sizes = [(1280, 1280), (1280, 320), (800, 800)]
+sizes = [
+    (1280, 1280),
+    (800, 800),
+    (1280, 320),
+]
+
+exported_programs = []
+exported_programs_non_quant = []
 
 for height, width in sizes:
-    export_model_for_size(height, width)
+    model, model_non_quant = export_model_for_size(height, width)
+    exported_programs.append(model)
+    exported_programs_non_quant.append(model_non_quant)
+
+model_quant = to_edge_transform_and_lower(
+    {
+        "forward_1280": exported_programs[0],
+        "forward_800": exported_programs[1],
+        "forward_320": exported_programs[2],
+    },
+    partitioner=[XnnpackPartitioner()],
+).to_executorch()
+
+quant_filename = f"xnnpack_craft_quantized.pte"
+with open(quant_filename, "wb") as f:
+    model_quant.write_to_file(f)
+print(f"Quantized model saved to {quant_filename}")
+
+
+model_non_quant = to_edge_transform_and_lower(
+    {
+        "forward_1280": exported_programs_non_quant[0],
+        "forward_800": exported_programs_non_quant[1],
+        "forward_320": exported_programs_non_quant[2],
+    },
+    partitioner=[XnnpackPartitioner()],
+).to_executorch()
+
+non_quant_filename = f"xnnpack_craft_non_quantized.pte"
+with open(non_quant_filename, "wb") as f:
+    model_non_quant.write_to_file(f)
+print(f"Quantized model saved to {non_quant_filename}")

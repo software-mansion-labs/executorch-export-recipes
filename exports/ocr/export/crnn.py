@@ -1,9 +1,10 @@
-import torch
 from collections import OrderedDict
-from torch.export import export, ExportedProgram
+
+import torch
+import torch.nn as nn
 from executorch.backends.xnnpack.partition.xnnpack_partitioner import XnnpackPartitioner
 from executorch.exir import to_edge_transform_and_lower
-import torch.nn as nn
+from torch.export import ExportedProgram, export
 
 # latin = 352 - done
 # en = 97 - done
@@ -123,7 +124,7 @@ languages = [
     ("korean", "korean_g2.pth", 1009),
     ("telugu", "telugu.pth", 166),
     ("kannada", "kannada.pth", 168),
-    ("cyrillic", "cyrillic.pth", 208),
+    ("cyrillic", "cyrillic_g2.pth", 208),
 ]
 
 # Model input sizes
@@ -138,7 +139,9 @@ for lang_name, weight_file, num_classes in languages:
     print(f"{'='*60}")
 
     # Create model with correct num_classes for this language
-    model = Model(num_class=num_classes, input_channel=1, output_channel=256, hidden_size=256)
+    model = Model(
+        num_class=num_classes, input_channel=1, output_channel=256, hidden_size=256
+    )
 
     # Load weights
     state_dict = torch.load(weight_file, map_location="cpu", weights_only=False)
@@ -152,20 +155,27 @@ for lang_name, weight_file, num_classes in languages:
     model.eval()
 
     # Export for each size
+    exported_programs: list[ExportedProgram] = []
     for size in sizes:
         sample_inputs = (torch.ones(1, 1, 64, size),)
-        exported_program: ExportedProgram = export(model, sample_inputs)
-        edge = to_edge_transform_and_lower(
-            exported_program, partitioner=[XnnpackPartitioner()]
-        )
-        exec_prog = edge.to_executorch()
-
-        output_filename = f"xnnpack_crnn_{lang_name}_{size}.pte"
-        with open(output_filename, "wb") as file:
-            exec_prog.write_to_file(file)
-        print(f"  ✓ Saved: {output_filename}")
-
+        exported_programs.append(export(model, sample_inputs))
     print(f"✓ Completed {lang_name}")
+
+    edge = to_edge_transform_and_lower(
+        {
+            "forward_64": exported_programs[0],
+            "forward_128": exported_programs[1],
+            "forward_256": exported_programs[2],
+            "forward_512": exported_programs[3],
+        },
+        partitioner=[XnnpackPartitioner()],
+    )
+    exec_prog = edge.to_executorch()
+
+    output_filename = f"xnnpack_crnn_{lang_name}.pte"
+    with open(output_filename, "wb") as file:
+        exec_prog.write_to_file(file)
+    print(f"  ✓ Saved: {output_filename}")
 
 print(f"\n{'='*60}")
 print("All models exported successfully!")
