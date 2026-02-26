@@ -1,0 +1,48 @@
+For exporting quantized version please use script provided by ExecuTorch library, install it from source and then run:
+```
+python -m extension.llm.export.export_llm \
+  --config examples/models/lfm2/config/lfm2_xnnpack_q8da4w.yaml \
+  +base.model_class="lfm2_5_1_2b" \
+  +base.params="examples/models/lfm2/config/lfm2_5_1_2b_config.json" \
+  +export.max_seq_length=2048 \
+  +export.max_context_length=2048 \
+  +export.output_name="lfm2_5_1_2b_8da4w.pte"
+```
+
+for non-quantized fp16 version, create the following `examples/models/lfm2/config/lfm2_bf16.yaml`:
+```
+base:
+  metadata: '{"get_bos_id": 1, "get_eos_ids":[7]}'
+
+model:
+  use_kv_cache: True
+  use_sdpa_with_kv_cache: True
+  dtype_override: bf16
+```
+
+and apply these fixes to `extension/llm/export/builder.py`:
+
+```
+-                strict=True,
++                strict=False,
+             )
+             # Functionalize the graph, and decompose subclasses from torchao quantize.
+-            exported_module = exported_module.run_decompositions({})
++            # run_decompositions is broken in PyTorch nightly when the model returns a
++            # single tensor (LeafSpec): deepcopy of module_call_graph raises AttributeError
++            # because the C++ LeafSpec doesn't expose `.type`. Safe to skip for
++            # non-quantized models; TorchAO-quantized models need it but hit the same bug.
++            try:
++                exported_module = exported_module.run_decompositions({})
++            except AttributeError as e:
++                if "'LeafSpec' object has no attribute 'type'" not in str(e):
++                    raise
++                logging.warning(
++                    "Skipping run_decompositions({}) due to a PyTorch nightly "
++                    "incompatibility (LeafSpec.type missing on C++ LeafSpec). "
++                    "Safe for non-TorchAO-quantized models."
++                )
+         return exported_module
+ 
+     def export(self) -> "LLMEdgeManager":
+```
