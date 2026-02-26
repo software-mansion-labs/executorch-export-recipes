@@ -1,5 +1,5 @@
 For exporting quantized version please use script provided by ExecuTorch library, install it from source and then run:
-```
+```python
 python -m extension.llm.export.export_llm \
   --config examples/models/lfm2/config/lfm2_xnnpack_q8da4w.yaml \
   +base.model_class="lfm2_5_1_2b" \
@@ -10,7 +10,7 @@ python -m extension.llm.export.export_llm \
 ```
 
 for non-quantized fp16 version, create the following `examples/models/lfm2/config/lfm2_bf16.yaml`:
-```
+```yaml
 base:
   metadata: '{"get_bos_id": 1, "get_eos_ids":[7]}'
 
