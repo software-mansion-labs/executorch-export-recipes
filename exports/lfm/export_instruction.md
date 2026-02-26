@@ -1,5 +1,5 @@
 For exporting quantized version please use script provided by ExecuTorch library, install it from source and then run:
-```python
+```bash
 python -m extension.llm.export.export_llm \
   --config examples/models/lfm2/config/lfm2_xnnpack_q8da4w.yaml \
   +base.model_class="lfm2_5_1_2b" \
