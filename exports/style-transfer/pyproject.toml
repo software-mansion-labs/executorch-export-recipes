@@ -1,0 +1,12 @@
+[project]
+name = "style-transfer"
+version = "0.1.0"
+requires-python = ">=3.12"
+dependencies = [
+    "executorch>=1.1.0",
+    "matplotlib>=3.10.8",
+    "numpy>=2.4.2",
+    "pycocotools>=2.0.11",
+    "torch>=2.10.0",
+    "torchvision>=0.25.0",
+]
