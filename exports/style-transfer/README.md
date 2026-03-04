@@ -1,6 +1,6 @@
 # Style Transfer exports
 
-This directory contains the exported models for the style transfer models with
+This directory contains the export scripts for the style transfer models with
 following styles:
 
 - candy,
