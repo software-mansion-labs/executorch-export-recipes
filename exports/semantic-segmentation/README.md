@@ -1,6 +1,6 @@
 # Semantic Segmentation export
 
-This repository contains scripts to export semantic segmentation models listed
+This directory contains scripts to export semantic segmentation models listed
 [here](https://docs.pytorch.org/vision/main/models.html#semantic-segmentation)
 to Executorch format:
 
