@@ -35,6 +35,15 @@
 import torch
 
 
+def _reflect_pad(x, pad):
+    left   = x[:, :, :, 1:pad + 1].flip(-1)
+    right  = x[:, :, :, -(pad + 1):-1].flip(-1)
+    x = torch.cat([left, x, right], dim=-1)
+    top    = x[:, :, 1:pad + 1, :].flip(-2)
+    bottom = x[:, :, -(pad + 1):-1, :].flip(-2)
+    return torch.cat([top, x, bottom], dim=-2)
+
+
 class TransformerNet(torch.nn.Module):
     def __init__(self):
         super(TransformerNet, self).__init__()
@@ -84,14 +93,11 @@ class TransformerNet(torch.nn.Module):
 class ConvLayer(torch.nn.Module):
     def __init__(self, in_channels, out_channels, kernel_size, stride):
         super(ConvLayer, self).__init__()
-        reflection_padding = kernel_size // 2
-        self.reflection_pad = torch.nn.ReflectionPad2d(reflection_padding)
+        self.pad = kernel_size // 2
         self.conv2d = torch.nn.Conv2d(in_channels, out_channels, kernel_size, stride)
 
     def forward(self, x):
-        out = self.reflection_pad(x)
-        out = self.conv2d(out)
-        return out
+        return self.conv2d(_reflect_pad(x, self.pad))
 
 
 class ResidualBlock(torch.nn.Module):
@@ -126,14 +132,10 @@ class UpsampleConvLayer(torch.nn.Module):
     def __init__(self, in_channels, out_channels, kernel_size, stride, upsample=None):
         super(UpsampleConvLayer, self).__init__()
         self.upsample = upsample
-        reflection_padding = kernel_size // 2
-        self.reflection_pad = torch.nn.ReflectionPad2d(reflection_padding)
+        self.pad = kernel_size // 2
         self.conv2d = torch.nn.Conv2d(in_channels, out_channels, kernel_size, stride)
 
     def forward(self, x):
-        x_in = x
         if self.upsample:
-            x_in = torch.nn.functional.interpolate(x_in, mode="nearest", scale_factor=self.upsample)
-        out = self.reflection_pad(x_in)
-        out = self.conv2d(out)
-        return out
+            x = torch.nn.functional.interpolate(x, mode="bilinear", scale_factor=self.upsample)
+        return self.conv2d(_reflect_pad(x, self.pad))
