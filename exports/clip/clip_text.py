@@ -74,7 +74,7 @@ with torch.no_grad():
         encoded_text_input["input_ids"], encoded_text_input["attention_mask"]
     )
 
-model_name = "clip-vit-base-patch32-text_xnnpack"
+model_name = "clip_vit_base_patch32_text_xnnpack_fp32"
 
 dynamic_shapes = {
     "input_ids": {
