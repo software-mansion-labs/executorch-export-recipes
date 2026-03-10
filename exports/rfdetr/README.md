@@ -33,7 +33,7 @@ PATH=".venv/bin:$PATH" python -m swmansion.rfdetr.export --output my_model.pte
 | Model | File | Outputs |
 |---|---|---|
 | Detection | `model_det.pte` | `boxes_xyxy [Q,4]`, `scores [Q]`, `labels [Q]` — fp32, pixel coords |
-| Segmentation | `model_seg.pte` | `pred_boxes [1,Q,4]`, `pred_logits [1,Q,91]`, `pred_masks [1,Q,78,78]` |
+| Segmentation | `model_seg.pte` | `bboxes [1,Q,4]`, `scores [1,Q,2]`, `mask_logits [1,Q,78,78]` |
 
 Detection boxes are in model pixel coordinates (0 to resolution, default 384). Scale by `orig_w/resolution` and `orig_h/resolution` to get pixel coords in the original image.
 

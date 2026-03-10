@@ -20,6 +20,7 @@ import argparse
 
 import torch
 import torch.nn as nn
+
 from .export_patches import apply_patches
 
 apply_patches()
@@ -48,14 +49,42 @@ class RFDETRDetectionWrapper(nn.Module):
         pred_boxes, pred_logits = self.model(x)
         scores, labels = pred_logits[0].sigmoid().max(dim=-1)
         boxes = pred_boxes[0]
-        cx, cy, w, h = boxes.unbind(-1)
-        w = w.clamp(min=0.0)
-        h = h.clamp(min=0.0)
-        x1 = (cx - 0.5 * w) * self.resolution
-        y1 = (cy - 0.5 * h) * self.resolution
-        x2 = (cx + 0.5 * w) * self.resolution
-        y2 = (cy + 0.5 * h) * self.resolution
-        return torch.stack([x1, y1, x2, y2], dim=-1), scores, labels.float()
+        cxy = boxes[..., :2]
+        wh = boxes[..., 2:].clamp(min=0.0)
+        half_wh = 0.5 * wh
+        bboxes = torch.cat([cxy - half_wh, cxy + half_wh], dim=-1) * self.resolution
+        return bboxes, scores, labels.float()
+
+
+class RFDETRSegmentationWrapper(nn.Module):
+    """Wraps RF-DETR Segmentation to output (bboxes [1,Q,4], scores [1,Q,2], mask_logits [1,Q,H,W]).
+
+    Boxes are xyxy in model pixel coordinates (0 to resolution).
+    Scores are [max_score, class_id], max_score is post-sigmoid.
+    Mask logits are pre-sigmoid.
+    """
+
+    def __init__(self, model: nn.Module, resolution: int):
+        super().__init__()
+        self.model = model
+        self.resolution = resolution
+
+    def forward(self, x: torch.Tensor):
+        # pred_boxes: [1, Q, 4], pred_logits: [1, Q, 91], pred_masks: [1, Q, H, W]
+        pred_boxes, pred_logits, pred_masks = self.model(x)
+
+        # Bbox: cxcywh -> xyxy via slicing (no unbind/stack roundtrip)
+        cxy = pred_boxes[..., :2]
+        wh = pred_boxes[..., 2:].clamp(min=0.0)
+        half_wh = 0.5 * wh
+        bboxes = torch.cat([cxy - half_wh, cxy + half_wh], dim=-1) * self.resolution
+
+        # Scores: [1, Q, 2] containing [max_score, class_id]
+        probs = pred_logits.sigmoid()
+        max_scores, class_ids = probs.max(dim=-1)
+        scores = torch.stack([max_scores, class_ids.float()], dim=-1)
+
+        return bboxes, scores, pred_masks
 
 
 def _lower(exported, out_path):
@@ -107,9 +136,12 @@ def export_segmentation(out_path: str = "model_seg.pte"):
     actual.export()
     resolution = model.model.resolution  # type: ignore
 
+    wrapper = RFDETRSegmentationWrapper(actual, resolution)
+    wrapper.eval()
+
     example = (torch.randn(1, 3, resolution, resolution),)
     with torch.inference_mode():
-        exported = torch.export.export(actual, args=example, strict=False)
+        exported = torch.export.export(wrapper, args=example, strict=False)
 
     _lower(exported, out_path)
 
