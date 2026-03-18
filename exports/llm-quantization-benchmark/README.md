@@ -130,3 +130,47 @@ are fixed at export time and cannot be changed without re-exporting.
 ## Example output
 
 ![output](assets/output.png)
+
+## Example commands reference
+
+### [`LFM2.5-1.2B-Instruct`](https://huggingface.co/LiquidAI/LFM2.5-1.2B-Instruct)
+
+```bash
+uv run python llm_export_benchmark.py \
+  --executorch-dir /path/to/executorch \
+  --config-yaml /path/to/configs/lfm2_5_1_2b_xnnpack.yaml \
+  --model-class lfm2_5_1_2b \
+  --model-params examples/models/lfm2/config/lfm2_5_1_2b_config.json \
+  --tokenizer LiquidAI/LFM2-1.2B \
+  --max-seq-length 2048 \
+  --max-context-length 2048
+  --discard-exports
+```
+
+### [`QWEN2.5-0.5B`](https://huggingface.co/Qwen/Qwen2.5-0.5B)
+
+```bash
+uv run python llm_export_benchmark.py \
+  --executorch-dir /path/to/executorch \
+  --config-yaml /path/to/configs/qwen2_5_0_5b_xnnpack.yaml\        
+  --model-class qwen2_5_0_5b \
+  --model-params examples/models/qwen2_5/config/0_5b_config.json \    
+  --tokenizer Qwen/Qwen2.5-0.5B \ 
+  --max-seq-length 2048 \
+  --max-context-length 2048 \
+  --discard-exports
+```
+
+### [`QWEN3-0.6B`](https://huggingface.co/Qwen/Qwen3-0.6B)
+
+```bash
+uv run python llm_export_benchmark.py \
+  --executorch-dir /path/to/executorch \
+  --config-yaml /path/to/configs/qwen3_0_6b_xnnpack.yaml\        
+  --model-class qwen3_0_6b \
+  --model-params examples/models/qwen3/config/0_6b_config.json \    
+  --tokenizer Qwen/Qwen3-0.6B \
+  --max-seq-length 2048 \
+  --max-context-length 2048 \
+  --discard-exports
+```
