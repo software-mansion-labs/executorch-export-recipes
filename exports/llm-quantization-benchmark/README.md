@@ -11,7 +11,10 @@ which quantization strategy to use in order to minimize performance degradation.
 **ExecuTorch** must be installed from source inside its own virtualenv:
 
 ```bash
-# Inside the ExecuTorch source tree:
+git clone https://github.com/pytorch/executorch.git
+cd executorch
+python3.12 -m venv .venv
+source .venv/bin/activate
 ./install_executorch.sh   
 ```
 
@@ -37,12 +40,12 @@ defined in `benchmarks`, saves results to
 Example usage:
 
 ```bash
-uv run llm_export_benchmark.py \
+uv run python llm_export_benchmark.py \
   --executorch-dir /path/to/executorch \
-  --config-yaml examples/models/lfm2/config/lfm2_xnnpack_q8da4w.yaml \
+  --config-yaml examples/models/lfm2/config/lfm2_xnnpack_fp32.yaml \
   --model-class lfm2_5_1_2b \
   --model-params examples/models/lfm2/config/lfm2_5_1_2b_config.json \
-  --tokenizer liquid-ai/lfm2-1.2b \
+  --tokenizer LiquidAI/LFM2-1.2B \
   --max-seq-length 2048 \
   --max-context-length 2048
 ```
@@ -57,7 +60,7 @@ this with per-variant overrides at runtime. Example configs for each model live
 in `examples/models/<model>/config/` inside the ExecuTorch repo, e.g.:
 
 ```text
-examples/models/lfm2/config/lfm2_xnnpack_q8da4w.yaml
+examples/models/lfm2/config/lfm2_xnnpack_fp32.yaml
 examples/models/llama/config/llama_xnnpack.yaml
 examples/models/qwen2_5/config/qwen2_5_xnnpack_q8da4w.yaml
 ```
