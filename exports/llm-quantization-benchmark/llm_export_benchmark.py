@@ -36,9 +36,9 @@ import argparse
 import subprocess
 
 from pathlib import Path
-from typing import Any, Optional
 from dataclasses import dataclass
 from abc import ABC, abstractmethod
+from typing import Any, Optional, Self
 
 import pandas as pd
 
@@ -70,6 +70,11 @@ class ETModelForCausalLMWrapper:
         self.tokenizer = AutoTokenizer.from_pretrained(_tokenizer_repo)
         self._pte_path = _pte_path
         self._model = ExecuTorchModelForCausalLM.from_pretrained(str(_pte_path.parent))
+
+    def reset(self) -> Self:
+        """Reload the model from disk, clearing any cached state."""
+        self._model = ExecuTorchModelForCausalLM.from_pretrained(str(self._pte_path.parent))
+        return self
 
     @property
     def kv_cache_capacity(self) -> int:
@@ -234,7 +239,7 @@ class ThroughputBenchmark(Benchmark):
             out = lm.generate(inp, self.max_new_tokens)
             t = time.perf_counter() - t
 
-            thp.append((len(out) - len(inp)) / t)
+            thp.append(len(out) / t)
 
             if self.verbose:
                 print(lm.tokenizer.decode(out), "\n")
