@@ -152,9 +152,9 @@ uv run python llm_export_benchmark.py \
 ```bash
 uv run python llm_export_benchmark.py \
   --executorch-dir /path/to/executorch \
-  --config-yaml /path/to/configs/qwen2_5_0_5b_xnnpack.yaml\        
+  --config-yaml /path/to/configs/qwen2_5_0_5b_xnnpack.yaml\
   --model-class qwen2_5_0_5b \
-  --model-params examples/models/qwen2_5/config/0_5b_config.json \    
+  --model-params examples/models/qwen2_5/config/0_5b_config.json \
   --tokenizer Qwen/Qwen2.5-0.5B \ 
   --max-seq-length 2048 \
   --max-context-length 2048 \
@@ -166,9 +166,9 @@ uv run python llm_export_benchmark.py \
 ```bash
 uv run python llm_export_benchmark.py \
   --executorch-dir /path/to/executorch \
-  --config-yaml /path/to/configs/qwen3_0_6b_xnnpack.yaml\        
+  --config-yaml /path/to/configs/qwen3_0_6b_xnnpack.yaml\
   --model-class qwen3_0_6b \
-  --model-params examples/models/qwen3/config/0_6b_config.json \    
+  --model-params examples/models/qwen3/config/0_6b_config.json \
   --tokenizer Qwen/Qwen3-0.6B \
   --max-seq-length 2048 \
   --max-context-length 2048 \
