@@ -18,14 +18,14 @@ paths relative to the script's own directory.
 Example usage
 -------------
 
-python3 llm_export_benchmark.py \\
+python llm_export_benchmark.py \\
   --executorch-dir /path/to/executorch \\
-  --config-yaml examples/models/lfm2/config/lfm2_xnnpack_q8da4w.yaml \\
+  --config-yaml examples/models/lfm2/config/lfm2_xnnpack_fp32.yaml \\
   --model-class lfm2_5_1_2b \\
   --model-params examples/models/lfm2/config/lfm2_5_1_2b_config.json \\
-  --tokenizer liquid-ai/lfm2-1.2b \\
+  --tokenizer LiquidAI/LFM2-1.2B \\
   --max-seq-length 2048 \\
-  --max-context-length 512
+  --max-context-length 2048
 
 """
 
@@ -35,8 +35,8 @@ import shutil
 import argparse
 import subprocess
 
-from typing import Any
 from pathlib import Path
+from typing import Any, Optional
 from dataclasses import dataclass
 from abc import ABC, abstractmethod
 
@@ -91,11 +91,11 @@ class ETModelForCausalLMWrapper:
         """Load a locally exported .pte file."""
         return cls(_pte_path=pte_path, _tokenizer_repo=tokenizer_repo)
 
-    def forward(self, input_ids: torch.Tensor, cache_pos: torch.Tensor) -> torch.Tensor:
-        return self._model.forward(input_ids, cache_pos)  # type: ignore
+    def forward(self, input_ids: torch.Tensor, cache_position: torch.Tensor) -> torch.Tensor:
+        return self._model.forward(input_ids, cache_position)  # type: ignore
 
-    def generate(self, input_ids: list[int], max_new_tokens: int) -> list[int]:
-        return self._model.generate(input_ids, max_new_tokens)  # type: ignore
+    def generate(self, prompt_tokens: list[int], max_seq_len: Optional[int] = None) -> list[int]:
+        return self._model.generate(prompt_tokens, max_seq_len=max_seq_len)  # type: ignore
 
 
 @dataclass
@@ -115,13 +115,14 @@ def run_export(name: str, overrides: list[str], config: ExportConfig) -> Path:
 
     Args:
        name (str):
-            Identifier for this export (used as output filename and subdirectory).
-        overrides (list[str]):
-            Hydra overrides appended after the base config, e.g.
-            ``["++quantization.mode=8da4w", "++quantization.group_size=32"]``.
-            Use ``++key=value`` to upsert (add or replace) any config key.
-        config (ExportConfig):
-            Export configuration (model class, paths, sequence lengths, etc.).
+           Identifier for this export (used as output filename and subdirectory).
+
+        overrides (list[str]): Hydra overrides appended after the base config,
+        e.g. `["++quantization.mode=8da4w", "++quantization.group_size=32"]`.
+        Use `++key=value` to upsert (add or replace) any config key.
+
+        config (ExportConfig): Export configuration (model class, paths,
+        sequence lengths, etc.).
 
     Returns:
         Path: path to the exported ``<name>.pte`` file.
