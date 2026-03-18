@@ -29,8 +29,8 @@ uv sync
 ### Run the benchmark
 
 The script iterates over all quantization configs defined in
-`quantization_overrides`, exports each to a `.pte` file, runs
-size/throughput/perplexity benchmarks, saves results to
+`quantization_overrides`, exports each to a `.pte` file, runs the benchmarks
+defined in `benchmarks`, saves results to
 `<output-dir>/<model-class>_results.csv`, and writes an interactive HTML plot to
 `<output-dir>/<model-class>_results.html`.
 

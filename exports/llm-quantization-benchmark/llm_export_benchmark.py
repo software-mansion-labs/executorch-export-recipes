@@ -1,18 +1,32 @@
 """
-Sweep quantization configs for an ExecuTorch LLM, benchmark each variant
-(size, throughput, perplexity), and produce a comparison CSV + HTML plot.
+Sweep quantization configs for an ExecuTorch LLM, benchmark each variant, and
+produce a comparison CSV + HTML plot.
 
 Prerequisites
 -------------
-The ExecuTorch source tree pointed to by --executorch-dir must have:
-  - A .venv virtualenv at <executorch-dir>/.venv with ExecuTorch installed
-    from source (run the provided install_executorch.sh / install_requirements.sh
+The ExecuTorch source tree pointed to by `--executorch-dir` must have:
+  - A .venv virtualenv at <executorch-dir>/.venv with ExecuTorch installed from
+    source (run the provided install_executorch.sh / install_requirements.sh
     scripts inside that repo before using this tool).
 
 Path notes
 ----------
---config-yaml and --model-params may be given as paths relative to
---executorch-dir, or as absolute paths.
+`--config-yaml` and `--model-params` accept either absolute paths or paths
+relative to `--executorch-dir`. `--output-dir` accepts either absolute paths or
+paths relative to the script's own directory.
+
+Example usage
+-------------
+
+python3 llm_export_benchmark.py \\
+  --executorch-dir /path/to/executorch \\
+  --config-yaml examples/models/lfm2/config/lfm2_xnnpack_q8da4w.yaml \\
+  --model-class lfm2_5_1_2b \\
+  --model-params examples/models/lfm2/config/lfm2_5_1_2b_config.json \\
+  --tokenizer liquid-ai/lfm2-1.2b \\
+  --max-seq-length 2048 \\
+  --max-context-length 512
+
 """
 
 import os
