@@ -247,7 +247,7 @@ class ThroughputBenchmark(Benchmark):
         return {"toks_per_sec": sum(thp) / len(thp)}
 
 
-benchmarks: list[Benchmark] = [
+BENCHMARKS: list[Benchmark] = [
     SizeBenchmark(),
     ThroughputBenchmark(
         prompts=[
@@ -268,20 +268,9 @@ benchmarks: list[Benchmark] = [
 ]
 
 
-quantization_overrides: dict[str, list[str]] = {
-    "fp32": [
-        "++model.dtype_override=fp32",
-    ],
+QUANTIZATION_CONFIGS: dict[str, list[str]] = {
     "bf16": [
         "++model.dtype_override=bf16",
-    ],
-    "8da4w_gs32": [
-        "++quantization.qmode=8da4w",
-        "++quantization.group_size=32",
-    ],
-    "8da4w_gs64": [
-        "++quantization.qmode=8da4w",
-        "++quantization.group_size=64",
     ],
     "8da4w_gs128": [
         "++quantization.qmode=8da4w",
@@ -311,11 +300,6 @@ quantization_overrides: dict[str, list[str]] = {
         "++quantization.qmode=8da4w",
         "++quantization.group_size=64",
         "++quantization.embedding_quantize='8,0'",
-    ],
-    "8da4w_gs32_kvq": [
-        "++quantization.qmode=8da4w",
-        "++quantization.group_size=32",
-        "++model.quantize_kv_cache=true",
     ],
     "8da4w_gs32_emb8_kvq": [
         "++quantization.qmode=8da4w",
@@ -365,7 +349,7 @@ def main():
     else:
         df = pd.read_csv(results_file)
 
-    for config_name, overrides in quantization_overrides.items():
+    for config_name, overrides in QUANTIZATION_CONFIGS.items():
         print(f"\n{'='*60}\n{config_name}\n{'='*60}")
 
         try:
@@ -375,7 +359,7 @@ def main():
 
             if args.recompute_benchmarks or config_name not in df["name"].values:
                 metrics = {}
-                for benchmark in benchmarks:
+                for benchmark in BENCHMARKS:
                     lm = ETModelForCausalLMWrapper.from_local(pte, args.tokenizer)
                     metrics |= benchmark.run(lm)
 
@@ -391,7 +375,7 @@ def main():
     df.to_csv(results_file, index=False)
 
     metric_registry: dict[str, bool] = {}
-    for benchmark in benchmarks:
+    for benchmark in BENCHMARKS:
         metric_registry |= benchmark.get_metrics_hib()
 
     create_plot(
