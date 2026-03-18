@@ -44,7 +44,7 @@ uv run llm_export_benchmark.py \
   --model-params examples/models/lfm2/config/lfm2_5_1_2b_config.json \
   --tokenizer liquid-ai/lfm2-1.2b \
   --max-seq-length 2048 \
-  --max-context-length 512
+  --max-context-length 2048
 ```
 
 > **Path resolution:** `--config-yaml` and `--model-params` may be given as
@@ -109,9 +109,8 @@ Must match the model checkpoint being exported.
 
 Control the KV cache dimensions baked into the exported `.pte` file.
 `--max-seq-length` is the total number of positions the model is compiled for;
-`--max-context-length` is the usable KV cache capacity at inference time
-(must be ≤ `--max-seq-length`). These are fixed at export time and cannot be
-changed without re-exporting.
+`--max-context-length` is the usable KV cache capacity at inference time. These
+are fixed at export time and cannot be changed without re-exporting.
 
 ### Optional flags
 
