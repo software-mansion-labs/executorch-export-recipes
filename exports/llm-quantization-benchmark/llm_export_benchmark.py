@@ -374,13 +374,13 @@ def main():
 
     df.to_csv(results_file, index=False)
 
-    metric_registry: dict[str, bool] = {}
+    metrics_hib: dict[str, bool] = {}
     for benchmark in BENCHMARKS:
-        metric_registry |= benchmark.get_metrics_hib()
+        metrics_hib |= benchmark.get_metrics_hib()
 
     create_plot(
         df,
-        metric_registry=metric_registry,
+        metric_registry=metrics_hib,
         save_path=plot_file,
         title=f"{args.model_class} Benchmark Results",
     )
