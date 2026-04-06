@@ -1,0 +1,26 @@
+[project]
+name = "llm-quantization-benchmark"
+version = "0.1.0"
+requires-python = ">=3.12"
+dependencies = [
+    "executorch>=1.1.0",
+    "matplotlib>=3.10.8",
+    "torch>=2.10.0",
+    "huggingface-hub>=0.27",
+    "transformers>=4.47",
+    "datasets>=3.0",
+    "psutil>=6.0",
+    "tabulate>=0.9",
+    "tqdm>=4.66",
+    "plotly>=5.0",
+    "jupyter>=1.1.1",
+    "ipywidgets>=8.1.8",
+]
+
+[dependency-groups]
+dev = [
+    "optimum-executorch",
+]
+
+[tool.uv.sources]
+optimum-executorch = { git = "https://github.com/huggingface/optimum-executorch.git" }

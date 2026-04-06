@@ -1,0 +1,14 @@
+{
+  "dim": 3584,
+  "ffn_dim_multiplier": 1,
+  "hidden_dim": 18944,
+  "n_heads": 28,
+  "n_kv_heads": 4,
+  "n_layers": 28,
+  "norm_eps": 1e-06,
+  "rope_theta": 1000000.0,
+  "use_scaled_rope": false,
+  "vocab_size": 152064,
+  "use_hf_rope": true,
+  "attention_qkv_bias": true
+}

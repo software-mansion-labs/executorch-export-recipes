@@ -1,0 +1,8 @@
+model:
+  use_kv_cache: True
+  use_sdpa_with_kv_cache: True
+
+backend:
+  xnnpack:
+    enabled: True
+    extended_ops: True
