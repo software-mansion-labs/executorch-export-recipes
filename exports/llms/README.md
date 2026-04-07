@@ -699,22 +699,22 @@ graphs with plotted Pareto frontiers.
 The table below provides one recommended quantization setup per model based on
 the benchmark outputs in `results/*/results.csv`.
 
-| Model           | Recommended quant config | KL div (lower better) | toks/s (higher better) | Size MB |
-|-----------------|--------------------------|----------------------:|-----------------------:|--------:|
-| hammer2_1_0_5b  | 8da4w_gs32_emb8_0        |                0.1836 |                  8.820 |   397.8 |
-| hammer2_1_1_5b  | 8da4w_gs32_emb8_32       |                0.0922 |                  7.018 | 1,082.9 |
-| hammer2_1_3b    | 8da4w_gs32_emb8_0        |                0.2968 |                  4.936 | 1,957.5 |
-| lfm2_5_1_2b     | 8da4w_gs32_emb8_0        |                0.1462 |                 11.316 |   758.8 |
-| lfm2_5_350m     | 8da4w_gs32_emb8_32       |                1.0472 |                  7.746 |   264.7 |
-| llama3_2_1b     | 8da4w_gs32_emb8_64       |                0.1750 |                  9.565 |   930.7 |
-| llama3_2_3b     | 8da4w_gs32_emb8_32       |                0.0801 |                  4.849 | 2,149.4 |
-| phi_4_mini      | 8da4w_gs32_emb8_64       |                0.6415 |                  4.838 | 2,684.9 |
-| qwen2_5_0_5b    | 8da4w_gs32_emb8_0        |                0.2224 |                  8.793 |   398.2 |
-| qwen2_5_1_5b    | 8da4w_gs32_emb8_32       |                0.1606 |                  7.059 | 1,083.5 |
-| qwen2_5_3b      | 8da4w_gs32_emb8_32       |                0.1980 |                  4.700 | 1,994.8 |
-| qwen3_0_6b      | 8da4w_gs32_emb8_64       |                0.2035 |                  6.126 |   482.3 |
-| qwen3_1_7b      | 8da4w_gs32_emb8_64       |                0.2014 |                  6.001 | 1,243.3 |
-| qwen3_4b        | 8da4w_gs32_emb8_64       |                0.1221 |                  4.768 | 2,557.4 |
-| smollm2_135m    | 8da4w_default            |                0.1216 |                  5.641 |   534.5 |
-| smollm2_1_7b    | 8da4w_gs64_emb8_64       |                0.7007 |                  6.485 |   970.9 |
-| smollm2_360m    | 8da4w_default            |                0.0836 |                  5.279 | 1,300.6 |
+| Model           | Recommended quant config |
+|-----------------|--------------------------|
+| hammer2_1_0_5b  | 8da4w_gs32_emb8_0        |
+| hammer2_1_1_5b  | 8da4w_gs32_emb8_32       |
+| hammer2_1_3b    | 8da4w_gs32_emb8_0        |
+| lfm2_5_1_2b     | 8da4w_gs32_emb8_0        |
+| lfm2_5_350m     | 8da4w_gs32_emb8_32       |
+| llama3_2_1b     | 8da4w_gs32_emb8_64       |
+| llama3_2_3b     | 8da4w_gs32_emb8_32       |
+| phi_4_mini      | 8da4w_gs32_emb8_64       |
+| qwen2_5_0_5b    | 8da4w_gs32_emb8_0        |
+| qwen2_5_1_5b    | 8da4w_gs32_emb8_32       |
+| qwen2_5_3b      | 8da4w_gs32_emb8_32       |
+| qwen3_0_6b      | 8da4w_gs32_emb8_64       |
+| qwen3_1_7b      | 8da4w_gs32_emb8_64       |
+| qwen3_4b        | 8da4w_gs32_emb8_64       |
+| smollm2_135m    | 8da4w_default            |
+| smollm2_1_7b    | 8da4w_gs64_emb8_64       |
+| smollm2_360m    | 8da4w_default            |
