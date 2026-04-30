@@ -6,14 +6,12 @@ react-native-executorch:
 - `sentence-transformers/paraphrase-multilingual-MiniLM-L12-v2`
 - `sentence-transformers/distiluse-base-multilingual-cased-v2`
 
-> **Heads up — paraphrase-multilingual-MiniLM-L12-v2 is not usable in RNE
-> today.** Its tokenizer is Unigram + Precompiled normalizer + Metaspace
-> decoder, none of which `executorch/extension/llm/tokenizers` supports in the
-> shipped runtime (only BPE / WordPiece / BertNormalizer / TemplateProcessing
-> strings are linked in). The export still succeeds and the numbers are
-> correct, but `loadTokenizerModule` fails with error code 167 at runtime.
-> Unblocking this needs an upstream change in
-> [pytorch/extension/llm/tokenizers](https://github.com/pytorch/executorch/tree/main/extension/llm/tokenizers).
+> **Tokenizer-runtime requirement.** Paraphrase ships a Unigram model with a
+> Precompiled normalizer and Metaspace decoder. RNE ≤ 0.8.x linked an older
+> `executorch/extension/llm/tokenizers` build that only handled BPE /
+> WordPiece / BertNormalizer / TemplateProcessing and rejected paraphrase's
+> `tokenizer.json` with error code 167 at `loadTokenizerModule`. RNE 0.9.0+
+> bumps the tokenizer runtime so both models load.
 
 ## Prerequisites
 
@@ -31,33 +29,38 @@ react-native-executorch:
    `optree` is required because PyTorch nightly pulls it in for pytree
    handling even though it's listed as optional.
 
-3. The scripts expect to reach HuggingFace to download weights and the
-   `2_Dense/model.safetensors` projection head for distiluse.
+3. The scripts expect to reach HuggingFace to download model weights. The
+   distiluse script additionally pulls `2_Dense/model.safetensors` (the
+   768→512 projection head sentence-transformers stores in `2_Dense/`);
+   paraphrase has no such head — its output dim equals the encoder hidden
+   size (384).
 
 ## Running the export
 
-From this directory:
+RNE 0.9.0 ships all four variants per model. Re-export them with:
 
 ```bash
-# distiluse — XNNPACK fp32, the variant RNE actually consumes
-python distiluse_base_multilingual_cased_v2.py \
-    --backend xnnpack --precision fp32 --output-dir /path/to/out
-
-# paraphrase — same interface, but see the "not usable in RNE" note above
-python paraphrase_multilingual_minilm_l12_v2.py \
-    --backend xnnpack --precision fp32 --output-dir /path/to/out
+for combo in "xnnpack fp32" "xnnpack 8da4w" "coreml fp32" "coreml fp16"; do
+    read -r b p <<< "$combo"
+    python distiluse_base_multilingual_cased_v2.py \
+        --backend "$b" --precision "$p" --output-dir /path/to/out
+    python paraphrase_multilingual_minilm_l12_v2.py \
+        --backend "$b" --precision "$p" --output-dir /path/to/out
+done
 ```
 
-Each script writes two files to `--output-dir`:
+Each invocation writes one `.pte` plus (on the first call per model) a
+shared `tokenizer.json`:
 
 | File | Purpose |
 |------|---------|
-| `<model>_xnnpack_fp32.pte` | ExecuTorch program |
-| `<model>_tokenizer.json`   | HF fast tokenizer dump (prefixed name so multiple models can share one dir) |
+| `<model>_<backend>_<precision>.pte` | ExecuTorch program for that variant |
+| `<model>_tokenizer.json`            | HF fast tokenizer dump (prefixed so multiple models can share one dir) |
 
 At the end the script runs the program through the ExecuTorch Python runtime
-and asserts `torch.allclose(runtime_out, eager_out, atol=1e-4)`. If that
-passes the export is bit-equivalent to the PyTorch reference.
+and asserts `torch.allclose(runtime_out, eager_out)` with an atol that
+varies by precision (1e-4 for fp32, 5e-3 for fp16, 5e-2 for 8da4w). Pass
+`--skip-verify` to skip the runtime check + benchmark when batch-exporting.
 
 ### Supported (backend, precision) matrix
 
@@ -85,40 +88,43 @@ Llama path in `examples/models/llama/source_transformation/quantize.py`
 avoids this with a hand-rolled `EmbeddingQuantHandler` but porting that is a
 separate piece of work.
 
-## Why the distiluse script looks the way it does
+## Why the scripts look the way they do
 
-A few non-obvious design choices — all driven by profiling with the
+A few non-obvious design choices — most driven by profiling with the
 executorch-profiler (section below):
 
-- **`attention_mask=None` is passed to the transformer.** RNE tokenizes a
-  single string per call and never pads, so the mask is always all-ones.
-  Passing it triggers HF's `masking_utils.create_bidirectional_mask` →
-  `torch.where(bool_mask, 0.0, -inf)` → a chain of `where`/`eq`/`any`/
-  `logical_not`/`expand_copy` ops that XNNPACK can't delegate. We still
-  concatenate CLS/SEP into `attention_mask` for future-proofing; the
-  transformer just doesn't see it. This trims ~10 ms off the forward
-  (48 ms → 35 ms) without changing the output.
-
-- **Mean pooling uses the explicit `sum / clamp(sum_mask, 1e-9)` form**,
-  not `Tensor.mean(dim=1)`. `mean` lowers to `native_call_mean.out`, which
-  XNNPACK does **not** delegate — switching to it regresses the delegation
-  ratio by ~6 pp. The explicit form decomposes to XNNPACK-friendly
-  mul/sum/div.
-
-- **Forward returns a 1-tuple.** A plain single-tensor return creates a
-  `LeafSpec` output spec. A PyTorch-nightly bug means a newly constructed
-  `LeafSpec` instance has no `.type` attribute (despite the dataclass field
-  declaring it), and `torch.export` then crashes at
+- **Forward returns a 1-tuple.** Both scripts. A plain single-tensor return
+  creates a `LeafSpec` output spec. A PyTorch-nightly bug means a newly
+  constructed `LeafSpec` instance has no `.type` attribute (despite the
+  dataclass field declaring it), and `torch.export` then crashes at
   `_decompose_and_get_gm_with_new_signature_constants`. Returning a tuple
   forces a `TreeSpec`, which has `.type` populated, and sidesteps the bug.
 
-- **The script monkey-patches `torch.utils._pytree.LeafSpec`** at import
-  time (`__new__` pre-sets `type=None`, `_context=None`, `_children=[]`;
-  `__getattr__` returns those defaults for instances that skipped `__new__`
-  — e.g. deepcopy reconstructs via `__reduce__`). Without this patch,
-  downstream deepcopy paths inside the edge-lowering pass still hit the
-  same AttributeError on `.type`. When PyTorch ships a fix, the patch
-  becomes a no-op (the guard clause exits early).
+- **The scripts monkey-patch `torch.utils._pytree.LeafSpec`** at import
+  time. Both scripts. (`__new__` pre-sets `type=None`, `_context=None`,
+  `_children=[]`; `__getattr__` returns those defaults for instances that
+  skipped `__new__` — e.g. deepcopy reconstructs via `__reduce__`).
+  Without this patch, downstream deepcopy paths inside the edge-lowering
+  pass still hit the same AttributeError on `.type`. When PyTorch ships a
+  fix, the patch becomes a no-op (the guard clause exits early).
+
+- **`attention_mask=None` is passed to the transformer.** Distiluse only.
+  RNE tokenizes a single string per call and never pads, so the mask is
+  always all-ones. Passing it triggers HF's
+  `masking_utils.create_bidirectional_mask` → `torch.where(bool_mask, 0.0,
+  -inf)` → a chain of `where`/`eq`/`any`/`logical_not`/`expand_copy` ops
+  that XNNPACK can't delegate. We still concatenate CLS/SEP into
+  `attention_mask` for future-proofing; the transformer just doesn't see
+  it. This trims ~10 ms off the forward (48 ms → 35 ms) without changing
+  the output. **Paraphrase keeps the mask wired through** — its profile
+  hasn't been re-measured to confirm the same win is worth the export
+  divergence; revisit if/when we run the profiler against paraphrase.
+
+- **Mean pooling uses the explicit `sum / clamp(sum_mask, 1e-9)` form**,
+  not `Tensor.mean(dim=1)`. Both scripts. `mean` lowers to
+  `native_call_mean.out`, which XNNPACK does **not** delegate — switching
+  to it regresses the delegation ratio by ~6 pp. The explicit form
+  decomposes to XNNPACK-friendly mul/sum/div.
 
 ## Verifying delegation % with executorch-profiler
 
@@ -221,18 +227,32 @@ separate from this export.
 
 ## Artifacts produced for RNE
 
-For the local-testing flow documented in
-`packages/react-native-executorch/src/constants/modelUrls.ts` (look for the
-`LOCAL_DEV_HOST` block), serve these four files over
-`python -m http.server 8000`:
+A full export run produces ten files (4 `.pte` + 1 `tokenizer.json` per
+model):
 
 ```
-<out>/distiluse-base-multilingual-cased-v2_xnnpack_fp32.pte
 <out>/distiluse-base-multilingual-cased-v2_tokenizer.json
-<out>/paraphrase-multilingual-MiniLM-L12-v2_xnnpack_fp32.pte     # still blocked by tokenizer
-<out>/paraphrase-multilingual-MiniLM-L12-v2_tokenizer.json       # still blocked by tokenizer
+<out>/distiluse-base-multilingual-cased-v2_xnnpack_fp32.pte
+<out>/distiluse-base-multilingual-cased-v2_xnnpack_8da4w.pte
+<out>/distiluse-base-multilingual-cased-v2_coreml_fp32.pte
+<out>/distiluse-base-multilingual-cased-v2_coreml_fp16.pte
+<out>/paraphrase-multilingual-MiniLM-L12-v2_tokenizer.json
+<out>/paraphrase-multilingual-MiniLM-L12-v2_xnnpack_fp32.pte
+<out>/paraphrase-multilingual-MiniLM-L12-v2_xnnpack_8da4w.pte
+<out>/paraphrase-multilingual-MiniLM-L12-v2_coreml_fp32.pte
+<out>/paraphrase-multilingual-MiniLM-L12-v2_coreml_fp16.pte
 ```
 
-Once the HF repos under `software-mansion/react-native-executorch-<slug>`
-are populated, the `LOCAL_DEV_HOST` block gets swapped for the commented
-`URL_PREFIX` lines in the same file.
+These are uploaded to the public HF repos under
+`software-mansion/react-native-executorch-<slug>` (tagged `v0.9.0`),
+sharded into `xnnpack/` and `coreml/` subfolders with the tokenizer at
+the root. The `URL_PREFIX` / `NEXT_VERSION_TAG` constants in
+`packages/react-native-executorch/src/constants/modelUrls.ts` resolve to
+those paths.
+
+For local pre-publish testing, serve `<out>/` directly with
+`python -m http.server 8000` and override the picker entry's
+`modelSource` / `tokenizerSource` in
+`apps/text-embeddings/app/text-embeddings/index.tsx` to point at
+`http://localhost:8000/<filename>` (or `http://10.0.2.2:8000/...` for
+Android emulators).
