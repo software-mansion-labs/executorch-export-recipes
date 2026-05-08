@@ -44,11 +44,13 @@ class FastSAMInstanceSegmentation(nn.Module):
         method_size: int,
         topk: int = 300,
         mask_size: int | None = None,
+        sort_topk: bool = False,
     ) -> None:
         super().__init__()
         self.inner = inner
         self.inner.eval()
         self.inner.model[-1].export = True
+        self.sort_topk = sort_topk
 
         with torch.no_grad():
             preds, protos = self.inner(torch.randn(1, 3, method_size, method_size))
@@ -75,7 +77,7 @@ class FastSAMInstanceSegmentation(nn.Module):
         # Select top-k anchors by confidence before the expensive bmm.
         # topk is fixed at init time so shapes remain static for export.
         conf_scores = preds[:, 4, :]                          # [B, Q]
-        top_idx = conf_scores.topk(self.topk, dim=1, sorted=False).indices  # [B, K]
+        top_idx = conf_scores.topk(self.topk, dim=1, sorted=self.sort_topk).indices  # [B, K]
         preds = preds.gather(
             2, top_idx.unsqueeze(1).expand(-1, preds.shape[1], -1)
         )                                                      # [B, 37, K]

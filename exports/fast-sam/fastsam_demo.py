@@ -14,6 +14,7 @@ Controls:
 """
 
 import argparse
+import time
 from pathlib import Path
 
 import cv2
@@ -22,6 +23,7 @@ import torch
 import torch.nn.functional as F
 from executorch.runtime import Runtime
 
+DEFAULT_MODEL = Path("output/fastsam-x/coreml/fastsam-x_fp16.pte")
 DEFAULT_MODEL = Path("output/fastsam-x/xnnpack/fastsam-x.pte")
 DEFAULT_IMAGE = Path("assets/cat.jpg")
 INPUT_SIZE = (640, 640)
@@ -44,10 +46,17 @@ class FastSAMExecuTorch:
             raise RuntimeError("Model has no 'forward' method.")
 
     def run(self, image: np.ndarray):
-        """Run inference. Returns (bbox [Q,4], scores [Q,2], mask_logits [Q,H,W])."""
+        """Run inference with timing. Returns detections and timing dict."""
+        t_preproc_start = time.perf_counter()
         tensor, ratio_pad = _preprocess(image)
+        t_preproc = time.perf_counter() - t_preproc_start
+        
+        t_infer_start = time.perf_counter()
         bbox, scores, mask_logits = self.method.execute((tensor,))
-        return bbox[0], scores[0], mask_logits[0], ratio_pad
+        t_infer = time.perf_counter() - t_infer_start
+        
+        timing = {"preprocess_ms": t_preproc * 1000, "inference_ms": t_infer * 1000}
+        return bbox[0], scores[0], mask_logits[0], ratio_pad, timing
 
 
 # ---------------------------------------------------------------------------
@@ -146,14 +155,22 @@ def _nms(boxes: torch.Tensor, scores: torch.Tensor, iou_threshold: float) -> tor
     return torch.stack(keep) if keep else boxes.new_zeros(0, dtype=torch.long)
 
 
-def predict(model: FastSAMExecuTorch, image: np.ndarray) -> list[dict]:
-    bbox, scores_tensor, mask_logits, ratio_pad = model.run(image)
+def predict(model: FastSAMExecuTorch, image: np.ndarray) -> tuple[list[dict], dict]:
+    t_total_start = time.perf_counter()
+    bbox, scores_tensor, mask_logits, ratio_pad, model_timing = model.run(image)
 
+    t_postproc_start = time.perf_counter()
     conf = scores_tensor[:, 0]
     keep = conf > CONF_THRESHOLD
     bbox, conf, mask_logits = bbox[keep], conf[keep], mask_logits[keep]
     if bbox.shape[0] == 0:
-        return []
+        timing = {
+            "preprocess_ms": model_timing["preprocess_ms"],
+            "inference_ms": model_timing["inference_ms"],
+            "postprocess_ms": (time.perf_counter() - t_postproc_start) * 1000,
+            "total_ms": (time.perf_counter() - t_total_start) * 1000,
+        }
+        return [], timing
 
     keep_idx = _nms(bbox, conf, IOU_THRESHOLD)
     bbox       = bbox[keep_idx]
@@ -170,10 +187,17 @@ def predict(model: FastSAMExecuTorch, image: np.ndarray) -> list[dict]:
     bbox_orig = bbox_orig.numpy()
     conf      = conf.numpy()
 
+    timing = {
+        "preprocess_ms": model_timing["preprocess_ms"],
+        "inference_ms": model_timing["inference_ms"],
+        "postprocess_ms": (time.perf_counter() - t_postproc_start) * 1000,
+        "total_ms": (time.perf_counter() - t_total_start) * 1000,
+    }
+
     return [
         {"box": bbox_orig[i], "score": float(conf[i]), "mask": masks[i]}
         for i in range(len(bbox_orig))
-    ]
+    ], timing
 
 
 # ---------------------------------------------------------------------------
@@ -272,8 +296,14 @@ def run_app(image_path: Path, model_path: Path) -> None:
         raise FileNotFoundError(f"Cannot load image: {image_path}")
 
     print("Running inference...")
-    detections = predict(model, image)
+    detections, timing = predict(model, image)
     print(f"Found {len(detections)} instances.")
+    print(f"\nTiming breakdown:")
+    print(f"  Preprocess:    {timing['preprocess_ms']:7.2f} ms")
+    print(f"  Inference:     {timing['inference_ms']:7.2f} ms")
+    print(f"  Postprocess:   {timing['postprocess_ms']:7.2f} ms")
+    print(f"  ─────────────────────────")
+    print(f"  Total:         {timing['total_ms']:7.2f} ms")
 
     state = {
         "image": image,
