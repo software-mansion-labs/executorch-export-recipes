@@ -34,13 +34,10 @@ class ProcessorTorchModule(torch.nn.Module):
 
     def pad(self, mel_spec):
         """Ensures output has shape (80, 3000) by padding or truncating along time axis (dim=1)."""
-        _, target_time = [80, 3000]
-        _, current_time = mel_spec.shape
-        pad_amount = target_time - current_time + 1 # Add 1 to fix the issue of empty padding (Out tensor is too small for the copy operation.)
-        mel_spec = torch.nn.functional.pad(
-            mel_spec, (0, pad_amount), mode="constant", value=0
-        )
-        return mel_spec[:, :target_time]
+        # Use a static over-pad (3001) then a static slice — avoids dynamic padding amounts
+        # which CoreML cannot lower for multi-dimensional tensors. The extra zeros are harmless.
+        mel_spec = torch.nn.functional.pad(mel_spec, (0, 3001), mode="constant", value=0)
+        return mel_spec[:, :3000]
 
     def forward(self, waveform: torch.Tensor) -> torch.Tensor:
         # 1. Compute STFT using Conv1d for XNNPACK delegation (avoids non-delegated complex ops)

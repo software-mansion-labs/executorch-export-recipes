@@ -117,23 +117,28 @@ def main():
         # Encoder
         encodings = encode_method.execute([audio_tensor])[0]
         
-        # Decoder (Greedy)
-        tokens = [50257, 50363]
-        current_tokens = torch.tensor([tokens], dtype=torch.long)
-        current_positions = torch.tensor([0, 1], dtype=torch.long)
-        
+        # Decoder (Greedy) — static [1,1] decode: feed one token at a time
+        prompt_tokens = [50257, 50363]  # <|startoftranscript|> <|notimestamps|>
+        for pos, tok in enumerate(prompt_tokens):
+            outputs = decode_method.execute([
+                torch.tensor([[tok]], dtype=torch.long),
+                torch.tensor([pos], dtype=torch.long),
+                encodings,
+            ])
+        logits = outputs[0]
+
         generated_tokens = []
-        for _ in range(126):
-            outputs = decode_method.execute([current_tokens, current_positions, encodings])
-            logits = outputs[0]
+        for step in range(126):
             next_token = torch.argmax(logits[0, -1, :]).item()
-            
-            if next_token == 50256: # EOS
+            if next_token == 50256:  # EOS
                 break
-                
             generated_tokens.append(next_token)
-            current_tokens = torch.tensor([[next_token]], dtype=torch.long)
-            current_positions = torch.tensor([len(tokens) + len(generated_tokens) - 1], dtype=torch.long)
+            outputs = decode_method.execute([
+                torch.tensor([[next_token]], dtype=torch.long),
+                torch.tensor([len(prompt_tokens) + step], dtype=torch.long),
+                encodings,
+            ])
+            logits = outputs[0]
 
         hypothesis_text = tokenizer.decode(generated_tokens, skip_special_tokens=True)
         elapsed = time.perf_counter() - start_time
