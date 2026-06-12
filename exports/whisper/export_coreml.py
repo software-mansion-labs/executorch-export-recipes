@@ -16,7 +16,7 @@ if _repo_root not in sys.path:
     sys.path.insert(0, _repo_root)
 
 from custom_whisper import load_model
-from custom_whisper.model import AudioEncoder, TextDecoder
+from custom_whisper.model import AudioEncoder, TextDecoder, LayerNorm
 from custom_whisper.preprocessor import ProcessorTorchModule
 import coremltools as ct
 from executorch.backends.apple.coreml.compiler import CoreMLBackend
@@ -44,21 +44,23 @@ class EncoderWrapper(torch.nn.Module):
         self._preprocessor = preprocessor
         self._encoder = encoder
         self._n_fft = 512
+        self._encoder_dtype = next(encoder.parameters()).dtype
 
     def forward(self, waveform: torch.Tensor) -> torch.Tensor:
         log_mel = self._preprocessor(waveform)
-        return self._encoder(log_mel.unsqueeze(0))
+        return self._encoder(log_mel.unsqueeze(0).to(self._encoder_dtype)).float()
 
 
 class DecoderWrapper(torch.nn.Module):
     def __init__(
-        self, decoder: TextDecoder
+        self, decoder: TextDecoder, dtype: torch.dtype
     ) -> None:
         super().__init__()
         self.decoder = decoder
+        self.dtype = dtype
 
     def forward(self, tokens: torch.LongTensor, positions: torch.LongTensor, encodings: torch.FloatTensor):
-        return self.decoder(tokens, positions, encodings)
+        return self.decoder(tokens, positions, encodings.to(self.dtype))
 
 
 # ----------------
@@ -101,12 +103,25 @@ def main():
 
         decoder: TextDecoder = model.decoder
 
-        hf_preprocessor = AutoProcessor.from_pretrained(f"openai/whisper-{args.model_type}")
-        preprocessor = ProcessorTorchModule(hf_preprocessor)
-        preprocessor.eval()
+        # LayerNorm.forward upcasts the activation to fp32 (x.float()) but leaves gamma/beta
+        # in the model dtype. For fp16/bf16 exports this yields a layer_norm op with fp32 x
+        # and fp16 gamma, which CoreML rejects. Keep gamma/beta in fp32 to match the activation;
+        # the output is cast back to x.dtype inside forward, so this is safe (no-op for fp32).
+        for module in model.modules():
+            if isinstance(module, LayerNorm):
+                module.float()
 
-        encoder_wrapper = EncoderWrapper(preprocessor, encoder)
-        decoder_wrapper = DecoderWrapper(decoder)
+    # The preprocessor MUST be built outside the fp16/bf16 default-dtype context. Its STFT
+    # kernel construction computes an integer outer product k * n (up to 256 * 511 = 130816)
+    # which overflows the fp16 max (65504) -> inf -> cos(inf) = NaN, poisoning the whole encoder.
+    # Audio feature extraction also wants fp32 precision; the EncoderWrapper casts the resulting
+    # log-mel to the encoder dtype, and the runtime always feeds a fp32 waveform.
+    hf_preprocessor = AutoProcessor.from_pretrained(f"openai/whisper-{args.model_type}")
+    preprocessor = ProcessorTorchModule(hf_preprocessor)
+    preprocessor.eval()
+
+    encoder_wrapper = EncoderWrapper(preprocessor, encoder)
+    decoder_wrapper = DecoderWrapper(decoder, dtype=torch_dtype)
 
     # ------------------
     # Exporting methods
@@ -114,7 +129,9 @@ def main():
     print(f"[2/3] Exporting 'encode' and 'decode' methods...")
 
     SAMPLE_RATE = 16000
-    encode_inputs = (torch.randn(16 * SAMPLE_RATE, dtype=torch_dtype),)
+    # Waveform is always fp32 (matches the runtime, which loads audio as fp32); the preprocessor
+    # runs in fp32 and the EncoderWrapper casts the log-mel to the encoder dtype internally.
+    encode_inputs = (torch.randn(16 * SAMPLE_RATE, dtype=torch.float32),)
     T_audio = Dim("T_audio", min=201, max=30 * SAMPLE_RATE)
     encode_dynamic_shapes = ({0: T_audio},)
 
@@ -127,7 +144,7 @@ def main():
     decode_inputs = (
         torch.randint(1, 100, size=(1, 1)),
         torch.tensor([0], dtype=torch.long),
-        torch.randn(1, 1500, n_audio_state, dtype=torch_dtype),
+        torch.randn(1, 1500, n_audio_state, dtype=torch.float32),
     )
 
     print("  - Exporting 'decode'...")
@@ -145,6 +162,7 @@ def main():
         compute_precision=ct.precision.FLOAT32,   # FLOAT16 hallucinates on Whisper
         compute_unit=ct.ComputeUnit.ALL,            # NE+GPU+CPU; transformer benefits from GPU
         model_type=CoreMLBackend.MODEL_TYPE.MODEL,
+        minimum_deployment_target=ct.target.iOS16
     )
     if args.int8_weights:
         compile_spec_kwargs["op_linear_quantizer_config"] = {
