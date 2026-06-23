@@ -46,16 +46,14 @@ def resolve_from_metadata(modules_json, pooling_json, model_type, architectures)
 
 def _try_hub_json(source: str, filename: str):
     import json
+    from pathlib import Path
     from huggingface_hub import hf_hub_download
     from huggingface_hub.utils import EntryNotFoundError
     try:
         path = hf_hub_download(source, filename)
-    except (EntryNotFoundError, Exception):
+    except EntryNotFoundError:
         return None
-    try:
-        return json.loads(open(path).read())
-    except Exception:
-        return None
+    return json.loads(Path(path).read_text())
 
 
 def resolve_wrapper(source: str) -> WrapperResolution:
