@@ -1,0 +1,25 @@
+{
+  "$schema": "https://huggingface.co/software-mansion/react-native-executorch-spec/resolve/main/config.schema.json",
+  "source": "sentence-transformers/multi-qa-mpnet-base-dot-v1",
+  "model": "multi_qa_mpnet_base_dot_v1",
+  "capabilities": ["text-embedding"],
+  "backend": "xnnpack",
+  "license": "apache-2.0",
+  "variants": [
+    {
+      "file": "multi_qa_mpnet_base_dot_v1_xnnpack_fp32.pte",
+      "precision": "fp32",
+      "quantized": false,
+      "default": true,
+      "methods": {
+        "forward": {
+          "inputs": [
+            { "shape": [1, 510], "dtype": "int64" },
+            { "shape": [1, 510], "dtype": "int64" }
+          ],
+          "outputs": [{ "shape": [1, 768], "dtype": "float32" }]
+        }
+      }
+    }
+  ]
+}
