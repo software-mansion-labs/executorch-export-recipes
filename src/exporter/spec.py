@@ -1,5 +1,5 @@
 import json
-from dataclasses import dataclass, field
+from dataclasses import dataclass
 from pathlib import Path
 
 from .errors import SpecError
@@ -66,6 +66,8 @@ def _require(data: dict, key: str, typ: type):
 def _io(items: list) -> list[IOTensor]:
     out = []
     for t in items:
+        if "shape" not in t or "dtype" not in t:
+            raise SpecError(f"tensor entry must have 'shape' and 'dtype', got {t}")
         out.append(IOTensor(shape=list(t["shape"]), dtype=str(t["dtype"])))
     return out
 
@@ -84,6 +86,8 @@ def load_spec(data: dict) -> Spec:
     for rv in raw_variants:
         methods = {}
         for mname, m in _require(rv, "methods", dict).items():
+            if "inputs" not in m or "outputs" not in m:
+                raise SpecError(f"method '{mname}' must have 'inputs' and 'outputs'")
             methods[mname] = Method(
                 name=mname,
                 inputs=_io(m["inputs"]),

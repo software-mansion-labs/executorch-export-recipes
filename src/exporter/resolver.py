@@ -24,8 +24,19 @@ def _pooling_mode(pooling_json: dict | None) -> str:
     return "mean"
 
 
+_HANDLED_ST_SUBSTRINGS = ("Transformer", "Pooling", "Normalize")
+
+
 def resolve_from_metadata(modules_json, pooling_json, model_type, architectures) -> WrapperResolution:
     if _is_sentence_transformer(modules_json):
+        for m in modules_json:
+            mtype = m.get("type", "")
+            if not any(s in mtype for s in _HANDLED_ST_SUBSTRINGS):
+                raise WrapperNotFoundError(
+                    f"sentence-transformers model has unsupported module '{mtype}'; "
+                    f"the sbert wrapper only handles Transformer+Pooling(+Normalize). "
+                    f"Add support in wrappers/sbert.py or export this model manually."
+                )
         normalize = any("Normalize" in m.get("type", "") for m in modules_json)
         return WrapperResolution(
             wrapper="sbert",

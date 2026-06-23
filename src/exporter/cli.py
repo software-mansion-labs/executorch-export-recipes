@@ -95,8 +95,10 @@ def main(argv: list[str] | None = None) -> int:
             return 0
 
         if args.command == "verify":
+            from pathlib import Path
             spec = load_spec_file(args.config)
-            variant = spec.default_variant()
+            pte_name = Path(args.pte).name
+            variant = next((v for v in spec.variants if v.file == pte_name), spec.default_variant())
             actual = read_pte_io(args.pte)
             check = compare_io(variant.methods, actual)
             _emit({"ok": check.ok, "deltas": check.deltas}, jm)
