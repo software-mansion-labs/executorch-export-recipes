@@ -90,11 +90,9 @@ def example_inputs_and_shapes(method: Method):
     import torch
     from torch.export import Dim
     inputs = tuple(torch.zeros(tuple(t.shape), dtype=torch.int64) for t in method.inputs)
-    max_tokens = method.inputs[0].shape[-1]
-    dim = Dim("tokens", min=1, max=max_tokens)
-    dynamic_shapes = {f"arg{i}": {len(t.shape) - 1: dim} for i, t in enumerate(method.inputs)}
-    # torch.export keys dynamic_shapes by positional arg name; build a positional tuple instead.
-    dynamic = tuple({len(t.shape) - 1: dim} for t in method.inputs)
+    dim = Dim("tokens", min=1, max=method.inputs[0].shape[-1])
+    arg_names = ["input_ids", "attention_mask"]
+    dynamic = {arg_names[i]: {len(t.shape) - 1: dim} for i, t in enumerate(method.inputs)}
     return inputs, dynamic
 
 
