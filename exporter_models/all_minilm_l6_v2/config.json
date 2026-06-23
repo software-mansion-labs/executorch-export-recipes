@@ -1,0 +1,25 @@
+{
+  "$schema": "https://huggingface.co/software-mansion/react-native-executorch-spec/resolve/main/config.schema.json",
+  "source": "sentence-transformers/all-MiniLM-L6-v2",
+  "model": "all_minilm_l6_v2",
+  "capabilities": ["text-embedding"],
+  "backend": "xnnpack",
+  "license": "apache-2.0",
+  "variants": [
+    {
+      "file": "all_minilm_l6_v2_xnnpack_fp32.pte",
+      "precision": "fp32",
+      "quantized": false,
+      "default": true,
+      "methods": {
+        "forward": {
+          "inputs": [
+            { "shape": [1, 254], "dtype": "int64" },
+            { "shape": [1, 254], "dtype": "int64" }
+          ],
+          "outputs": [{ "shape": [1, 384], "dtype": "float32" }]
+        }
+      }
+    }
+  ]
+}
