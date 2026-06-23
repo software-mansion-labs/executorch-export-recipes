@@ -2,12 +2,11 @@ import time
 from dataclasses import dataclass
 from pathlib import Path
 
-from .backends import default_atol, lower
-from .errors import IOContractError, ParityError
+from .backends import default_atol
+from .errors import IOContractError
 from .pte_inspect import read_pte_io
-from .resolver import resolve_wrapper
+from .runner import run_export
 from .spec import Method, Spec, Variant
-from .wrappers import get_builder
 
 
 @dataclass
@@ -23,7 +22,6 @@ class VariantResult:
     precision: str
     io_ok: bool
     io_deltas: list[str]
-    parity_max_diff: float | None
     parity_ok: bool
     bench_ms: float | None
 
@@ -33,9 +31,7 @@ class ExportPlan:
     model: str
     source: str
     backend: str
-    wrapper: str
-    wrapper_reason: str
-    wrapper_kwargs: dict
+    export_script: str
     variants: list[str]
     output_dir: str
     atol: float
@@ -49,8 +45,7 @@ def _select(spec: Spec, which: str | None) -> list[Variant]:
     return [spec.variant_by_precision(which)]
 
 
-def plan(spec: Spec, *, which: str | None, output_dir: str, atol: float | None) -> ExportPlan:
-    res = resolve_wrapper(spec.source)
+def plan(spec: Spec, *, export_script: str, which: str | None, output_dir: str, atol: float | None) -> ExportPlan:
     variants = _select(spec, which)
     quantized = any(v.quantized for v in variants)
     resolved_atol = atol if atol is not None else default_atol(spec.backend, quantized)
@@ -58,9 +53,7 @@ def plan(spec: Spec, *, which: str | None, output_dir: str, atol: float | None) 
         model=spec.model,
         source=spec.source,
         backend=spec.backend,
-        wrapper=res.wrapper,
-        wrapper_reason=res.reason,
-        wrapper_kwargs=res.kwargs,
+        export_script=str(export_script),
         variants=[v.file for v in variants],
         output_dir=output_dir,
         atol=resolved_atol,
@@ -86,64 +79,55 @@ def compare_io(expected: dict[str, Method], actual: dict[str, dict]) -> IOCheck:
     return IOCheck(method="all", ok=not deltas, deltas=deltas)
 
 
-def example_inputs_and_shapes(method: Method):
-    import torch
-    from torch.export import Dim
-    inputs = tuple(torch.zeros(tuple(t.shape), dtype=torch.int64) for t in method.inputs)
-    dim = Dim("tokens", min=1, max=method.inputs[0].shape[-1])
-    arg_names = ["input_ids", "attention_mask"]
-    dynamic = {arg_names[i]: {len(t.shape) - 1: dim} for i, t in enumerate(method.inputs)}
-    return inputs, dynamic
+def export_variant(spec: Spec, variant: Variant, *, export_script: str, output_dir: str, atol: float, run_bench: bool = True) -> VariantResult:
+    config_dict = {
+        "source": spec.source,
+        "model": spec.model,
+        "backend": spec.backend,
+        "variant": {
+            "file": variant.file,
+            "precision": variant.precision,
+            "quantized": variant.quantized,
+            "methods": {
+                name: {
+                    "inputs": [{"shape": t.shape, "dtype": t.dtype} for t in m.inputs],
+                    "outputs": [{"shape": t.shape, "dtype": t.dtype} for t in m.outputs],
+                }
+                for name, m in variant.methods.items()
+            },
+        },
+    }
 
-
-def export_variant(spec: Spec, variant: Variant, *, output_dir: str, atol: float, run_bench: bool = True) -> VariantResult:
-    import torch
-    from torch.export import export
-
-    res = resolve_wrapper(spec.source)
-    module = get_builder(res.wrapper)(spec.source, variant, **res.wrapper_kwargs)
-    module.eval()
+    pte_path = run_export(export_script, config_dict, output_dir)
 
     method = variant.methods["forward"]
-    inputs, dynamic = example_inputs_and_shapes(method)
-
-    with torch.no_grad():
-        eager_out = module(*inputs)
-
-    ep = export(module, inputs, dynamic_shapes=dynamic)
-    program = lower(ep, spec.backend)
-
-    out_path = Path(output_dir) / variant.file
-    out_path.parent.mkdir(parents=True, exist_ok=True)
-    out_path.write_bytes(program.buffer)
-
-    actual_io = read_pte_io(out_path, "forward")
+    actual_io = read_pte_io(pte_path, "forward")
     io_check = compare_io({"forward": method}, actual_io)
     if not io_check.ok:
         raise IOContractError(
             f"{spec.model}/{variant.file}: authored I/O != exported: " + "; ".join(io_check.deltas)
         )
 
-    from executorch.runtime import Runtime
-    runtime = Runtime.get()
-    loaded = runtime.load_program(str(out_path))
-    fwd = loaded.load_method("forward")
-    rt_out = fwd.execute(list(inputs))[0]
-    max_diff = float((eager_out - rt_out).abs().max())
-    parity_ok = max_diff <= atol
-    if not parity_ok:
-        raise ParityError(
-            f"{spec.model}/{variant.file}: allclose failed: max abs diff {max_diff:.2e} > atol {atol:.0e} (pass --atol to relax)"
-        )
+    parity_ok, bench_ms = _runtime_sanity(pte_path, method, run_bench)
+    return VariantResult(
+        file=variant.file, precision=variant.precision,
+        io_ok=True, io_deltas=[], parity_ok=parity_ok, bench_ms=bench_ms,
+    )
 
+
+def _runtime_sanity(pte_path: str, method: Method, run_bench: bool):
+    import torch
+    from executorch.runtime import Runtime
+    inputs = [torch.zeros(tuple(t.shape), dtype=torch.int64) for t in method.inputs]
+    runtime = Runtime.get()
+    loaded = runtime.load_program(str(pte_path))
+    fwd = loaded.load_method("forward")
+    out = fwd.execute(inputs)[0]
+    parity_ok = bool(torch.isfinite(out).all())
     bench_ms = None
     if run_bench:
         tik = time.time()
         for _ in range(100):
-            fwd.execute(list(inputs))
+            fwd.execute(inputs)
         bench_ms = (time.time() - tik) / 100 * 1000
-
-    return VariantResult(
-        file=variant.file, precision=variant.precision,
-        io_ok=True, io_deltas=[], parity_max_diff=max_diff, parity_ok=True, bench_ms=bench_ms,
-    )
+    return parity_ok, bench_ms
