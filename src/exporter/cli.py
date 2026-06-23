@@ -1,4 +1,3 @@
-# src/exporter/cli.py
 import argparse
 import json as _json
 import sys
