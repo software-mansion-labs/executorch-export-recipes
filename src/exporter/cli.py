@@ -12,11 +12,9 @@ from .spec import load_spec_file
 
 def build_parser() -> argparse.ArgumentParser:
     p = argparse.ArgumentParser(prog="exporter")
-    p.add_argument("--json", action="store_true", help="machine-readable output")
     sub = p.add_subparsers(dest="command", required=True)
 
-    l = sub.add_parser("list")
-    l.add_argument("--json", action="store_true")
+    sub.add_parser("list").add_argument("--json", action="store_true")
 
     d = sub.add_parser("describe")
     d.add_argument("model")
@@ -34,7 +32,7 @@ def build_parser() -> argparse.ArgumentParser:
 
     v = sub.add_parser("verify")
     v.add_argument("pte")
-    v.add_argument("config", nargs="?", default=None)
+    v.add_argument("config")
     v.add_argument("--json", action="store_true")
 
     i = sub.add_parser("init")
