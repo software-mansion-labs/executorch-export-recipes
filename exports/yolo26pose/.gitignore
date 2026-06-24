@@ -1,0 +1,6 @@
+.DS_Store
+*.pte
+runs/
+__pycache__/
+*.py[codz]
+.venv/
