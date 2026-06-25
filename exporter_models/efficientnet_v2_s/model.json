@@ -1,0 +1,4 @@
+{
+  "repo": "software-mansion/react-native-executorch-efficientnet-v2-s",
+  "config": "xnnpack/config.json"
+}

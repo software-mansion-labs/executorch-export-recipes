@@ -5,6 +5,7 @@ description = "Universal ExecuTorch export harness"
 requires-python = ">=3.12"
 dependencies = [
     "torch",
+    "torchvision",
     "transformers",
     "huggingface_hub",
     "sentence-transformers",
