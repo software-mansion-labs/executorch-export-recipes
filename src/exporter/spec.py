@@ -51,10 +51,14 @@ class Spec:
 
     def default_variant(self) -> Variant:
         defaults = [v for v in self.variants if v.default]
-        if len(defaults) == 0:
+        if not defaults:
             raise SpecError(f"model '{self.model}' has no variant marked default:true")
-        if len(defaults) > 1:
-            raise SpecError(f"model '{self.model}' has multiple default variants")
+        # Canonical schema allows one default per quant-group (one quantized, one not).
+        # Prefer the non-quantized default as the overall default; fall back to a
+        # quantized default when the model ships only quantized variants.
+        non_quant = [v for v in defaults if not v.quantized]
+        if non_quant:
+            return non_quant[0]
         return defaults[0]
 
     def variant_by_precision(self, precision: str) -> Variant:
