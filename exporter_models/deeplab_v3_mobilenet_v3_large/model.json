@@ -1,0 +1,4 @@
+{
+  "repo": "software-mansion/react-native-executorch-deeplab-v3",
+  "config": "xnnpack/config.json"
+}
