@@ -87,10 +87,11 @@ def compare_io(expected: dict[str, Method], actual: dict[str, dict]) -> IOCheck:
     return IOCheck(method="all", ok=not deltas, deltas=deltas)
 
 
-def export_variant(spec: Spec, variant: Variant, *, export_script: str, output_dir: str, atol: float, run_bench: bool = True) -> VariantResult:
+def export_variant(spec: Spec, variant: Variant, *, export_script: str, output_dir: str, atol: float, run_bench: bool = True, size: str | None = None) -> VariantResult:
     config_dict = {
         "model": spec.model,
         "backend": spec.backend,
+        "size": size,
         "variant": {
             "file": variant.file,
             "precision": variant.precision,

@@ -18,6 +18,7 @@ def build_parser() -> argparse.ArgumentParser:
 
     d = sub.add_parser("describe")
     d.add_argument("model")
+    d.add_argument("--size", default=None)
     d.add_argument("--json", action="store_true")
 
     e = sub.add_parser("export")
@@ -25,6 +26,7 @@ def build_parser() -> argparse.ArgumentParser:
     e.add_argument("--variant", default=None)
     e.add_argument("--all-variants", action="store_true")
     e.add_argument("--local-spec", default=None)
+    e.add_argument("--size", default=None)
     e.add_argument("--atol", type=float, default=None)
     e.add_argument("--output-dir", default=None)
     e.add_argument("--dry-run", action="store_true")
@@ -59,24 +61,28 @@ def main(argv: list[str] | None = None) -> int:
             return 0
 
         if args.command == "describe":
-            spec = registry.load(args.model)
+            spec = registry.load(args.model, size=args.size)
             script = registry.export_script_path(args.model)
             p = plan(spec, export_script=str(script), which=None, output_dir=spec.model, atol=None)
-            _emit(_plan_dict(p), jm)
+            d = _plan_dict(p)
+            d["size"] = args.size
+            _emit(d, jm)
             return 0
 
         if args.command == "export":
-            spec = registry.load(args.model, local_spec=args.local_spec)
+            spec = registry.load(args.model, local_spec=args.local_spec, size=args.size)
             script = registry.export_script_path(args.model)
             which = "all" if args.all_variants else args.variant
             out_dir = args.output_dir or spec.model
             p = plan(spec, export_script=str(script), which=which, output_dir=out_dir, atol=args.atol)
             if args.dry_run:
-                _emit(_plan_dict(p), jm)
+                d = _plan_dict(p)
+                d["size"] = args.size
+                _emit(d, jm)
                 return 0
             results = []
             for variant in _select(spec, which):
-                r = export_variant(spec, variant, export_script=str(script), output_dir=out_dir, atol=p.atol)
+                r = export_variant(spec, variant, export_script=str(script), output_dir=out_dir, atol=p.atol, size=args.size)
                 results.append({
                     "file": r.file, "precision": r.precision,
                     "io_ok": r.io_ok, "parity_ok": r.parity_ok, "bench_ms": r.bench_ms,
