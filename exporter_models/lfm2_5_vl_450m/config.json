@@ -1,5 +1,6 @@
 {
   "$schema": "https://huggingface.co/software-mansion/react-native-executorch-spec/resolve/main/config.schema.json",
+  "_note": "BLOCKED: export_all builds a dim=2048 decoder for the dim=1024 LFM2.5-VL-450M checkpoint (upstream executorch/HF-config mismatch). Method I/O shapes below are UNVERIFIED placeholders pending a successful export.",
   "source": "LiquidAI/LFM2.5-VL-450M",
   "model": "lfm2_5_vl_450m",
   "capabilities": ["vision-language"],

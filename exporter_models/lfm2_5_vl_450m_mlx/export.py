@@ -2,6 +2,7 @@ import os
 import tempfile
 from pathlib import Path
 
+# NOTE: the installed export_all has no vision_backend knob; both VL dirs produce the same MLX-vision pte. The dir-name backend distinction is nominal until export_all exposes a backend choice.
 _MODEL_DIR = "LiquidAI/LFM2.5-VL-450M"
 
 
