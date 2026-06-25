@@ -1,0 +1,4 @@
+{
+  "repo": "software-mansion/react-native-executorch-rfdetr-nano-segmentation",
+  "config": "xnnpack/config.json"
+}
