@@ -1,0 +1,5 @@
+{
+  "repo": "software-mansion/react-native-executorch-yolo26",
+  "config": "{size}/xnnpack/config.json",
+  "sizes": ["n", "s", "m", "l", "x"]
+}
