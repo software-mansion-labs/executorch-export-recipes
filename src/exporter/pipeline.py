@@ -115,10 +115,26 @@ def export_variant(spec: Spec, variant: Variant, *, export_script: str, output_d
     )
 
 
+def _torch_dtype(name: str):
+    import torch
+    return {
+        "uint8": torch.uint8,
+        "int8": torch.int8,
+        "int16": torch.int16,
+        "int32": torch.int32,
+        "int64": torch.int64,
+        "float16": torch.float16,
+        "float32": torch.float32,
+        "float64": torch.float64,
+        "bool": torch.bool,
+        "bfloat16": torch.bfloat16,
+    }.get(name, torch.float32)
+
+
 def _runtime_sanity(pte_path: str, method: Method, run_bench: bool):
     import torch
     from executorch.runtime import Runtime
-    inputs = [torch.zeros(tuple(t.shape), dtype=torch.int64) for t in method.inputs]
+    inputs = [torch.zeros(tuple(t.shape), dtype=_torch_dtype(t.dtype)) for t in method.inputs]
     runtime = Runtime.get()
     loaded = runtime.load_program(str(pte_path))
     fwd = loaded.load_method("forward")

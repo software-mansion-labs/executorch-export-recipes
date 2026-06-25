@@ -1,0 +1,22 @@
+{
+  "$schema": "https://huggingface.co/software-mansion/react-native-executorch-spec/resolve/main/config.schema.json",
+  "source": "openai/clip-vit-base-patch32",
+  "model": "clip_vit_base_patch32_vision",
+  "capabilities": ["image-embedding"],
+  "backend": "xnnpack",
+  "license": "mit",
+  "variants": [
+    {
+      "file": "clip_vit_base_patch32_vision_xnnpack_fp32.pte",
+      "precision": "fp32",
+      "quantized": false,
+      "default": true,
+      "methods": {
+        "forward": {
+          "inputs": [{ "shape": [1, 3, 224, 224], "dtype": "float32" }],
+          "outputs": [{ "shape": [1, 512], "dtype": "float32" }]
+        }
+      }
+    }
+  ]
+}
