@@ -89,7 +89,6 @@ def compare_io(expected: dict[str, Method], actual: dict[str, dict]) -> IOCheck:
 
 def export_variant(spec: Spec, variant: Variant, *, export_script: str, output_dir: str, atol: float, run_bench: bool = True) -> VariantResult:
     config_dict = {
-        "source": spec.source,
         "model": spec.model,
         "backend": spec.backend,
         "variant": {

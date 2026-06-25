@@ -44,7 +44,7 @@ def _emit(obj, json_mode):
 
 def _plan_dict(p):
     return {
-        "model": p.model, "source": p.source, "backend": p.backend,
+        "model": p.model, "backend": p.backend,
         "export_script": p.export_script, "variants": p.variants,
         "output_dir": p.output_dir, "atol": p.atol,
     }
