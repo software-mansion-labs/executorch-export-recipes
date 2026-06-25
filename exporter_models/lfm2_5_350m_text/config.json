@@ -11,11 +11,14 @@
       "precision": "8da4w",
       "quantized": true,
       "default": true,
-      "runtimeVerifiable": true,
+      "runtimeVerifiable": false,
       "methods": {
         "forward": {
-          "inputs": [{"shape": [1, 64], "dtype": "int64"}],
-          "outputs": [{"shape": [1, 64, 65536], "dtype": "float32"}]
+          "inputs": [
+            {"shape": [1, 64], "dtype": "int64"},
+            {"shape": [1], "dtype": "int64"}
+          ],
+          "outputs": [{"shape": [1, 65536], "dtype": "bfloat16"}]
         }
       }
     }

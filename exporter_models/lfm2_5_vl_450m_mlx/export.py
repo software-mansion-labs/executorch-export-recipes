@@ -18,7 +18,6 @@ def export(config: dict, out_dir: str) -> str:
             model_dir=_MODEL_DIR,
             output=out_path,
             quantize=True,
-            vision_backend="mlx",
         )
     finally:
         os.chdir(cwd)
