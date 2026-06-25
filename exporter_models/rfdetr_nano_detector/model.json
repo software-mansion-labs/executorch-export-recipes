@@ -1,0 +1,4 @@
+{
+  "repo": "software-mansion/react-native-executorch-rfdetr-nano-detector",
+  "config": "xnnpack/config.json"
+}
