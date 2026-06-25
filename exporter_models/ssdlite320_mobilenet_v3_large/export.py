@@ -12,12 +12,13 @@ _HERE = Path(__file__).resolve().parent
 
 def _load_model_module():
     pkg_init = _HERE / "_model" / "__init__.py"
+    module_name = f"_vendored_{_HERE.name}_model"
     spec = importlib.util.spec_from_file_location(
-        "ssdlite_vendored_model", pkg_init,
+        module_name, pkg_init,
         submodule_search_locations=[str(_HERE / "_model")],
     )
     mod = importlib.util.module_from_spec(spec)
-    sys.modules["ssdlite_vendored_model"] = mod
+    sys.modules[module_name] = mod
     spec.loader.exec_module(mod)
     return mod
 
