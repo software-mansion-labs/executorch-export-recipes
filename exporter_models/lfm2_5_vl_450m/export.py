@@ -2,12 +2,11 @@ import os
 import tempfile
 from pathlib import Path
 
-# NOTE: the installed export_all has no vision_backend knob; both VL dirs produce the same MLX-vision pte. The dir-name backend distinction is nominal until export_all exposes a backend choice.
 _MODEL_DIR = "LiquidAI/LFM2.5-VL-450M"
 
 
 def export(config: dict, out_dir: str) -> str:
-    from executorch.examples.models.lfm2_5_vl.export_lfm2_5_vl_mlx import export_all
+    from executorch.examples.models.lfm2_5_vl.export_lfm2_5_vl import export_all
 
     out_path = str(Path(out_dir) / config["variant"]["file"])
     Path(out_dir).mkdir(parents=True, exist_ok=True)
@@ -19,7 +18,6 @@ def export(config: dict, out_dir: str) -> str:
             model_dir=_MODEL_DIR,
             output=out_path,
             quantize=True,
-            vision_backend="xnnpack",
         )
     finally:
         os.chdir(cwd)
