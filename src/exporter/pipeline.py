@@ -29,12 +29,21 @@ class VariantResult:
 @dataclass
 class ExportPlan:
     model: str
-    source: str
     backend: str
     export_script: str
     variants: list[str]
     output_dir: str
     atol: float
+
+
+def is_runtime_verifiable(spec: Spec, variant: Variant) -> bool:
+    if spec.backend == "mlx":
+        return False
+    if variant.file is None:  # multi-component
+        return False
+    if "text-generation" in spec.capabilities:  # LLM: forward can't be zero-probed
+        return False
+    return "forward" in variant.methods
 
 
 def _select(spec: Spec, which: str | None) -> list[Variant]:
@@ -51,7 +60,6 @@ def plan(spec: Spec, *, export_script: str, which: str | None, output_dir: str, 
     resolved_atol = atol if atol is not None else default_atol(spec.backend, quantized)
     return ExportPlan(
         model=spec.model,
-        source=spec.source,
         backend=spec.backend,
         export_script=str(export_script),
         variants=[v.file for v in variants],
@@ -108,7 +116,7 @@ def export_variant(spec: Spec, variant: Variant, *, export_script: str, output_d
         )
 
     parity_ok, bench_ms = None, None
-    if variant.runtime_verifiable and "forward" in variant.methods:
+    if is_runtime_verifiable(spec, variant):
         parity_ok, bench_ms = _runtime_sanity(pte_path, variant.methods["forward"], run_bench)
 
     return VariantResult(
