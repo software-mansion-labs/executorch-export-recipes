@@ -25,6 +25,7 @@ class Variant:
     quantized: bool
     default: bool
     methods: dict[str, Method]
+    runtime_verifiable: bool = True
 
 
 @dataclass
@@ -100,6 +101,7 @@ def load_spec(data: dict) -> Spec:
                 quantized=_require(rv, "quantized", bool),
                 default=_require(rv, "default", bool),
                 methods=methods,
+                runtime_verifiable=bool(rv.get("runtimeVerifiable", True)),
             )
         )
 

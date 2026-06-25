@@ -22,7 +22,7 @@ class VariantResult:
     precision: str
     io_ok: bool
     io_deltas: list[str]
-    parity_ok: bool
+    parity_ok: bool | None
     bench_ms: float | None
 
 
@@ -100,15 +100,17 @@ def export_variant(spec: Spec, variant: Variant, *, export_script: str, output_d
 
     pte_path = run_export(export_script, config_dict, output_dir)
 
-    method = variant.methods["forward"]
-    actual_io = read_pte_io(pte_path, "forward")
-    io_check = compare_io({"forward": method}, actual_io)
+    actual_io = read_pte_io(pte_path)  # all methods, no filter
+    io_check = compare_io(variant.methods, actual_io)
     if not io_check.ok:
         raise IOContractError(
             f"{spec.model}/{variant.file}: authored I/O != exported: " + "; ".join(io_check.deltas)
         )
 
-    parity_ok, bench_ms = _runtime_sanity(pte_path, method, run_bench)
+    parity_ok, bench_ms = None, None
+    if variant.runtime_verifiable and "forward" in variant.methods:
+        parity_ok, bench_ms = _runtime_sanity(pte_path, variant.methods["forward"], run_bench)
+
     return VariantResult(
         file=variant.file, precision=variant.precision,
         io_ok=True, io_deltas=[], parity_ok=parity_ok, bench_ms=bench_ms,
