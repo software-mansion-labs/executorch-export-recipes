@@ -1,14 +1,24 @@
 import json
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from pathlib import Path
 
 from .errors import SpecError
+
+_CAPABILITIES = frozenset({
+    "text-generation", "vision", "speech-to-text", "text-to-speech",
+    "classification", "object-detection", "semantic-segmentation",
+    "instance-segmentation", "style-transfer", "text-embedding",
+    "image-embedding", "image-generation", "voice-activity-detection",
+    "text-detection", "text-recognition",
+})
+_BACKENDS = frozenset({"xnnpack", "coreml", "vulkan", "qnn", "mlx"})
 
 
 @dataclass
 class IOTensor:
     shape: list[int]
     dtype: str
+    name: str | None = None
 
 
 @dataclass
@@ -20,23 +30,24 @@ class Method:
 
 @dataclass
 class Variant:
-    file: str
+    file: str | None
     precision: str
     quantized: bool
     default: bool
-    methods: dict[str, Method]
-    runtime_verifiable: bool = True
+    methods: dict[str, Method] = field(default_factory=dict)
+    components: dict[str, str] | None = None
 
 
 @dataclass
 class Spec:
-    source: str
     model: str
+    family: str
     capabilities: list[str]
     backend: str
     license: str
     variants: list[Variant]
     schema: str | None = None
+    size: str | None = None
 
     def default_variant(self) -> Variant:
         defaults = [v for v in self.variants if v.default]
@@ -69,50 +80,59 @@ def _io(items: list) -> list[IOTensor]:
     for t in items:
         if "shape" not in t or "dtype" not in t:
             raise SpecError(f"tensor entry must have 'shape' and 'dtype', got {t}")
-        out.append(IOTensor(shape=list(t["shape"]), dtype=str(t["dtype"])))
+        out.append(IOTensor(shape=list(t["shape"]), dtype=str(t["dtype"]), name=t.get("name")))
     return out
 
 
 def load_spec(data: dict) -> Spec:
-    source = _require(data, "source", str)
     model = _require(data, "model", str)
+    family = _require(data, "family", str)
     capabilities = _require(data, "capabilities", list)
     backend = _require(data, "backend", str)
     license_ = _require(data, "license", str)
     raw_variants = _require(data, "variants", list)
+
+    bad_caps = [c for c in capabilities if c not in _CAPABILITIES]
+    if bad_caps:
+        raise SpecError(f"unknown capabilities {bad_caps}; must be in the canonical enum")
+    if backend not in _BACKENDS:
+        raise SpecError(f"unknown backend '{backend}' (must be one of {sorted(_BACKENDS)})")
     if not raw_variants:
         raise SpecError(f"model '{model}' has no variants")
 
     variants = []
     for rv in raw_variants:
+        has_file = "file" in rv and rv["file"] is not None
+        has_components = "components" in rv and rv["components"] is not None
+        if has_file == has_components:
+            raise SpecError(
+                f"model '{model}' variant must have exactly one of 'file' or 'components'"
+            )
         methods = {}
-        for mname, m in _require(rv, "methods", dict).items():
+        for mname, m in rv.get("methods", {}).items():
             if "inputs" not in m or "outputs" not in m:
                 raise SpecError(f"method '{mname}' must have 'inputs' and 'outputs'")
-            methods[mname] = Method(
-                name=mname,
-                inputs=_io(m["inputs"]),
-                outputs=_io(m["outputs"]),
-            )
+            methods[mname] = Method(name=mname, inputs=_io(m["inputs"]), outputs=_io(m["outputs"]))
         variants.append(
             Variant(
-                file=_require(rv, "file", str),
+                file=rv.get("file"),
                 precision=_require(rv, "precision", str),
                 quantized=_require(rv, "quantized", bool),
                 default=_require(rv, "default", bool),
                 methods=methods,
-                runtime_verifiable=bool(rv.get("runtimeVerifiable", True)),
+                components=rv.get("components"),
             )
         )
 
     return Spec(
-        source=source,
         model=model,
+        family=family,
         capabilities=list(capabilities),
         backend=backend,
         license=license_,
         variants=variants,
         schema=data.get("$schema"),
+        size=data.get("size"),
     )
 
 
