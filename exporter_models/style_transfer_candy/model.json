@@ -1,0 +1,4 @@
+{
+  "repo": "software-mansion/react-native-executorch-style-transfer-candy",
+  "config": "xnnpack/config.json"
+}
