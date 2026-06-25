@@ -22,8 +22,11 @@ def dtype(d): return dtype_names.get(int(d), f"dtype({d})")
 def tensors(fn, n):
     out = []
     for i in range(n):
-        t = fn(i)
-        out.append({"shape": list(t.sizes()), "dtype": dtype(t.dtype())})
+        try:
+            t = fn(i)
+            out.append({"shape": list(t.sizes()), "dtype": dtype(t.dtype())})
+        except Exception:
+            out.append({"shape": None, "dtype": None})
     return out
 try:
     module = _load_for_executorch(pte_path)
@@ -59,7 +62,7 @@ def read_pte_io(pte_path, method: str | None = None) -> dict[str, dict]:
     result = {}
     for name, info in payload.items():
         result[name] = {
-            "inputs": [IOTensor(shape=t["shape"], dtype=t["dtype"]) for t in info["inputs"]],
-            "outputs": [IOTensor(shape=t["shape"], dtype=t["dtype"]) for t in info["outputs"]],
+            "inputs": [IOTensor(shape=t["shape"], dtype=t["dtype"]) for t in info["inputs"] if t["shape"] is not None],
+            "outputs": [IOTensor(shape=t["shape"], dtype=t["dtype"]) for t in info["outputs"] if t["shape"] is not None],
         }
     return result
