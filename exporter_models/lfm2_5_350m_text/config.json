@@ -1,0 +1,23 @@
+{
+  "$schema": "https://huggingface.co/software-mansion/react-native-executorch-spec/resolve/main/config.schema.json",
+  "source": "LiquidAI/LFM2.5-350M",
+  "model": "lfm2_5_350m_text",
+  "capabilities": ["llm"],
+  "backend": "xnnpack",
+  "license": "lfm-1.0",
+  "variants": [
+    {
+      "file": "lfm2_5_350m_text_xnnpack_8da4w.pte",
+      "precision": "8da4w",
+      "quantized": true,
+      "default": true,
+      "runtimeVerifiable": true,
+      "methods": {
+        "forward": {
+          "inputs": [{"shape": [1, 64], "dtype": "int64"}],
+          "outputs": [{"shape": [1, 64, 65536], "dtype": "float32"}]
+        }
+      }
+    }
+  ]
+}
