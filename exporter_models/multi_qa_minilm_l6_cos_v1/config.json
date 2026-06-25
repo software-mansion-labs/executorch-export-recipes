@@ -1,7 +1,7 @@
 {
   "$schema": "https://huggingface.co/software-mansion/react-native-executorch-spec/resolve/main/config.schema.json",
-  "source": "sentence-transformers/multi-qa-MiniLM-L6-cos-v1",
   "model": "multi_qa_minilm_l6_cos_v1",
+  "family": "sbert",
   "capabilities": ["text-embedding"],
   "backend": "xnnpack",
   "license": "apache-2.0",

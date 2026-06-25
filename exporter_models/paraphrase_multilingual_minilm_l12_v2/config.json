@@ -1,7 +1,7 @@
 {
   "$schema": "https://huggingface.co/software-mansion/react-native-executorch-spec/resolve/main/config.schema.json",
-  "source": "sentence-transformers/paraphrase-multilingual-MiniLM-L12-v2",
   "model": "paraphrase_multilingual_minilm_l12_v2",
+  "family": "sbert",
   "capabilities": ["text-embedding"],
   "backend": "xnnpack",
   "license": "apache-2.0",

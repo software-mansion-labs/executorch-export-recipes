@@ -1,7 +1,7 @@
 {
   "$schema": "https://huggingface.co/software-mansion/react-native-executorch-spec/resolve/main/config.schema.json",
-  "source": "sentence-transformers/multi-qa-mpnet-base-dot-v1",
   "model": "multi_qa_mpnet_base_dot_v1",
+  "family": "sbert",
   "capabilities": ["text-embedding"],
   "backend": "xnnpack",
   "license": "apache-2.0",

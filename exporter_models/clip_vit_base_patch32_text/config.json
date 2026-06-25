@@ -1,7 +1,7 @@
 {
   "$schema": "https://huggingface.co/software-mansion/react-native-executorch-spec/resolve/main/config.schema.json",
-  "source": "openai/clip-vit-base-patch32",
   "model": "clip_vit_base_patch32_text",
+  "family": "clip",
   "capabilities": ["text-embedding"],
   "backend": "xnnpack",
   "license": "mit",
