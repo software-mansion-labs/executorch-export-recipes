@@ -1,0 +1,4 @@
+{
+  "repo": "software-mansion/react-native-executorch-ssdlite320-mobilenet-v3-large",
+  "config": "xnnpack/config.json"
+}
