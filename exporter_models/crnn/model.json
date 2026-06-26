@@ -1,0 +1,5 @@
+{
+  "repo": "software-mansion/react-native-executorch-recognizer-crnn.en",
+  "config": "{size}/xnnpack/config.json",
+  "sizes": ["english"]
+}
