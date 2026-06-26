@@ -23,8 +23,10 @@ def _load_custom_whisper():
 @contextlib.contextmanager
 def _set_default_tensor_type(dtype: torch.dtype):
     torch.set_default_dtype(dtype)
-    yield
-    torch.set_default_dtype(torch.float)
+    try:
+        yield
+    finally:
+        torch.set_default_dtype(torch.float)
 
 
 def export(config: dict, out_dir: str) -> str:
