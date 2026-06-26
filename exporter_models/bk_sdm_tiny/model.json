@@ -1,0 +1,5 @@
+{
+  "repo": "software-mansion/react-native-executorch-bk-sdm-tiny",
+  "config": "xnnpack/config.json",
+  "multi_pte": true
+}
