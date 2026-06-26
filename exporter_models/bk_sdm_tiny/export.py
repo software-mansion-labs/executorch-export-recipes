@@ -23,7 +23,6 @@ def export(config: dict, out_dir: str) -> None:
     eu = _load_export_utils()
 
     out = Path(out_dir)
-    variants = {v["file"]: v for v in config["variants"]}
 
     text_encoder = CLIPTextModel.from_pretrained(MODEL_ID, subfolder="text_encoder")
     text_encoder.eval()
