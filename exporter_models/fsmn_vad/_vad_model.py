@@ -19,11 +19,14 @@
 
   After some tests, I have decided that **postprocessing** from fsmn-vad is unnecessarily compleceted, therefore i have used something similair to what is used in [silero-vad](https://github.com/snakers4/silero-vad/blob/master/src/silero_vad/utils_vad.py). 
 '''
+import os
 import torch
 import torch.nn as nn
 import numpy as np
 from funasr.models.fsmn_vad_streaming.encoder import FSMN
-from typing import Tuple, List, Dict 
+from typing import Tuple, List, Dict
+
+_DATA_DIR = os.path.join(os.path.dirname(os.path.abspath(__file__)), "precomputed_data")
 
 trained_model = FSMN(
     input_dim=400,
@@ -57,7 +60,7 @@ def fbank(
     mel_energies = torch.max(mel_energies, _get_epsilon(device, dtype)).log()
     return mel_energies
 
-def load_cmvn(cmvn_file = "precomputed_data/am.mvn"):
+def load_cmvn(cmvn_file = os.path.join(_DATA_DIR, "am.mvn")):
     with open(cmvn_file, "r", encoding="utf-8") as f:
         lines = f.readlines()
     means_list = []
@@ -116,7 +119,7 @@ class VAD(FSMN):
     self.FRAME_LENGTH_MS = 25
     self.FRAME_STEP_MS = 10    
     self.SAMPLE_RATE = 16000
-    self.mel_energies = torch.load("precomputed_data/mel_energies_tensor.pt")
+    self.mel_energies = torch.load(os.path.join(_DATA_DIR, "mel_energies_tensor.pt"))
 
 
   def my_fbank(self, waveform : torch.tensor):
