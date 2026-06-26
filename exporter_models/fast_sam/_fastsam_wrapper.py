@@ -21,7 +21,6 @@ Usage:
 """
 
 import torch
-import torch.nn.functional as F
 from torch import Tensor, nn
 
 
@@ -90,23 +89,8 @@ class FastSAMInstanceSegmentation(nn.Module):
             [cx - w / 2, cy - h / 2, cx + w / 2, cy + h / 2], dim=-1
         )  # [B, K, 4]
 
-        # FastSAM is class-agnostic: confidence + constant class index 0
-        conf = preds[..., 4:5]                                 # [B, K, 1]
-        scores = torch.cat([conf, torch.zeros_like(conf)], dim=-1)  # [B, K, 2]
-
         coeffs = preds[..., 5:]                                # [B, K, nm]
 
-        if self.mask_size is not None:
-            protos = F.interpolate(
-                protos,
-                size=(self.mask_size, self.mask_size),
-                mode="bilinear",
-                align_corners=False,
-            )
-
-        B, C, H, W = protos.shape
-        mask_logits = torch.bmm(coeffs, protos.reshape(B, C, H * W)).reshape(
-            B, -1, H, W
-        )  # [B, K, H, W]
-
-        return bbox, scores, mask_logits
+        # Published contract returns raw coeffs + protos; the bmm/mask assembly
+        # is done by the on-device consumer.
+        return bbox, coeffs, protos
