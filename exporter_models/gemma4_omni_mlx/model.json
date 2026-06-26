@@ -1,0 +1,5 @@
+{
+  "repo": "software-mansion/react-native-executorch-gemma-4-multimodal",
+  "config": "{size}/mlx/config.json",
+  "sizes": ["e2b"]
+}
