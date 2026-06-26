@@ -16,7 +16,6 @@ def _load_standalone():
 
 def export(config: dict, out_dir: str) -> str:
     standalone = _load_standalone()
-    size = config.get("size") or "e2b"
     out_path = str(Path(out_dir) / config["variant"]["file"])
     Path(out_dir).mkdir(parents=True, exist_ok=True)
     checkpoint = standalone.resolve_checkpoint(None)
