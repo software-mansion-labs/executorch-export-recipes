@@ -1,0 +1,29 @@
+{
+  "$schema": "https://huggingface.co/software-mansion/react-native-executorch-spec/resolve/main/config.schema.json",
+  "model": "moonshine_tiny",
+  "family": "moonshine",
+  "capabilities": ["speech-to-text"],
+  "backend": "xnnpack",
+  "license": "mit",
+  "variants": [
+    {
+      "file": "moonshine_tiny_xnnpack_encoder.pte",
+      "precision": "fp32", "quantized": false, "default": true,
+      "methods": {"forward": {
+        "inputs": [{"shape": [1, 158976], "dtype": "float32"}],
+        "outputs": [{"shape": [1, 412, 288], "dtype": "float32"}]
+      }}
+    },
+    {
+      "file": "moonshine_tiny_xnnpack_decoder.pte",
+      "precision": "fp32", "quantized": false, "default": false,
+      "methods": {"forward": {
+        "inputs": [
+          {"shape": [1, 8], "dtype": "int64"},
+          {"shape": [1, 412, 288], "dtype": "float32"}
+        ],
+        "outputs": [{"shape": [1, 9], "dtype": "int64"}]
+      }}
+    }
+  ]
+}
