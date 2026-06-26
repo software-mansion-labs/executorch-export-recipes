@@ -35,7 +35,8 @@ def export(config: dict, out_dir: str) -> str:
     from transformers import AutoProcessor
 
     cw = _load_custom_whisper()
-    ProcessorTorchModule = cw.preprocessor.ProcessorTorchModule
+    preprocessor_mod = importlib.import_module("whisper_tiny_custom_whisper.preprocessor")
+    ProcessorTorchModule = preprocessor_mod.ProcessorTorchModule
 
     class WhisperPositionalEmbedding(torch.nn.Module):
         def __init__(self, pretrained_weight: torch.Tensor):
