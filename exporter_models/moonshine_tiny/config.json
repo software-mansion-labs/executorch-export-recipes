@@ -10,8 +10,8 @@
       "file": "moonshine_tiny_xnnpack_encoder.pte",
       "precision": "fp32", "quantized": false, "default": true,
       "methods": {"forward": {
-        "inputs": [{"shape": [1, 158976], "dtype": "float32"}],
-        "outputs": [{"shape": [1, 412, 288], "dtype": "float32"}]
+        "inputs": [{"shape": [1, 480000], "dtype": "float32"}],
+        "outputs": [{"shape": [1, 1248, 288], "dtype": "float32"}]
       }}
     },
     {
@@ -19,10 +19,10 @@
       "precision": "fp32", "quantized": false, "default": false,
       "methods": {"forward": {
         "inputs": [
-          {"shape": [1, 8], "dtype": "int64"},
-          {"shape": [1, 412, 288], "dtype": "float32"}
+          {"shape": [1, 178], "dtype": "int64"},
+          {"shape": [1, 1248, 288], "dtype": "float32"}
         ],
-        "outputs": [{"shape": [1, 9], "dtype": "int64"}]
+        "outputs": [{"shape": [1, 179], "dtype": "int64"}]
       }}
     }
   ]
