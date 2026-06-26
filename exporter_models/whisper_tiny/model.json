@@ -1,0 +1,4 @@
+{
+  "repo": "software-mansion/react-native-executorch-whisper-tiny",
+  "config": "xnnpack/config.json"
+}
