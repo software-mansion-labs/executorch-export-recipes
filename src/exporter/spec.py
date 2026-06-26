@@ -114,6 +114,8 @@ def load_spec(data: dict) -> Spec:
             )
         methods = {}
         for mname, m in rv.get("methods", {}).items():
+            if not isinstance(m, dict):
+                continue
             if "inputs" not in m or "outputs" not in m:
                 raise SpecError(f"method '{mname}' must have 'inputs' and 'outputs'")
             methods[mname] = Method(name=mname, inputs=_io(m["inputs"]), outputs=_io(m["outputs"]))
