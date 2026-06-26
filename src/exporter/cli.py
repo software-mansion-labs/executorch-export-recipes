@@ -80,7 +80,7 @@ def main(argv: list[str] | None = None) -> int:
                 d["size"] = args.size
                 _emit(d, jm)
                 return 0
-            use_export_all = args.all_variants and len({v.file for v in spec.variants}) > 1
+            use_export_all = args.all_variants and registry.is_multi_pte(args.model)
             if use_export_all:
                 all_results = export_all(spec, export_script=str(script), output_dir=out_dir, atol=p.atol, size=args.size)
                 results = [

@@ -77,6 +77,13 @@ def is_sized(model: str) -> bool:
     return bool(model_sizes(model))
 
 
+def is_multi_pte(model: str) -> bool:
+    p = MODELS_DIR / model / "model.json"
+    if not p.exists():
+        return False
+    return bool(json.loads(p.read_text()).get("multi_pte", False))
+
+
 def _load_via_pointer(model: str, size: str | None) -> Spec:
     data = _pointer_data(model)
     if "repo" not in data or "config" not in data:
