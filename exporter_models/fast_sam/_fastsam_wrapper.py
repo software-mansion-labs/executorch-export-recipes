@@ -1,15 +1,16 @@
 """FastSAM export wrapper.
 
-Converts FastSAM's raw YOLO-style output into the standard instance
+Converts FastSAM's raw YOLO-style output into the published instance
 segmentation contract expected by react-native-executorch:
-  bbox        [B, K, 4]    x1y1x2y2 in model input pixel space
-  scores      [B, K, 2]    (confidence, 0)  — class-agnostic, always class 0
-  mask_logits [B, K, H, W] pre-sigmoid logits
+  bbox   [B, K, 4]      x1y1x2y2 in model input pixel space
+  coeffs [B, K, nm]     per-anchor mask coefficients
+  protos [B, nm, H, W]  prototype masks
+
+The mask assembly (coeffs @ protos) is done by the on-device consumer.
 
 K = topk (default 300). FastSAM does not apply topk internally (unlike YOLO),
-so without pre-filtering the bmm would run on ~21k anchors at 1024x1024 —
-roughly 72× more FLOPs than necessary. The topk step here keeps shapes static
-(required for ExecuTorch export) while cutting bmm cost dramatically.
+so the topk confidence pre-filter here keeps shapes static (required for
+ExecuTorch export) and limits the returned coefficients to the top anchors.
 
 Usage:
     from fastsam_wrapper import FastSAMInstanceSegmentation
@@ -31,10 +32,9 @@ class FastSAMInstanceSegmentation(nn.Module):
       pred   [B, 4+1+nm, Q]  — raw anchors: xywh, conf, nm mask coefficients
       protos [B, nm, H, W]   — prototype masks
 
-    This wrapper applies a topk confidence pre-filter before the bmm so the
-    exported graph stays fast on device. Q at 1024×1024 is ~21k; without topk
-    the bmm is [1,21k,32]@[1,32,65k] ≈ 1.4B FLOPs vs [1,300,32]@[1,32,65k]
-    ≈ 19M FLOPs with topk=300.
+    This wrapper applies a topk confidence pre-filter so the exported graph
+    keeps static shapes and returns only the top anchors' boxes and mask
+    coefficients alongside the raw protos.
     """
 
     def __init__(
