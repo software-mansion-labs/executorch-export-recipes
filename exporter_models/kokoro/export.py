@@ -164,9 +164,56 @@ def export(config: dict, out_dir: str) -> None:
         torch.randn(size=(1, 256)),
     )
 
+    def remove_weight_norms(synthesizer):
+        remove = torch.nn.utils.parametrize.remove_parametrizations
+        modules = list(synthesizer.F0_blocks) + list(synthesizer.N_blocks)
+        for module in modules:
+            convs = [module.conv1, module.conv2]
+            if hasattr(module.pool, "weight"):
+                convs.append(module.pool)
+            if hasattr(module, "conv1x1") and hasattr(module.conv1x1, "weight"):
+                convs.append(module.conv1x1)
+            for conv in convs:
+                _ = conv.weight
+                remove(conv, "weight", leave_parametrized=True)
+
+        for module in synthesizer.text_encoder.cnn:
+            conv = module[0]
+            _ = conv.weight
+            remove(conv, "weight", leave_parametrized=True)
+
+        for module in synthesizer.decoder.generator.resblocks:
+            for conv in list(module.convs1) + list(module.convs2):
+                _ = conv.weight
+                remove(conv, "weight", leave_parametrized=True)
+        for module in synthesizer.decoder.generator.noise_res:
+            for conv in list(module.convs1) + list(module.convs2):
+                _ = conv.weight
+                remove(conv, "weight", leave_parametrized=True)
+        for conv_t in synthesizer.decoder.generator.ups:
+            _ = conv_t.weight
+            remove(conv_t, "weight", leave_parametrized=True)
+        _ = synthesizer.decoder.generator.conv_post.weight
+        remove(synthesizer.decoder.generator.conv_post, "weight", leave_parametrized=True)
+
+        modules = list(synthesizer.decoder.decode) + [synthesizer.decoder.encode]
+        for module in modules:
+            convs = [module.conv1, module.conv2]
+            if hasattr(module.pool, "weight"):
+                convs.append(module.pool)
+            if hasattr(module, "conv1x1") and hasattr(module.conv1x1, "weight"):
+                convs.append(module.conv1x1)
+            for conv in convs:
+                _ = conv.weight
+                remove(conv, "weight", leave_parametrized=True)
+        for conv in [synthesizer.decoder.F0_conv, synthesizer.decoder.N_conv, synthesizer.decoder.asr_res[0]]:
+            _ = conv.weight
+            remove(conv, "weight", leave_parametrized=True)
+
     model = KModel(repo_id="hexgrad/Kokoro-82M", disable_complex=True, lstm_padding=None)
     synthesizer = Synthesizer(model, duration_padding=None)
     synthesizer.eval()
+    remove_weight_norms(synthesizer)
 
     syn_ep = torch.export.export(synthesizer, syn_inputs)
     syn_program = to_edge_transform_and_lower(
