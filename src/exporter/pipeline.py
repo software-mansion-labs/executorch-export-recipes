@@ -6,7 +6,7 @@ from .backends import default_atol
 from .errors import IOContractError
 from .pte_inspect import read_pte_io
 from .runner import run_export
-from .spec import Method, Spec, Variant
+from .spec import IOTensor, Method, Spec, Variant
 
 
 @dataclass
@@ -123,6 +123,47 @@ def export_variant(spec: Spec, variant: Variant, *, export_script: str, output_d
         file=variant.file, precision=variant.precision,
         io_ok=True, io_deltas=[], parity_ok=parity_ok, bench_ms=bench_ms,
     )
+
+
+def export_all(spec: Spec, *, export_script: str, output_dir: str, atol: float, run_bench: bool = True, size: str | None = None) -> list[VariantResult]:
+    config_dict = {
+        "model": spec.model,
+        "backend": spec.backend,
+        "size": size,
+        "variants": [
+            {
+                "file": v.file,
+                "precision": v.precision,
+                "quantized": v.quantized,
+                "methods": {
+                    name: {
+                        "inputs": [{"shape": t.shape, "dtype": t.dtype} for t in m.inputs],
+                        "outputs": [{"shape": t.shape, "dtype": t.dtype} for t in m.outputs],
+                    }
+                    for name, m in v.methods.items()
+                },
+            }
+            for v in spec.variants
+        ],
+    }
+    run_export(export_script, config_dict, output_dir)
+    results = []
+    for v in spec.variants:
+        path = str(Path(output_dir) / v.file)
+        actual_io = read_pte_io(path)
+        io_check = compare_io(v.methods, actual_io)
+        if not io_check.ok:
+            raise IOContractError(
+                f"{spec.model}/{v.file}: authored I/O != exported: " + "; ".join(io_check.deltas)
+            )
+        parity_ok, bench_ms = None, None
+        if is_runtime_verifiable(spec, v):
+            parity_ok, bench_ms = _runtime_sanity(path, v.methods["forward"], run_bench)
+        results.append(VariantResult(
+            file=v.file, precision=v.precision,
+            io_ok=True, io_deltas=[], parity_ok=parity_ok, bench_ms=bench_ms,
+        ))
+    return results
 
 
 def _torch_dtype(name: str):

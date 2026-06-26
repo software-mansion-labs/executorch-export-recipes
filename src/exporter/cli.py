@@ -5,7 +5,7 @@ from pathlib import Path
 
 from . import registry
 from .errors import ExporterError
-from .pipeline import _select, compare_io, export_variant, plan
+from .pipeline import _select, compare_io, export_all, export_variant, plan
 from .pte_inspect import read_pte_io
 from .spec import load_spec_file
 
@@ -80,13 +80,22 @@ def main(argv: list[str] | None = None) -> int:
                 d["size"] = args.size
                 _emit(d, jm)
                 return 0
-            results = []
-            for variant in _select(spec, which):
-                r = export_variant(spec, variant, export_script=str(script), output_dir=out_dir, atol=p.atol, size=args.size)
-                results.append({
-                    "file": r.file, "precision": r.precision,
-                    "io_ok": r.io_ok, "parity_ok": r.parity_ok, "bench_ms": r.bench_ms,
-                })
+            use_export_all = args.all_variants and len({v.file for v in spec.variants}) > 1
+            if use_export_all:
+                all_results = export_all(spec, export_script=str(script), output_dir=out_dir, atol=p.atol, size=args.size)
+                results = [
+                    {"file": r.file, "precision": r.precision,
+                     "io_ok": r.io_ok, "parity_ok": r.parity_ok, "bench_ms": r.bench_ms}
+                    for r in all_results
+                ]
+            else:
+                results = []
+                for variant in _select(spec, which):
+                    r = export_variant(spec, variant, export_script=str(script), output_dir=out_dir, atol=p.atol, size=args.size)
+                    results.append({
+                        "file": r.file, "precision": r.precision,
+                        "io_ok": r.io_ok, "parity_ok": r.parity_ok, "bench_ms": r.bench_ms,
+                    })
             _emit({"model": spec.model, "results": results}, jm)
             return 0
 
