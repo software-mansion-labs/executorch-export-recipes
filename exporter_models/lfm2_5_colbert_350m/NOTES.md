@@ -17,4 +17,5 @@ the static result). The published dynamic `.pte` predates this build.
 This dir ships a LOCAL `config.json` (no `model.json`) pinned to the static
 `[1,512]` / `[1,512,128]` contract — verified `io_ok` + `parity_ok`. Revert to
 the HF-pointer `model.json` once an ET build preserves the dynamic seq through
-XNNPACK lowering. The `_mlx` sibling keeps the HF pointer (structural-only).
+XNNPACK lowering. The `mlx/` backend (`--backend mlx`) fetches from the HF pointer
+and is structural-only.

@@ -13,8 +13,8 @@ The **450M** size is NOT published on HuggingFace — only
 repo to point a `model.json` at, so the multi-method VL contract
 (vision_encoder + token_embedding + text_decoder) is hand-authored locally.
 
-If/when a 450M repo is published with a canonical spec config, switch this dir
-(and the `_mlx` sibling) to a `model.json` pointer and drop the local config.
+If/when a 450M repo is published with a canonical spec config, switch both
+backend subdirs to a `model.json` pointer and drop the local configs.
 
 ## Export specifics
 
@@ -24,5 +24,5 @@ If/when a 450M repo is published with a canonical spec config, switch this dir
 default (dim 2048) — the upstream `export_all` only resolves params in its CLI
 `main()`, so export.py passes `params_path` explicitly.
 
-MLX sibling (`lfm2_5_vl_450m_mlx`) is structural-only (MLX backend needs an ET
+The `mlx/` backend (`--backend mlx`) is structural-only (MLX backend needs an ET
 source build).

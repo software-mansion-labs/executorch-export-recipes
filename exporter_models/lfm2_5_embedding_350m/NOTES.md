@@ -24,5 +24,6 @@ through XNNPACK lowering is used, switch back to the HF-pointer `model.json`
 (`{"repo":"software-mansion/react-native-executorch-lfm2.5-embedding-350m","config":"xnnpack/config.json"}`)
 and drop this local config.
 
-The `_mlx` sibling dir keeps the HF pointer (structural-only — MLX backend needs
-an ET source build, not verified here).
+The `mlx/` backend (selected with `--backend mlx`) fetches its config from the HF
+pointer and is structural-only — the MLX backend needs an ET source build, not
+verified here.
