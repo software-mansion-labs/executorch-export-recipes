@@ -11,10 +11,10 @@ from torch import Tensor, nn
 
 
 class InstanceSegmentationWrapper(nn.Module):
-    """Abstract base — returns (bbox [B,Q,4], scores [B,Q,2], mask_logits [B,Q,H,W])."""
+    """Abstract base — returns (bbox [Q,4], scores [Q], classes [Q], masks [Q,H,W])."""
 
     @abstractmethod
-    def forward(self, x: Tensor) -> tuple[Tensor, Tensor, Tensor]: ...
+    def forward(self, x: Tensor) -> tuple[Tensor, Tensor, Tensor, Tensor]: ...
 
 
 class YOLOInstanceSegmentation(InstanceSegmentationWrapper):
@@ -49,11 +49,12 @@ class YOLOInstanceSegmentation(InstanceSegmentationWrapper):
             f"  preds {preds.shape}, protos {protos.shape}, nm={self.nm}, mask_size={effective}"
         )
 
-    def forward(self, x: Tensor) -> tuple[Tensor, Tensor, Tensor]:
+    def forward(self, x: Tensor) -> tuple[Tensor, Tensor, Tensor, Tensor]:
         preds, protos = self.inner(x)
 
-        bbox = preds[:, :, :4]
-        scores = preds[:, :, 4:6]
+        bbox = preds[0, :, :4]
+        scores = preds[0, :, 4]
+        classes = preds[0, :, 5]
         mask_coeffs = preds[:, :, -self.nm :]
 
         if self.mask_size is not None:
@@ -68,5 +69,6 @@ class YOLOInstanceSegmentation(InstanceSegmentationWrapper):
         mask_logits = torch.bmm(mask_coeffs, protos.reshape(B, C, H * W)).reshape(
             B, -1, H, W
         )
+        masks = mask_logits[0]
 
-        return bbox, scores, mask_logits
+        return bbox, scores, classes, masks

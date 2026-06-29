@@ -17,7 +17,6 @@ IMAGE_SIZES = [
 
 SIZES = ["n", "s", "m", "l", "x"]
 TYPES = [
-    ("", "detection"),
     ("-seg", "segmentation"),
 ]
 
