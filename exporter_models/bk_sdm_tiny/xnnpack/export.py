@@ -3,15 +3,16 @@ import sys
 from pathlib import Path
 
 _HERE = Path(__file__).resolve().parent
+_MODEL_DIR = _HERE.parent
 
 MODEL_ID = "vivym/bk-sdm-tiny-vpred"
 
 
 def _load_export_utils():
-    p = _HERE.parent / "_export_utils.py"
-    spec = importlib.util.spec_from_file_location("bk_sdm_tiny__export_utils", p)
+    p = _MODEL_DIR / "_export_utils.py"
+    spec = importlib.util.spec_from_file_location("bk_sdm_tiny_xnnpack_export_utils", p)
     mod = importlib.util.module_from_spec(spec)
-    sys.modules["bk_sdm_tiny__export_utils"] = mod
+    sys.modules["bk_sdm_tiny_xnnpack_export_utils"] = mod
     spec.loader.exec_module(mod)
     return mod
 
