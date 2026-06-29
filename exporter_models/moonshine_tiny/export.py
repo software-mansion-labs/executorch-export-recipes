@@ -15,6 +15,14 @@ def _load_model_pt():
     return mod
 
 
+def _load_model_keras():
+    spec = importlib.util.spec_from_file_location("moonshine_tiny_model_keras", _HERE / "_model_keras.py")
+    mod = importlib.util.module_from_spec(spec)
+    sys.modules["moonshine_tiny_model_keras"] = mod
+    spec.loader.exec_module(mod)
+    return mod
+
+
 def export(config: dict, out_dir: str) -> None:
     from executorch.backends.xnnpack.partition.xnnpack_partitioner import XnnpackPartitioner
     from executorch.exir import ExecutorchBackendConfig, to_edge_transform_and_lower
@@ -24,8 +32,52 @@ def export(config: dict, out_dir: str) -> None:
     mp = _load_model_pt()
     MoonshineModel = mp.MoonshineModel
 
-    model = MoonshineModel(288, 288, 8, 6, 6, dec_ff_swiglu=True)
-    model.load_state_dict(torch.load(_HERE / "moonshine.pth", map_location="cpu"))
+    mk = _load_model_keras()
+    import keras
+
+    def _convert_keras_to_pytorch(model_name="moonshine/tiny", device="cpu"):
+        pt_model = MoonshineModel(288, 288, 8, 6, 6, dec_ff_swiglu=True)
+        pt_model.to(device)
+
+        keras_model = mk.load_model(model_name)
+
+        preprocessor_params = [x.value.permute((*range(-1, -len(x.value.shape) - 1, -1),)) for x in keras_model.preprocessor.preprocess.weights]
+        for value, new_value in zip(pt_model.preprocessor.state_dict().values(), preprocessor_params):
+            value.copy_(new_value.contiguous())
+
+        encoder_params = [
+            x.value.permute((*range(-1, -len(x.value.shape) - 1, -1),))
+            if len(x.value.size()) != 3 else x.value
+            for x in keras_model.encoder.encoder.weights
+        ][1:]
+        encoder_params = [x.contiguous().view(288, 288).T if len(x.size()) == 3 else x for x in encoder_params]
+        for value, new_value in zip(pt_model.encoder.state_dict().values(), encoder_params):
+            value.copy_(new_value.contiguous())
+
+        uncached_decoder_params = [
+            x.value.permute((*range(-1, -len(x.value.shape) - 1, -1),)) if len(x.value.size()) != 3 else x.value for x in keras_model.decoder.uncached_call.weights
+        ][2:]
+        uncached_decoder_params = [x.contiguous().view(288, 288).T if len(x.size()) == 3 else x for x in uncached_decoder_params]
+        for value, new_value in zip(pt_model.decoder.state_dict().values(), uncached_decoder_params):
+            value.copy_(new_value)
+
+        cached_decoder_params = [
+            x.value.permute((*range(-1, -len(x.value.shape) - 1, -1),)) if len(x.value.size()) != 3 else x.value for x in keras_model.decoder.cached_call.weights
+        ][2:]
+        cached_decoder_params = [x.contiguous().view(288, 288).T if len(x.size()) == 3 else x for x in cached_decoder_params]
+        for value, new_value in zip(pt_model.decoder.state_dict().values(), cached_decoder_params):
+            value.copy_(new_value)
+
+        layers = [x.name for x in keras_model.decoder.uncached_call.layers]
+        keras_rev_emb = keras.Model(
+            inputs=keras_model.decoder.uncached_call.get_layer(layers[3]).input,
+            outputs=keras_model.decoder.uncached_call.get_layer(layers[3]).output,
+        )
+        pt_model.decoder.state_dict()["token_embedding.weight"].copy_(keras_rev_emb.weights[0].value)
+
+        return pt_model
+
+    model = _convert_keras_to_pytorch(model_name="moonshine/tiny", device="cpu")
     model.eval()
 
     class PreprocessorEncoder(torch.nn.Module):
