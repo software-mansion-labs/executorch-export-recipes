@@ -19,37 +19,46 @@ def _load_lfm_retrieval_model():
 
 
 def export(config: dict, out_dir: str) -> str:
-    import torch.nn as nn
-    from torchao.quantization.granularity import PerGroup
-    from torchao.quantization.quant_api import Int8DynamicActivationIntxWeightConfig, quantize_
-    from executorch.backends.xnnpack.partition.xnnpack_partitioner import XnnpackPartitioner
     from executorch.exir import EdgeCompileConfig, to_edge_transform_and_lower
 
-    def _quantize_8da4w_skip_conv(model, group_size=32):
-        config = Int8DynamicActivationIntxWeightConfig(
-            weight_dtype=torch.int4,
-            weight_granularity=PerGroup(group_size),
-        )
-
-        def filter_fn(module, fqn):
-            return isinstance(module, nn.Linear) and ".conv." not in fqn
-
-        quantize_(model, config, filter_fn=filter_fn)
-
     m = _load_lfm_retrieval_model()
-    model, tok = m.load_embedding(torch.float32)
+
+    if config["backend"] == "mlx":
+        from executorch.backends.mlx.partitioner import MLXPartitioner
+        from executorch.extension.llm.export.quantize import quantize_model_
+
+        model, tok = m.load_embedding(torch.bfloat16)
+        partitioner = MLXPartitioner()
+
+        def _quantize(model):
+            quantize_model_(model, qlinear_config="4w", qlinear_group_size=64)
+    else:
+        import torch.nn as nn
+        from torchao.quantization.granularity import PerGroup
+        from torchao.quantization.quant_api import Int8DynamicActivationIntxWeightConfig, quantize_
+        from executorch.backends.xnnpack.partition.xnnpack_partitioner import XnnpackPartitioner
+
+        model, tok = m.load_embedding(torch.float32)
+        partitioner = XnnpackPartitioner()
+
+        def _quantize(model):
+            qcfg = Int8DynamicActivationIntxWeightConfig(
+                weight_dtype=torch.int4,
+                weight_granularity=PerGroup(32),
+            )
+            quantize_(model, qcfg, filter_fn=lambda mod, fqn: isinstance(mod, nn.Linear) and ".conv." not in fqn)
 
     ids, mask = m.encode_inputs(tok, ["hello world"], "document: ", 32)
     token_dim = torch.export.Dim("token_dim", min=2, max=512)
     dynamic_shapes = {"input_ids": {1: token_dim}, "attention_mask": {1: token_dim}}
 
-    _quantize_8da4w_skip_conv(model, group_size=32)
+    _quantize(model)
 
     ep = torch.export.export(model, (ids, mask), dynamic_shapes=dynamic_shapes, strict=True)
 
     et_program = to_edge_transform_and_lower(
         ep,
-        partitioner=[XnnpackPartitioner()],
+        partitioner=[partitioner],
         compile_config=EdgeCompileConfig(_check_ir_validity=False),
     ).to_executorch()
 
