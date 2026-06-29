@@ -19,20 +19,31 @@ def _load_lfm_retrieval_model():
 
 
 def export(config: dict, out_dir: str) -> str:
+    import torch.nn as nn
+    from torchao.quantization.granularity import PerGroup
+    from torchao.quantization.quant_api import Int8DynamicActivationIntxWeightConfig, quantize_
     from executorch.backends.xnnpack.partition.xnnpack_partitioner import XnnpackPartitioner
     from executorch.exir import EdgeCompileConfig, to_edge_transform_and_lower
-    from executorch.extension.llm.export.quantize import quantize_model_
-    from torch.export import Dim
+
+    def _quantize_8da4w_skip_conv(model, group_size=32):
+        config = Int8DynamicActivationIntxWeightConfig(
+            weight_dtype=torch.int4,
+            weight_granularity=PerGroup(group_size),
+        )
+
+        def filter_fn(module, fqn):
+            return isinstance(module, nn.Linear) and ".conv." not in fqn
+
+        quantize_(model, config, filter_fn=filter_fn)
 
     m = _load_lfm_retrieval_model()
     model, tok = m.load_embedding(torch.float32)
 
-    ids, mask = m.encode_inputs(tok, ["sample query"], prefix="", seq_len=64)
+    ids, mask = m.encode_inputs(tok, ["hello world"], "document: ", 32)
+    token_dim = torch.export.Dim("token_dim", min=2, max=512)
+    dynamic_shapes = {"input_ids": {1: token_dim}, "attention_mask": {1: token_dim}}
 
-    seq_dim = Dim("seq", min=2, max=512)
-    dynamic_shapes = ({1: seq_dim}, {1: seq_dim})
-
-    quantize_model_(model, qlinear_config="8da4w", qlinear_group_size=32)
+    _quantize_8da4w_skip_conv(model, group_size=32)
 
     ep = torch.export.export(model, (ids, mask), dynamic_shapes=dynamic_shapes, strict=True)
 

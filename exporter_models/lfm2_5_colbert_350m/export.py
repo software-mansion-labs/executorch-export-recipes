@@ -22,19 +22,18 @@ def export(config: dict, out_dir: str) -> str:
     from executorch.backends.xnnpack.partition.xnnpack_partitioner import XnnpackPartitioner
     from executorch.exir import EdgeCompileConfig, to_edge_transform_and_lower
     from executorch.extension.llm.export.quantize import quantize_model_
-    from torch.export import Dim
 
     m = _load_lfm_retrieval_model()
     model, tok = m.load_colbert(torch.float32)
 
-    ids, mask = m.encode_inputs(tok, ["sample query"], prefix="", seq_len=64)
-
-    seq_dim = Dim("seq", min=2, max=512)
-    dynamic_shapes = ({1: seq_dim}, {1: seq_dim})
+    ex_ids = torch.randint(2, 1000, (1, 16), dtype=torch.long)
+    ex_mask = torch.ones_like(ex_ids)
+    td = torch.export.Dim("t", min=2, max=512)
+    dynamic_shapes = {"input_ids": {1: td}, "attention_mask": {1: td}}
 
     quantize_model_(model, qlinear_config="8da4w", qlinear_group_size=32)
 
-    ep = torch.export.export(model, (ids, mask), dynamic_shapes=dynamic_shapes, strict=True)
+    ep = torch.export.export(model, (ex_ids, ex_mask), dynamic_shapes=dynamic_shapes, strict=True)
 
     et_program = to_edge_transform_and_lower(
         ep,
