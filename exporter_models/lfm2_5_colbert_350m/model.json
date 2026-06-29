@@ -1,4 +1,5 @@
 {
   "repo": "software-mansion/react-native-executorch-lfm2.5-colbert-350m",
-  "config": "mlx/config.json"
+  "config": "{backend}/config.json",
+  "backends": ["xnnpack", "mlx"]
 }
