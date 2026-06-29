@@ -7,6 +7,9 @@ import torch
 _HERE = Path(__file__).resolve().parent
 
 
+_CRNN_WEIGHTS_URL = "https://github.com/JaidedAI/EasyOCR/releases/download/v1.3/english_g2.zip"
+
+
 def _load_crnn():
     p = _HERE / "_crnn.py"
     spec = importlib.util.spec_from_file_location("crnn__crnn", p)
@@ -14,6 +17,22 @@ def _load_crnn():
     sys.modules["crnn__crnn"] = mod
     spec.loader.exec_module(mod)
     return mod
+
+
+def _fetch_weights(url: str, member: str) -> Path:
+    import urllib.request
+    import zipfile
+
+    cache = Path.home() / ".cache" / "exporter" / "crnn"
+    cache.mkdir(parents=True, exist_ok=True)
+    target = cache / member
+    if not target.exists():
+        zip_path = cache / "weights.zip"
+        urllib.request.urlretrieve(url, zip_path)
+        with zipfile.ZipFile(zip_path) as zf:
+            zf.extractall(cache)
+        zip_path.unlink()
+    return target
 
 
 def export(config: dict, out_dir: str) -> str:
@@ -28,7 +47,7 @@ def export(config: dict, out_dir: str) -> str:
     model = Model(num_class=97, input_channel=1, output_channel=256, hidden_size=256)
 
     state_dict = torch.load(
-        str(_HERE / "english_g2.pth"), map_location="cpu", weights_only=False
+        str(_fetch_weights(_CRNN_WEIGHTS_URL, "english_g2.pth")), map_location="cpu", weights_only=False
     )
     new_state_dict = OrderedDict()
     for key, value in state_dict.items():

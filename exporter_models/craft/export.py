@@ -7,6 +7,9 @@ import torch
 _HERE = Path(__file__).resolve().parent
 
 
+_CRAFT_WEIGHTS_URL = "https://github.com/JaidedAI/EasyOCR/releases/download/pre-v1.1.6/craft_mlt_25k.zip"
+
+
 def _load_craft():
     p = _HERE / "_craft.py"
     spec = importlib.util.spec_from_file_location("craft__craft", p)
@@ -14,6 +17,22 @@ def _load_craft():
     sys.modules["craft__craft"] = mod
     spec.loader.exec_module(mod)
     return mod
+
+
+def _fetch_weights(url: str, member: str) -> Path:
+    import urllib.request
+    import zipfile
+
+    cache = Path.home() / ".cache" / "exporter" / "craft"
+    cache.mkdir(parents=True, exist_ok=True)
+    target = cache / member
+    if not target.exists():
+        zip_path = cache / "weights.zip"
+        urllib.request.urlretrieve(url, zip_path)
+        with zipfile.ZipFile(zip_path) as zf:
+            zf.extractall(cache)
+        zip_path.unlink()
+    return target
 
 
 def export(config: dict, out_dir: str) -> None:
@@ -29,7 +48,7 @@ def export(config: dict, out_dir: str) -> None:
     CRAFT = craft.CRAFT
     copyStateDict = craft.copyStateDict
 
-    weights_path = _HERE / "craft_mlt_25k.pth"
+    weights_path = _fetch_weights(_CRAFT_WEIGHTS_URL, "craft_mlt_25k.pth")
     model = CRAFT()
     model.load_state_dict(
         copyStateDict(torch.load(str(weights_path), map_location="cpu", weights_only=False))
