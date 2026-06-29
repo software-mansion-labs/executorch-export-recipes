@@ -8,11 +8,12 @@ _HERE = Path(__file__).resolve().parent
 
 
 def _load_lfm_retrieval_model():
+    name = f"lfm_retrieval_model_{_HERE.name}"
     spec = importlib.util.spec_from_file_location(
-        "lfm_retrieval_model", _HERE / "_lfm_retrieval_model.py"
+        name, _HERE / "_lfm_retrieval_model.py"
     )
     mod = importlib.util.module_from_spec(spec)
-    sys.modules["lfm_retrieval_model"] = mod
+    sys.modules[name] = mod
     spec.loader.exec_module(mod)
     return mod
 
