@@ -98,7 +98,7 @@ def is_backend_split(model: str) -> bool:
 def _load_via_pointer(model: str, size: str | None, backend: str | None) -> Spec:
     data = _pointer_data(model)
     if "config" not in data:
-        raise SpecError(f"model.json for '{model}' must have 'repo' and 'config' keys")
+        raise SpecError(f"model.json for '{model}' must have a 'config' key")
     config_path = data["config"]
 
     sizes = data.get("sizes")

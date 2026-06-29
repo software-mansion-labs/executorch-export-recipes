@@ -19,6 +19,7 @@ def build_parser() -> argparse.ArgumentParser:
     d = sub.add_parser("describe")
     d.add_argument("model")
     d.add_argument("--size", default=None)
+    d.add_argument("--backend", default=None)
     d.add_argument("--json", action="store_true")
 
     e = sub.add_parser("export")
@@ -27,6 +28,7 @@ def build_parser() -> argparse.ArgumentParser:
     e.add_argument("--all-variants", action="store_true")
     e.add_argument("--local-spec", default=None)
     e.add_argument("--size", default=None)
+    e.add_argument("--backend", default=None)
     e.add_argument("--atol", type=float, default=None)
     e.add_argument("--output-dir", default=None)
     e.add_argument("--dry-run", action="store_true")
@@ -61,7 +63,7 @@ def main(argv: list[str] | None = None) -> int:
             return 0
 
         if args.command == "describe":
-            spec = registry.load(args.model, size=args.size)
+            spec = registry.load(args.model, size=args.size, backend=args.backend)
             script = registry.export_script_path(args.model)
             p = plan(spec, export_script=str(script), which=None, output_dir=spec.model, atol=None)
             d = _plan_dict(p)
@@ -70,7 +72,7 @@ def main(argv: list[str] | None = None) -> int:
             return 0
 
         if args.command == "export":
-            spec = registry.load(args.model, local_spec=args.local_spec, size=args.size)
+            spec = registry.load(args.model, local_spec=args.local_spec, size=args.size, backend=args.backend)
             script = registry.export_script_path(args.model)
             which = "all" if args.all_variants else args.variant
             out_dir = args.output_dir or spec.model
