@@ -6,11 +6,13 @@ top-imports stripped (unused on this path); `export.py` transcribes the build + 
 
 ## Two intentional adaptations from the recipe
 
-1. **Methods: `forward_1280` + `forward_320` only (NOT `forward_800`).** The recipe
-   builds 3 methods, but the PUBLISHED HF config (`xnnpack/config.json`) declares only
-   1280 and 320. The harness verifies against the published contract, so producing
-   exactly those two is correct; `forward_800` is not in the published artifact. Both
-   variants verified `io_ok`.
+1. **Methods: `forward_1280` (1280×1280) + `forward_320` (320×320) only.** The recipe
+   builds 3 methods with sizes `(1280,1280)`, `(800,800)`, `(1280,320)`, but the
+   PUBLISHED HF config (`xnnpack/config.json`) declares only two: `forward_1280` =
+   `[1,3,1280,1280]` and `forward_320` = `[1,3,320,320]` (SQUARE 320, not the recipe's
+   landscape 1280×320). The harness verifies against the published contract, so it
+   produces exactly those two square inputs — both verified `io_ok`. `forward_800` and
+   the recipe's landscape 320 are not in the published artifact.
 
 2. **int8 calibration: synthetic data.** The recipe calibrates int8 from
    `calibration_images/*.png` via cv2, falling back to synthetic (`randn*0.5`) when the

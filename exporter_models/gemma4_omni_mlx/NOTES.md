@@ -9,6 +9,13 @@ Structural-only in this harness: backend=mlx + text-generation → not runtime-v
 and the real export needs an executorch source build with the MLX backend. The published
 .pte already exists on HF.
 
+## Export settings
+
+`group_size=64` (the v3 recipe's CLI default is 32, but the published multimodal artifact
+was produced at gs=64 — same on-device-tested setting as the text `gemma4_mlx`). int4
+weights; `max_seq_len=2048` (the published model's context). These are baked into
+`export.py` to match the shipped `.pte`.
+
 ## Self-containment
 
 The full gemma4 model + export code is vendored under `_gemma4/` (the encoders,
