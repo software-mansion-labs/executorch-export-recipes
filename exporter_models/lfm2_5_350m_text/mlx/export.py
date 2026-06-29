@@ -43,16 +43,8 @@ def export(config: dict, out_dir: str) -> str:
     cfg.model.use_sdpa_with_kv_cache = True
     cfg.model.dtype_override = DtypeOverride.bf16
     cfg.quantization.group_size = GROUP_SIZE
-
-    bk = config["backend"]
-    if bk == "mlx":
-        cfg.quantization.qmode = "4w"
-        cfg.backend.mlx.enabled = True
-    else:
-        cfg.quantization.qmode = "8da4w"
-        cfg.backend.xnnpack.enabled = True
-        cfg.backend.xnnpack.extended_ops = True
-
+    cfg.quantization.qmode = "4w"
+    cfg.backend.mlx.enabled = True
     cfg.export.max_seq_length = PREFILL_CAP + 1
     cfg.export.max_context_length = CONTEXT_LEN
     cfg.export.output_name = out_path

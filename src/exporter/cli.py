@@ -64,7 +64,7 @@ def main(argv: list[str] | None = None) -> int:
 
         if args.command == "describe":
             spec = registry.load(args.model, size=args.size, backend=args.backend)
-            script = registry.export_script_path(args.model)
+            script = registry.export_script_path(args.model, args.backend)
             p = plan(spec, export_script=str(script), which=None, output_dir=spec.model, atol=None)
             d = _plan_dict(p)
             d["size"] = args.size
@@ -73,7 +73,7 @@ def main(argv: list[str] | None = None) -> int:
 
         if args.command == "export":
             spec = registry.load(args.model, local_spec=args.local_spec, size=args.size, backend=args.backend)
-            script = registry.export_script_path(args.model)
+            script = registry.export_script_path(args.model, args.backend)
             which = "all" if args.all_variants else args.variant
             out_dir = args.output_dir or spec.model
             p = plan(spec, export_script=str(script), which=which, output_dir=out_dir, atol=args.atol)

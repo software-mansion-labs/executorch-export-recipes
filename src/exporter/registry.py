@@ -32,7 +32,14 @@ def list_models() -> list[str]:
         return []
     out = []
     for d in MODELS_DIR.iterdir():
-        if not d.is_dir() or not (d / "export.py").exists():
+        if not d.is_dir():
+            continue
+        has_top_export = (d / "export.py").exists()
+        # backend-split models keep export.py inside each backend subdir
+        has_backend_export = any(
+            (d / b / "export.py").exists() for b in model_backends(d.name)
+        )
+        if not (has_top_export or has_backend_export):
             continue
         if (d / "config.json").exists() or (d / "model.json").exists():
             out.append(d.name)
@@ -46,8 +53,13 @@ def spec_path(model: str) -> Path:
     return p
 
 
-def export_script_path(model: str) -> Path:
-    p = MODELS_DIR / model / "export.py"
+def export_script_path(model: str, backend: str | None = None) -> Path:
+    backends = model_backends(model)
+    if backends:
+        chosen = backend or backends[0]
+        p = MODELS_DIR / model / chosen / "export.py"
+    else:
+        p = MODELS_DIR / model / "export.py"
     if not p.exists():
         raise SpecError(f"no export.py for model '{model}' at {p}")
     return p

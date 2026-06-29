@@ -6,30 +6,29 @@ import tempfile
 from pathlib import Path
 
 _HERE = Path(__file__).resolve().parent
+_MODEL_DIR_PATH = _HERE.parent
 _MODEL_DIR = "LiquidAI/LFM2.5-VL-450M"
 
 
 def _load_pkg():
-    pkg_name = f"lfm2_5_vl_{_HERE.name}"
+    pkg_name = f"lfm2_5_vl_{_MODEL_DIR_PATH.name}_xnnpack"
     if pkg_name in sys.modules:
-        return sys.modules[pkg_name]
-    pkg_init = _HERE / "_lfm2_5_vl" / "__init__.py"
+        return pkg_name
+    pkg_init = _MODEL_DIR_PATH / "_lfm2_5_vl" / "__init__.py"
     spec = importlib.util.spec_from_file_location(
         pkg_name,
         pkg_init,
-        submodule_search_locations=[str(_HERE / "_lfm2_5_vl")],
+        submodule_search_locations=[str(_MODEL_DIR_PATH / "_lfm2_5_vl")],
     )
     mod = importlib.util.module_from_spec(spec)
     sys.modules[pkg_name] = mod
     spec.loader.exec_module(mod)
-    return mod
+    return pkg_name
 
 
 def export(config: dict, out_dir: str) -> str:
-    _load_pkg()
-    pkg_name = f"lfm2_5_vl_{_HERE.name}"
-    mod_name = "export_lfm2_5_vl_mlx" if config["backend"] == "mlx" else "export_lfm2_5_vl"
-    export_mod = importlib.import_module(f"{pkg_name}.{mod_name}")
+    pkg_name = _load_pkg()
+    export_mod = importlib.import_module(f"{pkg_name}.export_lfm2_5_vl")
     export_all = export_mod.export_all
     params_path = export_mod._resolve_params_path(_MODEL_DIR, None)
 
