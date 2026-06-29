@@ -1,3 +1,5 @@
 {
+  "backends": ["xnnpack"],
+  "config": "{backend}/config.json",
   "multi_pte": true
 }

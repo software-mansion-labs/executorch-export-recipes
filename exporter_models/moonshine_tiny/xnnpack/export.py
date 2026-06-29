@@ -5,20 +5,21 @@ from pathlib import Path
 import torch
 
 _HERE = Path(__file__).resolve().parent
+_MODEL_DIR = _HERE.parent
 
 
 def _load_model_pt():
-    spec = importlib.util.spec_from_file_location("moonshine_tiny_model_pt", _HERE / "_model_pt.py")
+    spec = importlib.util.spec_from_file_location("moonshine_tiny_model_pt_xnnpack", _MODEL_DIR / "_model_pt.py")
     mod = importlib.util.module_from_spec(spec)
-    sys.modules["moonshine_tiny_model_pt"] = mod
+    sys.modules["moonshine_tiny_model_pt_xnnpack"] = mod
     spec.loader.exec_module(mod)
     return mod
 
 
 def _load_model_keras():
-    spec = importlib.util.spec_from_file_location("moonshine_tiny_model_keras", _HERE / "_model_keras.py")
+    spec = importlib.util.spec_from_file_location("moonshine_tiny_model_keras_xnnpack", _MODEL_DIR / "_model_keras.py")
     mod = importlib.util.module_from_spec(spec)
-    sys.modules["moonshine_tiny_model_keras"] = mod
+    sys.modules["moonshine_tiny_model_keras_xnnpack"] = mod
     spec.loader.exec_module(mod)
     return mod
 

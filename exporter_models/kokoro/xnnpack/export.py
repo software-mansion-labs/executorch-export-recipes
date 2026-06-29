@@ -5,16 +5,17 @@ from pathlib import Path
 import torch
 
 _HERE = Path(__file__).resolve().parent
+_MODEL_DIR = _HERE.parent
 
 
 def _load_kokoro_model():
-    pkg_init = _HERE / "_kokoro_model" / "__init__.py"
+    pkg_init = _MODEL_DIR / "_kokoro_model" / "__init__.py"
     spec = importlib.util.spec_from_file_location(
-        "kokoro_kokoro_model", pkg_init,
-        submodule_search_locations=[str(_HERE / "_kokoro_model")],
+        "kokoro_kokoro_model_xnnpack", pkg_init,
+        submodule_search_locations=[str(_MODEL_DIR / "_kokoro_model")],
     )
     mod = importlib.util.module_from_spec(spec)
-    sys.modules["kokoro_kokoro_model"] = mod
+    sys.modules["kokoro_kokoro_model_xnnpack"] = mod
     spec.loader.exec_module(mod)
     return mod
 
@@ -24,7 +25,7 @@ def export(config: dict, out_dir: str) -> None:
     from executorch.exir import to_edge_transform_and_lower
 
     _load_kokoro_model()
-    from kokoro_kokoro_model.model import KModel
+    from kokoro_kokoro_model_xnnpack.model import KModel
 
     class DurationPredictorWrapper(torch.nn.Module):
         def __init__(self, model):
