@@ -28,7 +28,8 @@ def _load_pkg():
 def export(config: dict, out_dir: str) -> str:
     _load_pkg()
     pkg_name = f"lfm2_5_vl_{_HERE.name}"
-    export_mod = importlib.import_module(f"{pkg_name}.export_lfm2_5_vl")
+    mod_name = "export_lfm2_5_vl_mlx" if config["backend"] == "mlx" else "export_lfm2_5_vl"
+    export_mod = importlib.import_module(f"{pkg_name}.{mod_name}")
     export_all = export_mod.export_all
     params_path = export_mod._resolve_params_path(_MODEL_DIR, None)
 
