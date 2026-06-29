@@ -52,11 +52,11 @@ class FastSAMExecuTorch:
         t_preproc = time.perf_counter() - t_preproc_start
         
         t_infer_start = time.perf_counter()
-        bbox, scores, mask_logits = self.method.execute((tensor,))
+        bbox, conf, classes, mask_logits = self.method.execute((tensor,))
         t_infer = time.perf_counter() - t_infer_start
         
         timing = {"preprocess_ms": t_preproc * 1000, "inference_ms": t_infer * 1000}
-        return bbox[0], scores[0], mask_logits[0], ratio_pad, timing
+        return bbox, conf, mask_logits, ratio_pad, timing
 
 
 # ---------------------------------------------------------------------------
@@ -160,7 +160,7 @@ def predict(model: FastSAMExecuTorch, image: np.ndarray) -> tuple[list[dict], di
     bbox, scores_tensor, mask_logits, ratio_pad, model_timing = model.run(image)
 
     t_postproc_start = time.perf_counter()
-    conf = scores_tensor[:, 0]
+    conf = scores_tensor
     keep = conf > CONF_THRESHOLD
     bbox, conf, mask_logits = bbox[keep], conf[keep], mask_logits[keep]
     if bbox.shape[0] == 0:

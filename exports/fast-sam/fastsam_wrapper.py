@@ -71,7 +71,7 @@ class FastSAMInstanceSegmentation(nn.Module):
             f"nm={self.nm}, topk={self.topk}/{Q}, mask_size={effective}"
         )
 
-    def forward(self, x: Tensor) -> tuple[Tensor, Tensor, Tensor]:
+    def forward(self, x: Tensor) -> tuple[Tensor, Tensor, Tensor, Tensor]:
         preds, protos = self.inner(x)   # preds: [B, 4+1+nm, Q]
 
         # Select top-k anchors by confidence before the expensive bmm.
@@ -91,8 +91,8 @@ class FastSAMInstanceSegmentation(nn.Module):
         )  # [B, K, 4]
 
         # FastSAM is class-agnostic: confidence + constant class index 0
-        conf = preds[..., 4:5]                                 # [B, K, 1]
-        scores = torch.cat([conf, torch.zeros_like(conf)], dim=-1)  # [B, K, 2]
+        conf = preds[..., 4]                                   # [B, K]
+        classes = torch.zeros_like(conf)                       # [B, K]
 
         coeffs = preds[..., 5:]                                # [B, K, nm]
 
@@ -109,4 +109,4 @@ class FastSAMInstanceSegmentation(nn.Module):
             B, -1, H, W
         )  # [B, K, H, W]
 
-        return bbox, scores, mask_logits
+        return bbox[0], conf[0], classes[0], mask_logits[0]
