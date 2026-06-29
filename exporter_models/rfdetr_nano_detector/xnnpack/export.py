@@ -6,10 +6,11 @@ import torch.nn as nn
 from torch.export import export as torch_export
 
 _HERE = Path(__file__).resolve().parent
+_MODEL_DIR = _HERE.parent
 
 
 def _apply_patches():
-    spec = importlib.util.spec_from_file_location("rfdetr_det_patches", _HERE.parent / "_patches.py")
+    spec = importlib.util.spec_from_file_location("rfdetr_det_patches", _MODEL_DIR / "_patches.py")
     mod = importlib.util.module_from_spec(spec)
     spec.loader.exec_module(mod)
     mod.apply_patches()

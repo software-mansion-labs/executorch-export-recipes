@@ -8,14 +8,15 @@ from torch.export import export as torch_export
 from exporter.backends import lower
 
 _HERE = Path(__file__).resolve().parent
+_MODEL_DIR = _HERE.parent
 
 
 def _load_wrapper():
     spec = importlib.util.spec_from_file_location(
-        "fast_sam_wrapper", _HERE.parent / "_fastsam_wrapper.py"
+        "fast_sam_xnnpack_wrapper", _MODEL_DIR / "_fastsam_wrapper.py"
     )
     mod = importlib.util.module_from_spec(spec)
-    sys.modules["fast_sam_wrapper"] = mod
+    sys.modules["fast_sam_xnnpack_wrapper"] = mod
     spec.loader.exec_module(mod)
     return mod
 
