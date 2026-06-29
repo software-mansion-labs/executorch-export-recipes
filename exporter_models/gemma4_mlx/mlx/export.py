@@ -17,11 +17,11 @@ logger = logging.getLogger(__name__)
 
 
 def _load_text_decoder():
-    pkg_init = _HERE / "_text_decoder" / "__init__.py"
+    pkg_init = _HERE.parent / "_text_decoder" / "__init__.py"
     spec = importlib.util.spec_from_file_location(
         "gemma4_text_decoder",
         pkg_init,
-        submodule_search_locations=[str(_HERE / "_text_decoder")],
+        submodule_search_locations=[str(_HERE.parent / "_text_decoder")],
     )
     mod = importlib.util.module_from_spec(spec)
     sys.modules["gemma4_text_decoder"] = mod
