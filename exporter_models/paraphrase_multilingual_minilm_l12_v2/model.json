@@ -1,0 +1,4 @@
+{
+  "backends": ["xnnpack"],
+  "config": "{backend}/config.json"
+}
