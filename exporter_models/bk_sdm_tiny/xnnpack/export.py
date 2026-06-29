@@ -8,7 +8,7 @@ MODEL_ID = "vivym/bk-sdm-tiny-vpred"
 
 
 def _load_export_utils():
-    p = _HERE / "_export_utils.py"
+    p = _HERE.parent / "_export_utils.py"
     spec = importlib.util.spec_from_file_location("bk_sdm_tiny__export_utils", p)
     mod = importlib.util.module_from_spec(spec)
     sys.modules["bk_sdm_tiny__export_utils"] = mod

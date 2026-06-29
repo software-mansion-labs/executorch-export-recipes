@@ -5,12 +5,13 @@ from pathlib import Path
 import torch
 
 _HERE = Path(__file__).resolve().parent
+_MODEL_DIR = _HERE.parent
 
 
 def _load_vad_model():
-    spec = importlib.util.spec_from_file_location("fsmn_vad_model", _HERE / "_vad_model.py")
+    spec = importlib.util.spec_from_file_location("fsmn_vad_xnnpack_model", _MODEL_DIR / "_vad_model.py")
     mod = importlib.util.module_from_spec(spec)
-    sys.modules["fsmn_vad_model"] = mod
+    sys.modules["fsmn_vad_xnnpack_model"] = mod
     spec.loader.exec_module(mod)
     return mod
 

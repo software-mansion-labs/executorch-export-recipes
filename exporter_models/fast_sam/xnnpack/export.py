@@ -12,7 +12,7 @@ _HERE = Path(__file__).resolve().parent
 
 def _load_wrapper():
     spec = importlib.util.spec_from_file_location(
-        "fast_sam_wrapper", _HERE / "_fastsam_wrapper.py"
+        "fast_sam_wrapper", _HERE.parent / "_fastsam_wrapper.py"
     )
     mod = importlib.util.module_from_spec(spec)
     sys.modules["fast_sam_wrapper"] = mod

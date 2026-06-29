@@ -6,16 +6,17 @@ from pathlib import Path
 import torch
 
 _HERE = Path(__file__).resolve().parent
+_MODEL_DIR = _HERE.parent
 
 
 def _load_custom_whisper():
-    pkg_init = _HERE / "_custom_whisper" / "__init__.py"
+    pkg_init = _MODEL_DIR / "_custom_whisper" / "__init__.py"
     spec = importlib.util.spec_from_file_location(
-        "whisper_tiny_custom_whisper", pkg_init,
-        submodule_search_locations=[str(_HERE / "_custom_whisper")],
+        "whisper_tiny_xnnpack_custom_whisper", pkg_init,
+        submodule_search_locations=[str(_MODEL_DIR / "_custom_whisper")],
     )
     mod = importlib.util.module_from_spec(spec)
-    sys.modules["whisper_tiny_custom_whisper"] = mod
+    sys.modules["whisper_tiny_xnnpack_custom_whisper"] = mod
     spec.loader.exec_module(mod)
     return mod
 
@@ -37,7 +38,7 @@ def export(config: dict, out_dir: str) -> str:
     from transformers import AutoProcessor
 
     cw = _load_custom_whisper()
-    preprocessor_mod = importlib.import_module("whisper_tiny_custom_whisper.preprocessor")
+    preprocessor_mod = importlib.import_module("whisper_tiny_xnnpack_custom_whisper.preprocessor")
     ProcessorTorchModule = preprocessor_mod.ProcessorTorchModule
 
     class WhisperPositionalEmbedding(torch.nn.Module):

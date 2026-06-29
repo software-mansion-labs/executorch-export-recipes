@@ -5,16 +5,17 @@ from pathlib import Path
 import torch
 
 _HERE = Path(__file__).resolve().parent
+_MODEL_DIR = _HERE.parent
 
 
 _CRNN_WEIGHTS_URL = "https://github.com/JaidedAI/EasyOCR/releases/download/v1.3/english_g2.zip"
 
 
 def _load_crnn():
-    p = _HERE / "_crnn.py"
-    spec = importlib.util.spec_from_file_location("crnn__crnn", p)
+    p = _MODEL_DIR / "_crnn.py"
+    spec = importlib.util.spec_from_file_location("crnn_xnnpack_crnn", p)
     mod = importlib.util.module_from_spec(spec)
-    sys.modules["crnn__crnn"] = mod
+    sys.modules["crnn_xnnpack_crnn"] = mod
     spec.loader.exec_module(mod)
     return mod
 

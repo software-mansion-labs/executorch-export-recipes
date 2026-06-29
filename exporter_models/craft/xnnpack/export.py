@@ -5,16 +5,17 @@ from pathlib import Path
 import torch
 
 _HERE = Path(__file__).resolve().parent
+_MODEL_DIR = _HERE.parent
 
 
 _CRAFT_WEIGHTS_URL = "https://github.com/JaidedAI/EasyOCR/releases/download/pre-v1.1.6/craft_mlt_25k.zip"
 
 
 def _load_craft():
-    p = _HERE / "_craft.py"
-    spec = importlib.util.spec_from_file_location("craft__craft", p)
+    p = _MODEL_DIR / "_craft.py"
+    spec = importlib.util.spec_from_file_location("craft_xnnpack_craft", p)
     mod = importlib.util.module_from_spec(spec)
-    sys.modules["craft__craft"] = mod
+    sys.modules["craft_xnnpack_craft"] = mod
     spec.loader.exec_module(mod)
     return mod
 

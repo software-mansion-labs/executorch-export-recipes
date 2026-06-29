@@ -11,11 +11,11 @@ _HERE = Path(__file__).resolve().parent
 
 
 def _load_model_module():
-    pkg_init = _HERE / "_model" / "__init__.py"
-    module_name = f"_vendored_{_HERE.name}_model"
+    pkg_init = _HERE.parent / "_model" / "__init__.py"
+    module_name = f"_vendored_{_HERE.parent.name}_xnnpack_model"
     spec = importlib.util.spec_from_file_location(
         module_name, pkg_init,
-        submodule_search_locations=[str(_HERE / "_model")],
+        submodule_search_locations=[str(_HERE.parent / "_model")],
     )
     mod = importlib.util.module_from_spec(spec)
     sys.modules[module_name] = mod

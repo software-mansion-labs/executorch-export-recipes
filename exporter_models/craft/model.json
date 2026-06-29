@@ -1,5 +1,6 @@
 {
   "repo": "software-mansion/react-native-executorch-detector-craft",
-  "config": "xnnpack/config.json",
-  "multi_pte": true
+  "config": "{backend}/config.json",
+  "multi_pte": true,
+  "backends": ["xnnpack"]
 }

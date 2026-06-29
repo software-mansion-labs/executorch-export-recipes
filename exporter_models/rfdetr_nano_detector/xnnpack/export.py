@@ -9,7 +9,7 @@ _HERE = Path(__file__).resolve().parent
 
 
 def _apply_patches():
-    spec = importlib.util.spec_from_file_location("rfdetr_det_patches", _HERE / "_patches.py")
+    spec = importlib.util.spec_from_file_location("rfdetr_det_patches", _HERE.parent / "_patches.py")
     mod = importlib.util.module_from_spec(spec)
     spec.loader.exec_module(mod)
     mod.apply_patches()

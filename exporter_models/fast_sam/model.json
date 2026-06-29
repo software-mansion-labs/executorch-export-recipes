@@ -1,5 +1,6 @@
 {
   "repo": "software-mansion/react-native-executorch-fast-sam",
-  "config": "{size}/xnnpack/config.json",
-  "sizes": ["s", "x"]
+  "config": "{size}/{backend}/config.json",
+  "sizes": ["s", "x"],
+  "backends": ["xnnpack"]
 }
