@@ -8,14 +8,15 @@ from torch.export import export as torch_export
 from exporter.backends import lower
 
 _HERE = Path(__file__).resolve().parent
+_MODEL_DIR = _HERE.parent
 
 
 def _load_model_module():
-    pkg_init = _HERE.parent / "_model" / "__init__.py"
-    module_name = f"_vendored_{_HERE.parent.name}_xnnpack_model"
+    pkg_init = _MODEL_DIR / "_model" / "__init__.py"
+    module_name = f"_vendored_{_MODEL_DIR.name}_xnnpack_model"
     spec = importlib.util.spec_from_file_location(
         module_name, pkg_init,
-        submodule_search_locations=[str(_HERE.parent / "_model")],
+        submodule_search_locations=[str(_MODEL_DIR / "_model")],
     )
     mod = importlib.util.module_from_spec(spec)
     sys.modules[module_name] = mod
