@@ -9,10 +9,11 @@ Usage:
     python export_rfdetr_segmentation_coreml.py --output my_model.pte
     python export_rfdetr_segmentation_coreml.py --compute-unit cpu_and_ne
 
-Output tensor layout (3 tensors matching iOS runner expectations):
-    [0] boxes_xyxy     [1, Q, 4]    float32  xyxy in pixel coords (0..resolution)
-    [1] scores_labels  [1, Q, 2]    float32  stacked [score, label_id] per query
-    [2] masks          [1, Q, 78, 78] float32  mask logits — apply sigmoid + threshold on device
+Output tensor layout (4 tensors matching react-native-executorch expectations):
+    [0] boxes_xyxy     [Q, 4]       float32  xyxy in pixel coords (0..resolution)
+    [1] scores         [Q]          float32  score per query
+    [2] labels         [Q]          float32  COCO class label ID per query
+    [3] masks          [Q, 78, 78]  float32  mask logits — apply sigmoid + threshold on device
 
 Default settings (best from autoresearch + ALL compute unit):
     model      : RFDETRSegNano
@@ -110,7 +111,7 @@ def _gen_encoder_output_proposals(memory, memory_padding_mask, spatial_shapes,
     return output_memory.to(memory.dtype), output_proposals.to(memory.dtype)
 
 
-def _transformer_forward(self, srcs, masks, pos_embeds, refpoint_embed, query_feat):
+def _transformer_forward(self, srcs, masks, pos_embeds, refpoint_embed, query_feat, cross_attn_srcs=None):
     masks = None
     src_flatten, lvl_pos_embed_flatten, spatial_shapes = [], [], []
     for lvl, (src, pos_embed) in enumerate(zip(srcs, pos_embeds)):
@@ -122,6 +123,21 @@ def _transformer_forward(self, srcs, masks, pos_embeds, refpoint_embed, query_fe
         src_flatten.append(src)
     memory = torch.cat(src_flatten, 1)
     lvl_pos_embed_flatten = torch.cat(lvl_pos_embed_flatten, 1)
+
+    # Flatten optional dual-projector features for keypoint-specific cross-attention.
+    cross_attn_memory = None
+    if cross_attn_srcs is not None:
+        ca_flatten = []
+        for src in cross_attn_srcs:
+            tensor = getattr(src, "tensors", src)
+            ca_flatten.append(tensor.flatten(2).transpose(1, 2))
+        cross_attn_memory = torch.cat(ca_flatten, 1)
+
+    if getattr(self, "dual_projector_kp_only", False) and cross_attn_memory is not None:
+        decoder_memory = memory
+    else:
+        decoder_memory = cross_attn_memory if cross_attn_memory is not None else memory
+
     spatial_shapes_list = list(spatial_shapes)
     spatial_shapes = torch.as_tensor(spatial_shapes, dtype=torch.long, device=memory.device)
     level_start_index = torch.cat(
@@ -175,7 +191,7 @@ def _transformer_forward(self, srcs, masks, pos_embeds, refpoint_embed, query_fe
                 refpoint_embed_ts_subset = refpoint_embed_ts_subset + refpoint_embed_ts
             refpoint_embed = torch.concat([refpoint_embed_ts_subset, refpoint_embed_subset], dim=-2)
         hs, references = self.decoder(
-            tgt, memory, memory_key_padding_mask=None,
+            tgt, decoder_memory, memory_key_padding_mask=None,
             pos=lvl_pos_embed_flatten, refpoints_unsigmoid=refpoint_embed,
             level_start_index=level_start_index, spatial_shapes=spatial_shapes,
             valid_ratios=None, spatial_shapes_list=spatial_shapes_list)
@@ -366,10 +382,18 @@ def apply_patches():
 # ---------------------------------------------------------------------------
 
 class RFDETRSegmentationWrapper(nn.Module):
-    """Outputs 3 tensors matching iOS runner expectations:
-      - boxes_xyxy    [1, Q, 4]      xyxy in pixel coords
-      - scores_labels [1, Q, 2]      stacked [score, label_id]
-      - masks         [1, Q, 78, 78] mask logits (sigmoid + threshold on device)
+    """Wraps RFDETRSegNano to output (boxes_xyxy [Q,4], scores [Q], labels [Q], mask_logits [Q,MH,MW]).
+
+    Boxes are xyxy in model pixel coordinates (0..resolution).
+    Scores are sigmoid confidence in [0, 1].
+    Labels are float32 COCO class IDs.
+    Mask logits are pre-sigmoid (threshold them on-device).
+
+    Matches the schema expected by instanceSegmentation.ts:
+        output[0]: float32 [N, 4]       boxes
+        output[1]: float32 [N]          scores
+        output[2]: float32 [N]          class labels
+        output[3]: float32 [N, MH, MW]  mask logits
     """
 
     def __init__(self, model: nn.Module, resolution: int):
@@ -379,18 +403,19 @@ class RFDETRSegmentationWrapper(nn.Module):
 
     def forward(self, x: torch.Tensor):
         pred_boxes, pred_logits, pred_masks = self.model(x)
-        scores, labels = pred_logits[0].sigmoid().max(dim=-1)
-        boxes = pred_boxes[0]
-        cx, cy, w, h = boxes.unbind(-1)
-        w = w.clamp(min=0.0)
-        h = h.clamp(min=0.0)
-        x1 = (cx - 0.5 * w) * self.resolution
-        y1 = (cy - 0.5 * h) * self.resolution
-        x2 = (cx + 0.5 * w) * self.resolution
-        y2 = (cy + 0.5 * h) * self.resolution
-        boxes_xyxy = torch.stack([x1, y1, x2, y2], dim=-1).unsqueeze(0)           # [1, Q, 4]
-        scores_labels = torch.stack([scores, labels.float()], dim=-1).unsqueeze(0) # [1, Q, 2]
-        return boxes_xyxy, scores_labels, pred_masks                                # [1, Q, 78, 78]
+
+        # cxcywh → xyxy in pixel coords
+        cxy = pred_boxes[..., :2]
+        wh = pred_boxes[..., 2:].clamp(min=0.0)
+        half_wh = 0.5 * wh
+        bboxes = torch.cat([cxy - half_wh, cxy + half_wh], dim=-1) * self.resolution
+
+        # scores + class ids
+        probs = pred_logits.sigmoid()
+        max_scores, class_ids = probs.max(dim=-1)
+
+        # drop the batch dim from all outputs
+        return bboxes[0], max_scores[0], class_ids[0].float(), pred_masks[0]
 
 
 # ---------------------------------------------------------------------------

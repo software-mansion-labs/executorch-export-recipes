@@ -57,10 +57,11 @@ class RFDETRDetectionWrapper(nn.Module):
 
 
 class RFDETRSegmentationWrapper(nn.Module):
-    """Wraps RF-DETR Segmentation to output (bboxes [1,Q,4], scores [1,Q,2], mask_logits [1,Q,H,W]).
+    """Wraps RF-DETR Segmentation to output (bboxes [Q,4], scores [Q], classes [Q], mask_logits [Q,H,W]).
 
     Boxes are xyxy in model pixel coordinates (0 to resolution).
-    Scores are [max_score, class_id], max_score is post-sigmoid.
+    Scores are max_score post-sigmoid.
+    Classes are class_id as float32.
     Mask logits are pre-sigmoid.
     """
 
@@ -79,12 +80,11 @@ class RFDETRSegmentationWrapper(nn.Module):
         half_wh = 0.5 * wh
         bboxes = torch.cat([cxy - half_wh, cxy + half_wh], dim=-1) * self.resolution
 
-        # Scores: [1, Q, 2] containing [max_score, class_id]
+        # Scores: max_scores and class_ids
         probs = pred_logits.sigmoid()
         max_scores, class_ids = probs.max(dim=-1)
-        scores = torch.stack([max_scores, class_ids.float()], dim=-1)
 
-        return bboxes, scores, pred_masks
+        return bboxes[0], max_scores[0], class_ids[0].float(), pred_masks[0]
 
 
 def _lower(exported, out_path):
