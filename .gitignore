@@ -8,3 +8,6 @@ __pycache__/
 *.pt
 !exporter_models/**/precomputed_data/*.pt
 *.pth
+docs/superpowers/
+.superpowers/
+tests/
