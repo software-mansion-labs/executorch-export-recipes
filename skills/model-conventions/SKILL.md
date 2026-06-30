@@ -1,0 +1,88 @@
+---
+name: model-conventions
+description: Exporter harness model layout conventions — model.json (hf/repo/config/sizes/backends), the {size} and {backend} axes, fetched-vs-local config rules, vendored code, and nested/umbrella models.
+---
+
+# Model Conventions
+
+How models are laid out and resolved in `exporter_models/`. For the step-by-step
+of adding one, see `skills/adding-a-new-export`; for backend lowering, see
+`skills/backends/*`.
+
+## model.json (the per-model root)
+
+```json
+{
+  "hf": "https://huggingface.co/software-mansion/react-native-executorch-<model>",
+  "repo": "software-mansion/react-native-executorch-<model>",
+  "config": "{size}/{backend}/config.json",
+  "sizes": ["350m", "1_2b"],
+  "backends": ["xnnpack", "mlx"]
+}
+```
+
+- **`hf`** — the published HF repo URL. Set on every model.
+- **`repo`** — the repo the export fetches config/weights from. May differ from
+  `hf` (e.g. privacy filters fetch the upstream `openai/privacy-filter` while
+  `hf` is the SWM publish repo). Omit entirely for a purely-local model.
+- **`config`** — path template resolved with the chosen size/backend.
+- **`sizes` / `backends`** — the two axes (below).
+
+## The {backend} axis
+
+A model declares `backends: [...]` and puts `export.py` in each `<backend>/`
+subdir (`<model>/xnnpack/export.py`, `<model>/coreml/export.py`, ...). Adding a
+backend is purely additive — no existing file changes. The registry resolves
+`export_script_path(model, backend)` to `<model>/<backend>/export.py`.
+
+## The {size} axis
+
+A model declares `sizes: [...]` and a `{size}` placeholder in `config`. There is
+**one `export.py` per backend** — it reads `config["size"]` and branches
+(params, model id, checkpoint). Do NOT make a per-size `export.py`. Two shapes:
+
+- size in the **config path** only (`{size}/{backend}/config.json`), one HF repo
+  holding all sizes — e.g. fast_sam.
+- size in the **repo** too (`...-whisper-{size}`), one HF repo per size — the
+  registry substitutes `{size}` in `repo` as well as `config`.
+
+## Fetched vs local config
+
+For each (size, backend) the registry first looks for a LOCAL config at the
+resolved pointer path `<model>/<config_path>`; if absent, it FETCHES
+`config.json` from the HF `repo`. Vendor a local config only when:
+
+1. there is no `repo` (purely-local model), or
+2. the HF repo has no config for that backend (e.g. kokoro, lfm2_5_vl,
+   moonshine, rfdetr_keypoint), or
+3. the HF config is wrong or shaped differently from what we export — e.g.
+   ssdlite320 coreml (HF shape was wrong; verified against the real .pte), or a
+   fully-dynamic `-1` dim we represent as a concrete `Dim(1,N)` (paraphrase).
+
+Otherwise let it fetch — most models do. Don't vendor a redundant copy of a
+config the repo already ships correctly.
+
+## Vendored code
+
+Model code lives at the model-dir top (`_pf_model.py`, `_custom_whisper/`,
+`_lfm2_5_vl/`, ...) and is path-loaded inside `export()` with a unique
+`sys.modules` key per dir/backend. Each model owns its code — copy shared code
+into each model rather than importing across model dirs. Hardcode the source
+HF id as a constant in the vendored code (like whisper's `openai/whisper-<size>`
+or lfm's model_class), not via config.
+
+## Nested / umbrella models
+
+A dir whose children are models — not a model itself — groups related models.
+`easyocr/` holds `easyocr/craft` and `easyocr/crnn`, each with its own
+`model.json` and contract (craft is `multi_pte`, crnn is sized). The registry
+discovers one level of nesting: a top dir that isn't itself a model is scanned
+for child model dirs, emitted as `parent/child`. The rest of the registry
+handles slash-bearing model names via path joins.
+
+## Weights are never committed
+
+`.pt`/`.pth`/`.pte` are gitignored. Every model fetches/builds its weights at
+export time (HF `from_pretrained` / `hf_hub_download`, URL-zip download,
+keras->pytorch convert, ultralytics auto-download). Tests live in `tests/`
+(also gitignored — local only).

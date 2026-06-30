@@ -1,93 +1,75 @@
 # export-scripts
 
+A "script-as-engine" harness for exporting models to ExecuTorch `.pte` files.
+Each model is a self-contained directory that owns its model code and a small
+`export.py` per backend; the harness (`src/exporter/`) discovers models,
+resolves their spec, runs the export, and verifies the produced `.pte` against
+the authored I/O contract.
 
-
-## Getting started
-
-To make it easy for you to get started with GitLab, here's a list of recommended next steps.
-
-Already a pro? Just edit this README.md and make it your own. Want to make it easy? [Use the template at the bottom](#editing-this-readme)!
-
-## Add your files
-
-- [ ] [Create](https://docs.gitlab.com/ee/user/project/repository/web_editor.html#create-a-file) or [upload](https://docs.gitlab.com/ee/user/project/repository/web_editor.html#upload-a-file) files
-- [ ] [Add files using the command line](https://docs.gitlab.com/ee/gitlab-basics/add-file.html#add-a-file-using-the-command-line) or push an existing Git repository with the following command:
+## Layout
 
 ```
-cd existing_repo
-git remote add origin https://gl.swmansion.com/swm-ai/mobile/export-scripts.git
-git branch -M main
-git push -uf origin main
+exporter_models/<model>/
+  model.json                 # pointer: hf url, repo, config path, sizes, backends
+  <backend>/export.py        # the engine: export(config, out_dir) -> pte path
+  <backend>/config.json      # local spec (only when not fetched from HF)
+  <size>/<backend>/config.json   # for sized models
+  _vendored_code.py          # model code, vendored at the model-dir top
 ```
 
-## Integrate with your tools
+- **`model.json`** is the per-model root metadata. Keys: `hf` (published HF
+  repo URL), `repo` (source repo the export fetches from, when different),
+  `config` (config path template with `{size}`/`{backend}` placeholders),
+  `sizes` (optional), `backends`. A model can also be purely local (no `repo`).
+- **Backend axis** — a model declares `backends: [...]` and puts an `export.py`
+  in each `<backend>/` subdir. Adding a backend is additive.
+- **Size axis** — a model declares `sizes: [...]` and a `{size}` placeholder in
+  `config` (and/or `repo`). One `export.py` per backend reads `config["size"]`;
+  there is no per-size `export.py`.
+- **Config** is fetched from the HF `repo` when it ships a correct
+  `{backend}/config.json`, otherwise vendored locally (no repo, or the HF config
+  is wrong/missing/shaped differently). A local config under the resolved path
+  wins over the fetch.
+- **Vendored code** lives at the model-dir top (e.g. `_pf_model.py`,
+  `_custom_whisper/`) and is path-loaded inside `export()`. Each model owns its
+  code — duplication across models is accepted over cross-model imports.
+- **Nested/umbrella models** — a dir whose children are models (e.g.
+  `easyocr/craft`, `easyocr/crnn`) groups related models without being a model
+  itself.
 
-- [ ] [Set up project integrations](https://gl.swmansion.com/swm-ai/mobile/export-scripts/-/settings/integrations)
+## CLI
 
-## Collaborate with your team
+Installed as `exporter` (see `pyproject.toml`):
 
-- [ ] [Invite team members and collaborators](https://docs.gitlab.com/ee/user/project/members/)
-- [ ] [Create a new merge request](https://docs.gitlab.com/ee/user/project/merge_requests/creating_merge_requests.html)
-- [ ] [Automatically close issues from merge requests](https://docs.gitlab.com/ee/user/project/issues/managing_issues.html#closing-issues-automatically)
-- [ ] [Enable merge request approvals](https://docs.gitlab.com/ee/user/project/merge_requests/approvals/)
-- [ ] [Set auto-merge](https://docs.gitlab.com/ee/user/project/merge_requests/merge_when_pipeline_succeeds.html)
+```bash
+exporter list [--json]
+exporter describe <model> [--size S] [--backend B] [--json]
+exporter export   <model> [--size S] [--backend B] [--variant P | --all-variants]
+                          [--atol F] [--output-dir DIR] [--dry-run] [--json]
+exporter verify   <pte> <config> [--json]
+```
 
-## Test and Deploy
+`export` runs the model's `export.py`, then checks the produced `.pte`'s real
+I/O matches the authored `methods` (fails loudly on mismatch) and runs a
+runtime sanity + benchmark where applicable. `--dry-run` prints the plan only.
 
-Use the built-in continuous integration in GitLab.
+## The export.py contract
 
-- [ ] [Get started with GitLab CI/CD](https://docs.gitlab.com/ee/ci/quick_start/)
-- [ ] [Analyze your code for known vulnerabilities with Static Application Security Testing (SAST)](https://docs.gitlab.com/ee/user/application_security/sast/)
-- [ ] [Deploy to Kubernetes, Amazon EC2, or Amazon ECS using Auto Deploy](https://docs.gitlab.com/ee/topics/autodevops/requirements.html)
-- [ ] [Use pull-based deployments for improved Kubernetes management](https://docs.gitlab.com/ee/user/clusters/agent/)
-- [ ] [Set up protected environments](https://docs.gitlab.com/ee/ci/environments/protected_environments.html)
+```python
+def export(config: dict, out_dir: str) -> str:
+    """Build the model, export + lower, write the .pte, return its path."""
+```
 
-***
+Top-level imports must stay stdlib + torch only; executorch / transformers /
+torchao / coremltools / mlx and vendored modules are imported inside `export()`
+(the harness imports `export.py` to discover it without a full backend env).
 
-# Editing this README
+## Development
 
-When you're ready to make this README your own, just edit this file and use the handy template below (or feel free to structure it however you want - this is just a starting point!). Thanks to [makeareadme.com](https://www.makeareadme.com/) for this template.
+```bash
+pytest -q tests/            # PYTHONPATH=src if not installed
+```
 
-## Suggestions for a good README
-
-Every project is different, so consider which of these sections apply to yours. The sections used in the template are suggestions for most open source projects. Also keep in mind that while a README can be too long and detailed, too long is better than too short. If you think your README is too long, consider utilizing another form of documentation rather than cutting out information.
-
-## Name
-Choose a self-explaining name for your project.
-
-## Description
-Let people know what your project can do specifically. Provide context and add a link to any reference visitors might be unfamiliar with. A list of Features or a Background subsection can also be added here. If there are alternatives to your project, this is a good place to list differentiating factors.
-
-## Badges
-On some READMEs, you may see small images that convey metadata, such as whether or not all the tests are passing for the project. You can use Shields to add some to your README. Many services also have instructions for adding a badge.
-
-## Visuals
-Depending on what you are making, it can be a good idea to include screenshots or even a video (you'll frequently see GIFs rather than actual videos). Tools like ttygif can help, but check out Asciinema for a more sophisticated method.
-
-## Installation
-Within a particular ecosystem, there may be a common way of installing things, such as using Yarn, NuGet, or Homebrew. However, consider the possibility that whoever is reading your README is a novice and would like more guidance. Listing specific steps helps remove ambiguity and gets people to using your project as quickly as possible. If it only runs in a specific context like a particular programming language version or operating system or has dependencies that have to be installed manually, also add a Requirements subsection.
-
-## Usage
-Use examples liberally, and show the expected output if you can. It's helpful to have inline the smallest example of usage that you can demonstrate, while providing links to more sophisticated examples if they are too long to reasonably include in the README.
-
-## Support
-Tell people where they can go to for help. It can be any combination of an issue tracker, a chat room, an email address, etc.
-
-## Roadmap
-If you have ideas for releases in the future, it is a good idea to list them in the README.
-
-## Contributing
-State if you are open to contributions and what your requirements are for accepting them.
-
-For people who want to make changes to your project, it's helpful to have some documentation on how to get started. Perhaps there is a script that they should run or some environment variables that they need to set. Make these steps explicit. These instructions could also be useful to your future self.
-
-You can also document commands to lint the code or run tests. These steps help to ensure high code quality and reduce the likelihood that the changes inadvertently break something. Having instructions for running tests is especially helpful if it requires external setup, such as starting a Selenium server for testing in a browser.
-
-## Authors and acknowledgment
-Show your appreciation to those who have contributed to the project.
-
-## License
-For open source projects, say how it is licensed.
-
-## Project status
-If you have run out of energy or time for your project, put a note at the top of the README saying that development has slowed down or stopped completely. Someone may choose to fork your project or volunteer to step in as a maintainer or owner, allowing your project to keep going. You can also make an explicit request for maintainers.
+ExecuTorch (and coremltools / MLX for those backends) must be installed in the
+active environment to actually produce a `.pte`. Backend specifics and the
+model conventions live in `skills/` (start with `skills/adding-a-new-export`).

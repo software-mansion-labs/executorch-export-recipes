@@ -1,6 +1,6 @@
 ---
 name: xnnpack-export
-description: XNNPACK backend knowledge for exporting ExecuTorch models — lowering, quantization (8da4w), tolerances, iOS static-lib gotchas.
+description: XNNPACK backend knowledge for exporting ExecuTorch models — lowering (shared helper vs inline), quantization (8da4w), parity tolerances.
 ---
 
 # XNNPACK Export
@@ -28,7 +28,16 @@ default partition leaves ops on the portable fallback.
 fp32 XNNPACK matches eager to ~`1e-4`. If parity fails at fp32, suspect a wrong
 wrapper (pooling/normalize mismatch) before loosening the tolerance.
 
+## Usage in export.py
+
+Simple single-method XNNPACK models use the shared helper:
+`from exporter.backends import lower; lower(exported_program, config["backend"])`.
+Models with custom passes (e.g. rfdetr's `AddmmToLinearTransform` +
+`_core_aten_ops_exception_list=[linear]`) or multiple methods lower inline with
+`to_edge_transform_and_lower(..., partitioner=[XnnpackPartitioner()])`.
+
 ## iOS
 
-XNNPACK ships in the iOS static libs. See `dependencies/ios_static_libs.md` for
-the linker setup. (MLX is physical-device-only and is a separate backend.)
+XNNPACK is the default CPU backend on Android and iOS. (CoreML and MLX are
+separate backends; MLX is physical-device-only — see `skills/backends/coreml`
+and `skills/backends/mlx`.)
