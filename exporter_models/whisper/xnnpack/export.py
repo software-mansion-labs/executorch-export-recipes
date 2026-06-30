@@ -95,6 +95,20 @@ def export(config: dict, out_dir: str) -> str:
         encoder_wrapper = EncoderWrapper(preprocessor, encoder)
         decoder_wrapper = DecoderWrapper(decoder)
 
+        if config["variant"]["quantized"]:
+            import torch as _torch
+            from torchao.quantization import MappingType, quantize_
+            from torchao.quantization.granularity import PerGroup
+            from torchao.quantization.quant_api import Int8DynamicActivationIntxWeightConfig
+
+            qcfg = Int8DynamicActivationIntxWeightConfig(
+                weight_dtype=_torch.int4,
+                weight_granularity=PerGroup(64),
+                weight_mapping_type=MappingType.SYMMETRIC,
+            )
+            quantize_(encoder_wrapper, qcfg)
+            quantize_(decoder_wrapper, qcfg)
+
     SAMPLE_RATE = 16000
     encode_inputs = (torch.randn(16 * SAMPLE_RATE, dtype=torch_dtype),)
     T_audio = Dim("T_audio", min=201, max=30 * SAMPLE_RATE)
