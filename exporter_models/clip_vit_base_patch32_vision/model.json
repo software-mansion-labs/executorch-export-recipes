@@ -1,5 +1,8 @@
 {
   "hf": "https://huggingface.co/software-mansion/react-native-executorch-clip-vit-base-patch32",
+  "extras": [
+    "quant"
+  ],
   "backends": [
     "xnnpack"
   ],
