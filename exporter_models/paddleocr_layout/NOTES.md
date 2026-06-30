@@ -1,0 +1,58 @@
+# PP-DocLayoutV3 (paddleocr_layout) — export notes
+
+RT-DETR-based document **layout detector** (~33M params). One PTE per backend,
+a single static method `forward` (800×800). Capability: `object-detection`.
+
+```
+in  [1,3,800,800] f32 [0,1] RGB   (no mean/std; /255 done by the runtime)
+out boxes  [300,4] f32  xyxy in model-input(800) pixels
+    scores [300]   f32  = max_c sigmoid(logits)
+    classes[300]   f32  = argmax_c logits (float)
+```
+
+All 300 queries are kept (DETR = set prediction → **no NMS**); the client
+thresholds on `scores`. The RT-DETR decode (per-query sigmoid + argmax +
+cxcywh→xyxy, scaled to 800px) is **baked in-graph** (`LayoutDetector`), so the
+client does no `decodeLayout`. `labels.json` = the **25** class names
+(`cfg.id2label`, index = `classes[i]`).
+
+## Prerequisites
+
+- **PaddlePaddle transformers fork** — the model loads via
+  `AutoModelForObjectDetection.from_pretrained("PaddlePaddle/PP-DocLayoutV3_safetensors")`,
+  which only resolves to `PPDocLayoutV3ForObjectDetection` /
+  `transformers.models.pp_doclayout_v3` in the vendored fork (an environment
+  prerequisite, not a pip extra). NO onnx — native safetensors weights.
+- `extras`: `coreml` (coremltools). **No `quant`** — defaults are fp32/fp16/fp16;
+  torchao is not used (int8wo/8da4w lose whole boxes for this RT-DETR — dead end).
+
+## Per-backend precision
+
+| backend | precision | notes |
+|---|---|---|
+| xnnpack | **fp32** | CPU fallback, bit-exact. int8wo saves only ~17% (conv backbone can't quantize) and is fragile; int4/8da4w **lose whole boxes** → keep fp32. |
+| coreml  | fp16      | ANE; all 42 boxes produced, ~41/42 align @IoU0.3 (~8px shift). `patch_sincos_outer` + `patch_deformable_attention_rank5` (CoreML max rank 5) + contiguous on Linear/LayerNorm too. |
+| vulkan  | fp16      | Android GPU; lossless (42/42). MIXED-DELEGATE: the two 256→4 box heads stay on **XNNPACK CPU** (Xclipse mis-computes them, returning the 256-wide input) via the `_BBoxHeadCPU` marker + `nn_module_blocklist`; rest runs on Vulkan. |
+
+## The critical export tricks (see `_layout/builder.py`)
+
+1. **force_conv_contiguous** — RT-DETR deformable attention feeds *non-contiguous*
+   views into convs. An EAGER `forward_pre_hook .contiguous()` is the only fix; a
+   graph-level pass gets DCE'd against metadata wrongly claiming contiguity, and
+   XNNPACK then SILENTLY computes garbage on REAL images. XNNPACK needs Conv2d;
+   CoreML needs Linear+LayerNorm too.
+2. **Trace + verify on a REAL image** (`_layout/layout_verify.png`). Tracing on
+   synthetic noise makes the contiguity copies elide → broken PTE.
+3. **Shared-weight `del` bug** — RT-DETR ties `class_embed`/`bbox_embed` across
+   decoder layers → one weight feeds several delegate blobs → ET's
+   `_unsafe_adjust_original_program` does an unconditional `del` per blob →
+   KeyError on the 2nd. `_clone_shared_weights` (deep-copy the tied modules) +
+   `_patch_shared_weight_deletion` (make the `del` tolerant) — belt + braces.
+4. Lowering routes through `MemoryPlanningPass(alloc_graph_input=False)` and a
+   layout-specific XNNPACK partitioner (`backends.xnnpack.layout_partitioner`,
+   adds `ViewCopyConfig` so the ~530 deformable-attn `view_copy` delegate).
+
+`_layout/backends/`, `_layout/lowering.py`, `_layout/wrappers.py` are copied
+verbatim from `paddleocr/_pp/` (each model owns its code — never import across
+model dirs). `wrappers.py` is carried for parity but unused here (the layout
+decode lives in `LayoutDetector`).

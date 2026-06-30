@@ -1,0 +1,131 @@
+{
+  "$schema": "https://huggingface.co/software-mansion/react-native-executorch-spec/resolve/main/config.schema.json",
+  "model": "paddleocr_doc_helpers",
+  "family": "paddleocr_doc_helpers",
+  "capabilities": [
+    "classification"
+  ],
+  "backend": "xnnpack",
+  "license": "apache-2.0",
+  "variants": [
+    {
+      "file": "PaddleHelpers_xnnpack.pte",
+      "precision": "int8",
+      "quantized": true,
+      "default": true,
+      "methods": {
+        "orientation": {
+          "inputs": [
+            {
+              "shape": [
+                1,
+                3,
+                224,
+                224
+              ],
+              "dtype": "float32"
+            }
+          ],
+          "outputs": [
+            {
+              "shape": [
+                1,
+                4
+              ],
+              "dtype": "float32"
+            }
+          ]
+        },
+        "dewarp": {
+          "inputs": [
+            {
+              "shape": [
+                1,
+                3,
+                712,
+                488
+              ],
+              "dtype": "float32"
+            }
+          ],
+          "outputs": [
+            {
+              "shape": [
+                1,
+                2,
+                45,
+                31
+              ],
+              "dtype": "float32"
+            }
+          ]
+        },
+        "table_encode": {
+          "inputs": [
+            {
+              "shape": [
+                1,
+                3,
+                488,
+                488
+              ],
+              "dtype": "float32"
+            }
+          ],
+          "outputs": [
+            {
+              "shape": [
+                1,
+                256,
+                96
+              ],
+              "dtype": "float32"
+            }
+          ]
+        },
+        "table_decode_step": {
+          "inputs": [
+            {
+              "shape": [
+                1,
+                256,
+                96
+              ],
+              "dtype": "float32"
+            },
+            {
+              "shape": [
+                1,
+                256
+              ],
+              "dtype": "float32"
+            },
+            {
+              "shape": [
+                1,
+                50
+              ],
+              "dtype": "float32"
+            }
+          ],
+          "outputs": [
+            {
+              "shape": [
+                1,
+                50
+              ],
+              "dtype": "float32"
+            },
+            {
+              "shape": [
+                1,
+                256
+              ],
+              "dtype": "float32"
+            }
+          ]
+        }
+      }
+    }
+  ]
+}

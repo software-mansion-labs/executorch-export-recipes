@@ -1,0 +1,14 @@
+{
+  "hf": "https://huggingface.co/software-mansion/react-native-executorch-paddleocr-doc-helpers",
+  "license": "apache-2.0",
+  "config": "{backend}/config.json",
+  "extras": [
+    "quant",
+    "coreml"
+  ],
+  "backends": [
+    "xnnpack",
+    "coreml",
+    "vulkan"
+  ]
+}
