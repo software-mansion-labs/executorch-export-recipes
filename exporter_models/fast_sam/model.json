@@ -5,7 +5,7 @@
     "detection"
   ],
   "repo": "software-mansion/react-native-executorch-fast-sam",
-  "config": "{size}/{backend}/config.json",
+  "config": "{backend}/{size}/config.json",
   "sizes": [
     "s",
     "x"
