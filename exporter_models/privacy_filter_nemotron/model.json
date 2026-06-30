@@ -1,0 +1,5 @@
+{
+  "repo": "OpenMed/privacy-filter-nemotron",
+  "backends": ["xnnpack", "mlx"],
+  "config": "{backend}/config.json"
+}

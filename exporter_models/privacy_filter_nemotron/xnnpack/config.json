@@ -1,0 +1,26 @@
+{
+  "$schema": "https://huggingface.co/software-mansion/react-native-executorch-spec/resolve/main/config.schema.json",
+  "model": "privacy_filter_nemotron",
+  "family": "openai_privacy_filter",
+  "capabilities": ["classification"],
+  "backend": "xnnpack",
+  "license": "apache-2.0",
+  "tokenizer": "../tokenizer.json",
+  "variants": [
+    {
+      "file": "privacy_filter_nemotron_xnnpack_8da4w.pte",
+      "precision": "8da4w",
+      "quantized": true,
+      "default": true,
+      "methods": {
+        "forward": {
+          "inputs": [
+            { "shape": [1, 256], "dtype": "int64" },
+            { "shape": [1, 256], "dtype": "int64" }
+          ],
+          "outputs": [{ "shape": [1, 256, 221], "dtype": "float32" }]
+        }
+      }
+    }
+  ]
+}

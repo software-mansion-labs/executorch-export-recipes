@@ -1,0 +1,5 @@
+{
+  "repo": "openai/privacy-filter",
+  "backends": ["xnnpack", "mlx"],
+  "config": "{backend}/config.json"
+}
