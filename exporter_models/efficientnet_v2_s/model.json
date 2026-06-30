@@ -1,5 +1,5 @@
 {
   "repo": "software-mansion/react-native-executorch-efficientnet-v2-s",
   "config": "{backend}/config.json",
-  "backends": ["xnnpack"]
+  "backends": ["xnnpack", "coreml"]
 }
