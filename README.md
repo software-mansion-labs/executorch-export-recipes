@@ -69,9 +69,10 @@ torchao / coremltools / mlx and vendored modules are imported inside `export()`
 
 ## Development
 
-```bash
-pytest -q tests/            # PYTHONPATH=src if not installed
-```
+The `src/exporter` harness is importable with `PYTHONPATH=src` (or
+`pip install -e .`). Run the CLI with `exporter <command>` (see above). A test
+suite lives under `tests/` but is local-only (gitignored, not in the repo);
+if present, run it with `PYTHONPATH=src pytest -q tests/`.
 
 ExecuTorch (and coremltools / MLX for those backends) must be installed in the
 active environment to actually produce a `.pte`. Backend specifics and the

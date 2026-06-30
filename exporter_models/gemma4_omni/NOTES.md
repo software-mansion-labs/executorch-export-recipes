@@ -1,18 +1,19 @@
-# gemma4_omni_mlx notes
+# gemma4_omni notes
 
 Gemma 4 E2B omnimodal (vision + audio + text) MLX export, onboarded from the
 executorch repo's `export_gemma4_omni_mlx_v3.py`. Published contract:
 `software-mansion/react-native-executorch-gemma-4-multimodal` (`e2b/mlx/config.json`,
 4 methods: token_embedding/text_decoder/vision_encoder on MLX, audio_encoder on XNNPACK).
 
-Structural-only in this harness: backend=mlx + text-generation → not runtime-verifiable,
-and the real export needs an executorch source build with the MLX backend. The published
-.pte already exists on HF.
+The published config declares the canonical `image-text-to-text` and
+`audio-text-to-text` capabilities (these are in the spec enum so the spec loads).
+Producing the `.pte` needs an executorch source build with the MLX backend; the
+published `.pte` already exists on HF.
 
 ## Export settings
 
 `group_size=64` (the v3 recipe's CLI default is 32, but the published multimodal artifact
-was produced at gs=64 — same on-device-tested setting as the text `gemma4_mlx`). int4
+was produced at gs=64 — same on-device-tested setting as the text `gemma4`). int4
 weights; `max_seq_len=2048` (the published model's context). These are baked into
 `export.py` to match the shipped `.pte`.
 

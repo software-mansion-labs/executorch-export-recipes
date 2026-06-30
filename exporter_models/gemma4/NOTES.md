@@ -1,4 +1,4 @@
-# gemma4_mlx notes
+# gemma4 notes
 
 Gemma 4 E2B text decoder, MLX backend, int4. Model code vendored under
 `_text_decoder/` (bit-for-bit copy of the executorch

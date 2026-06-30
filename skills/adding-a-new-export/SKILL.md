@@ -1,6 +1,6 @@
 ---
 name: adding-a-new-export
-description: How to add a model (or a backend/size to an existing one) to the exporter harness — create the model dir, declare model.json, source the config, write export.py implementing export(config, out_dir), and verify with `exporter export`.
+description: How to add a model (or a backend/size to an existing one) to the exporter harness — create the model dir, declare model.json, source the config, write export.py implementing export(config, out_dir), and run it with `exporter export`.
 ---
 
 # Adding a New Export

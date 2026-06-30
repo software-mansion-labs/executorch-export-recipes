@@ -1,4 +1,4 @@
-# moonshine_tiny notes
+# moonshine notes
 
 Moonshine-tiny STT, 2-method (encoder + decoder). Keras→pytorch conversion was
 done upstream; `moonshine.pth` is the converted weights, `_model_pt.py` is the
