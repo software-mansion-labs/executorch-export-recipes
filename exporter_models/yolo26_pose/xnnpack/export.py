@@ -32,16 +32,15 @@ def export(config: dict, out_dir: str) -> str:
     yolo = YOLO("yolo26n-pose.pt")
     model = YOLOPose(yolo.model).eval()
 
-    methods = {}
-    for method_name, md in variant["methods"].items():
-        shape = tuple(md["inputs"][0]["shape"])  # [1,3,R,R]
-        inputs = (torch.randn(*shape, dtype=torch.float32),)
-        with torch.no_grad():
-            model(*inputs)  # warmup
-            methods[method_name] = torch_export(model, inputs)
+    # Single-method per resolution (the shipped .pte is one forward per file).
+    shape = tuple(variant["methods"]["forward"]["inputs"][0]["shape"])  # [1,3,R,R]
+    inputs = (torch.randn(*shape, dtype=torch.float32),)
+    with torch.no_grad():
+        model(*inputs)  # warmup
+        ep = torch_export(model, inputs)
 
     program = to_edge_transform_and_lower(
-        methods, partitioner=[XnnpackPartitioner()]
+        ep, partitioner=[XnnpackPartitioner()]
     ).to_executorch()
 
     out_path = Path(out_dir) / variant["file"]

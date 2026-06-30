@@ -1,7 +1,7 @@
 {
   "hf": "https://huggingface.co/software-mansion/react-native-executorch-yolo26-pose",
   "extras": ["detection"],
-  "repo": "software-mansion/react-native-executorch-yolo26-pose",
-  "config": "{backend}/config.json",
+  "config": "{backend}/{size}/config.json",
+  "sizes": ["384", "512", "640"],
   "backends": ["xnnpack"]
 }
