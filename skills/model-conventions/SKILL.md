@@ -80,6 +80,29 @@ discovers one level of nesting: a top dir that isn't itself a model is scanned
 for child model dirs, emitted as `parent/child`. The rest of the registry
 handles slash-bearing model names via path joins.
 
+## Per-model dependencies (extras)
+
+Base deps (torch, torchvision, transformers, huggingface_hub,
+sentence-transformers) are always installed. Anything else a model needs to
+export — coremltools, torchao, rfdetr, ultralytics, diffusers, funasr, keras,
+... — is grouped into a pip **extra** in `pyproject.toml`
+(`[project.optional-dependencies]`: `coreml`, `quant`, `detection`,
+`diffusion`, `asr`, `vad`, `tts`, `moonshine`). A model declares the extras it
+needs in `model.json`:
+
+```json
+{ "hf": "...", "extras": ["coreml", "detection"], "config": "...", "backends": [...] }
+```
+
+Install a model's stack with `pip install -e ".[coreml,detection]"`. The
+`export` command runs a **preflight** (`registry.check_extras`) before invoking
+`export.py`: a missing package fails early with the exact `pip install` hint
+instead of a deep import crash. `--dry-run` skips the check. When you add a new
+extra, update both `pyproject.toml` and the `_EXTRA_IMPORTS` map in
+`registry.py` (pip name != import name for some, e.g. `keras-hub` -> `keras_hub`).
+`executorch` (and MLX for the mlx backend) are environment prerequisites
+installed separately, not pip extras.
+
 ## Weights are never committed
 
 `.pt`/`.pth`/`.pte` are gitignored. Every model fetches/builds its weights at

@@ -13,6 +13,19 @@ dependencies = [
 
 [project.optional-dependencies]
 dev = ["pytest"]
+# Per-model export dependencies, grouped by stack. A model.json names the
+# extra(s) it needs in its "extras" list; install with e.g.
+#   pip install -e ".[coreml,detection]"
+# (executorch, and MLX for the mlx backend, are environment prerequisites
+# installed separately, not pip extras.)
+coreml = ["coremltools"]
+quant = ["torchao"]
+detection = ["rfdetr", "ultralytics", "numpy"]
+diffusion = ["diffusers"]
+asr = ["numpy", "tqdm"]
+vad = ["funasr", "numpy"]
+tts = ["numpy"]
+moonshine = ["keras", "keras-hub", "einops"]
 
 [project.scripts]
 exporter = "exporter.cli:main"

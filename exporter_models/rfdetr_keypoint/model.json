@@ -1,5 +1,8 @@
 {
   "hf": "https://huggingface.co/software-mansion/react-native-executorch-rfdetr-keypoint",
+  "extras": [
+    "detection"
+  ],
   "backends": [
     "xnnpack"
   ],

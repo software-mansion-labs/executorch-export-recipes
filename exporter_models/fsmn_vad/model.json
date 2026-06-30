@@ -1,5 +1,8 @@
 {
   "hf": "https://huggingface.co/software-mansion/react-native-executorch-fsmn-vad",
+  "extras": [
+    "vad"
+  ],
   "repo": "software-mansion/react-native-executorch-fsmn-vad",
   "config": "{backend}/config.json",
   "backends": [

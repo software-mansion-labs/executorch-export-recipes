@@ -1,5 +1,8 @@
 {
   "hf": "https://huggingface.co/software-mansion/react-native-executorch-efficientnet-v2-s",
+  "extras": [
+    "coreml"
+  ],
   "repo": "software-mansion/react-native-executorch-efficientnet-v2-s",
   "config": "{backend}/config.json",
   "backends": [

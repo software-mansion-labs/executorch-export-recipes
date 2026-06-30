@@ -36,6 +36,11 @@ exporter_models/<model>/
 - **Nested/umbrella models** — a dir whose children are models (e.g.
   `easyocr/craft`, `easyocr/crnn`) groups related models without being a model
   itself.
+- **Dependencies** — base deps are always installed; per-model export deps
+  (coremltools, torchao, rfdetr, ...) are pip **extras** in `pyproject.toml`,
+  and each `model.json` lists the `extras` it needs. Install with e.g.
+  `pip install -e ".[coreml,detection]"`. `export` preflights them and fails
+  early with a `pip install` hint if any are missing.
 
 ## CLI
 

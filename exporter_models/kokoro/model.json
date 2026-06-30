@@ -1,5 +1,8 @@
 {
   "hf": "https://huggingface.co/software-mansion/react-native-executorch-kokoro",
+  "extras": [
+    "tts"
+  ],
   "backends": [
     "xnnpack"
   ],

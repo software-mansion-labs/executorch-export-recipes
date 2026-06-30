@@ -104,6 +104,48 @@ def model_backends(model: str) -> list[str]:
     return list(json.loads(p.read_text()).get("backends", []))
 
 
+def model_extras(model: str) -> list[str]:
+    p = MODELS_DIR / model / "model.json"
+    if not p.exists():
+        return []
+    return list(json.loads(p.read_text()).get("extras", []))
+
+
+# pyproject [project.optional-dependencies] extra -> the import names it must
+# provide. Keep in sync with pyproject.toml. (pip name != import name for some,
+# e.g. keras-hub -> keras_hub.)
+_EXTRA_IMPORTS = {
+    "coreml": ["coremltools"],
+    "quant": ["torchao"],
+    "detection": ["rfdetr", "ultralytics", "numpy"],
+    "diffusion": ["diffusers"],
+    "asr": ["numpy", "tqdm"],
+    "vad": ["funasr", "numpy"],
+    "tts": ["numpy"],
+    "moonshine": ["keras", "keras_hub", "einops"],
+}
+
+
+def check_extras(model: str) -> None:
+    """Raise SpecError if any package required by the model's extras is missing,
+    with a `pip install` hint. No-op for models that declare no extras."""
+    import importlib.util
+
+    extras = model_extras(model)
+    if not extras:
+        return
+    missing = []
+    for extra in extras:
+        for mod in _EXTRA_IMPORTS.get(extra, []):
+            if importlib.util.find_spec(mod) is None and mod not in missing:
+                missing.append(mod)
+    if missing:
+        raise SpecError(
+            f"model '{model}' needs extras {extras} but these are missing: "
+            f"{missing}. Install with: pip install -e \".[{','.join(extras)}]\""
+        )
+
+
 def is_backend_split(model: str) -> bool:
     return bool(model_backends(model))
 

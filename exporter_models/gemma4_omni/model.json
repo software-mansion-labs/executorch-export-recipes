@@ -1,5 +1,8 @@
 {
   "hf": "https://huggingface.co/software-mansion/react-native-executorch-gemma-4-multimodal",
+  "extras": [
+    "quant"
+  ],
   "repo": "software-mansion/react-native-executorch-gemma-4-multimodal",
   "config": "{size}/{backend}/config.json",
   "sizes": [
