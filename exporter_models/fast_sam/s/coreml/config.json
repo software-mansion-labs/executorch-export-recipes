@@ -1,0 +1,62 @@
+{
+  "$schema": "https://huggingface.co/software-mansion/react-native-executorch-spec/resolve/main/config.schema.json",
+  "model": "fast_sam_s",
+  "family": "fastsam",
+  "capabilities": [
+    "instance-segmentation"
+  ],
+  "backend": "coreml",
+  "license": "agpl-3.0",
+  "variants": [
+    {
+      "file": "fast_sam_s_coreml_fp16.pte",
+      "precision": "fp16",
+      "quantized": false,
+      "default": true,
+      "methods": {
+        "forward": {
+          "inputs": [
+            {
+              "shape": [
+                1,
+                3,
+                640,
+                640
+              ],
+              "dtype": "float32"
+            }
+          ],
+          "outputs": [
+            {
+              "shape": [
+                300,
+                4
+              ],
+              "dtype": "float32"
+            },
+            {
+              "shape": [
+                300
+              ],
+              "dtype": "float32"
+            },
+            {
+              "shape": [
+                300
+              ],
+              "dtype": "float32"
+            },
+            {
+              "shape": [
+                300,
+                160,
+                160
+              ],
+              "dtype": "float32"
+            }
+          ]
+        }
+      }
+    }
+  ]
+}

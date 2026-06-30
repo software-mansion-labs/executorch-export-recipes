@@ -30,8 +30,8 @@ class _RFDETRSegmentationWrapper(nn.Module):
         bboxes = torch.cat([cxy - half_wh, cxy + half_wh], dim=-1) * self.resolution
         probs = pred_logits.sigmoid()
         max_scores, class_ids = probs.max(dim=-1)
-        scores = torch.stack([max_scores, class_ids.float()], dim=-1)
-        return bboxes, scores, pred_masks
+        # flattened contract: 4 batch-squeezed outputs (boxes, scores, labels, masks)
+        return bboxes[0], max_scores[0], class_ids[0].float(), pred_masks[0]
 
 
 def _lower(exported, backend: str):

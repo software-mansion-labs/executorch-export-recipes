@@ -1,16 +1,15 @@
 """FastSAM export wrapper.
 
-Converts FastSAM's raw YOLO-style output into the published instance
+Converts FastSAM's raw YOLO-style output into the standard instance
 segmentation contract expected by react-native-executorch:
-  bbox   [B, K, 4]      x1y1x2y2 in model input pixel space
-  coeffs [B, K, nm]     per-anchor mask coefficients
-  protos [B, nm, H, W]  prototype masks
-
-The mask assembly (coeffs @ protos) is done by the on-device consumer.
+  bbox        [B, K, 4]    x1y1x2y2 in model input pixel space
+  scores      [B, K, 2]    (confidence, 0)  — class-agnostic, always class 0
+  mask_logits [B, K, H, W] pre-sigmoid logits
 
 K = topk (default 300). FastSAM does not apply topk internally (unlike YOLO),
-so the topk confidence pre-filter here keeps shapes static (required for
-ExecuTorch export) and limits the returned coefficients to the top anchors.
+so without pre-filtering the bmm would run on ~21k anchors at 1024x1024 —
+roughly 72× more FLOPs than necessary. The topk step here keeps shapes static
+(required for ExecuTorch export) while cutting bmm cost dramatically.
 
 Usage:
     from fastsam_wrapper import FastSAMInstanceSegmentation
@@ -22,6 +21,7 @@ Usage:
 """
 
 import torch
+import torch.nn.functional as F
 from torch import Tensor, nn
 
 
@@ -32,9 +32,10 @@ class FastSAMInstanceSegmentation(nn.Module):
       pred   [B, 4+1+nm, Q]  — raw anchors: xywh, conf, nm mask coefficients
       protos [B, nm, H, W]   — prototype masks
 
-    This wrapper applies a topk confidence pre-filter so the exported graph
-    keeps static shapes and returns only the top anchors' boxes and mask
-    coefficients alongside the raw protos.
+    This wrapper applies a topk confidence pre-filter before the bmm so the
+    exported graph stays fast on device. Q at 1024×1024 is ~21k; without topk
+    the bmm is [1,21k,32]@[1,32,65k] ≈ 1.4B FLOPs vs [1,300,32]@[1,32,65k]
+    ≈ 19M FLOPs with topk=300.
     """
 
     def __init__(
@@ -70,7 +71,7 @@ class FastSAMInstanceSegmentation(nn.Module):
             f"nm={self.nm}, topk={self.topk}/{Q}, mask_size={effective}"
         )
 
-    def forward(self, x: Tensor) -> tuple[Tensor, Tensor, Tensor]:
+    def forward(self, x: Tensor) -> tuple[Tensor, Tensor, Tensor, Tensor]:
         preds, protos = self.inner(x)   # preds: [B, 4+1+nm, Q]
 
         # Select top-k anchors by confidence before the expensive bmm.
@@ -89,8 +90,23 @@ class FastSAMInstanceSegmentation(nn.Module):
             [cx - w / 2, cy - h / 2, cx + w / 2, cy + h / 2], dim=-1
         )  # [B, K, 4]
 
+        # FastSAM is class-agnostic: confidence + constant class index 0
+        conf = preds[..., 4]                                   # [B, K]
+        classes = torch.zeros_like(conf)                       # [B, K]
+
         coeffs = preds[..., 5:]                                # [B, K, nm]
 
-        # Published contract returns raw coeffs + protos; the bmm/mask assembly
-        # is done by the on-device consumer.
-        return bbox, coeffs, protos
+        if self.mask_size is not None:
+            protos = F.interpolate(
+                protos,
+                size=(self.mask_size, self.mask_size),
+                mode="bilinear",
+                align_corners=False,
+            )
+
+        B, C, H, W = protos.shape
+        mask_logits = torch.bmm(coeffs, protos.reshape(B, C, H * W)).reshape(
+            B, -1, H, W
+        )  # [B, K, H, W]
+
+        return bbox[0], conf[0], classes[0], mask_logits[0]
