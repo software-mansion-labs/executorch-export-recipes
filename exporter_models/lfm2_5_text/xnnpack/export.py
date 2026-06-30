@@ -41,9 +41,12 @@ def export(config: dict, out_dir: str) -> str:
     cfg.base.metadata = p.METADATA
     cfg.model.use_kv_cache = True
     cfg.model.use_sdpa_with_kv_cache = True
-    cfg.model.dtype_override = DtypeOverride.bf16
-    cfg.quantization.group_size = p.GROUP_SIZE
-    cfg.quantization.qmode = "8da4w"
+    if config["variant"]["precision"] == "fp16":
+        cfg.model.dtype_override = DtypeOverride.fp16
+    else:  # 8da4w
+        cfg.model.dtype_override = DtypeOverride.bf16
+        cfg.quantization.group_size = p.GROUP_SIZE
+        cfg.quantization.qmode = "8da4w"
     cfg.backend.xnnpack.enabled = True
     cfg.backend.xnnpack.extended_ops = True
     cfg.export.max_seq_length = p.PREFILL_CAP + 1
