@@ -1,4 +1,0 @@
-{
-  "backends": ["xnnpack", "mlx"],
-  "config": "{backend}/config.json"
-}

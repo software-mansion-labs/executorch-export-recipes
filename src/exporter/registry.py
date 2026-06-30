@@ -126,10 +126,10 @@ def _load_via_pointer(model: str, size: str | None, backend: str | None) -> Spec
         chosen_b = backend or backends[0]
         if chosen_b not in backends:
             raise SpecError(f"backend '{chosen_b}' not in {backends} for model '{model}'")
-        local = MODELS_DIR / model / chosen_b / "config.json"
+        config_path = config_path.replace("{backend}", chosen_b)
+        local = MODELS_DIR / model / config_path
         if local.exists():
             return load_spec_file(local)
-        config_path = config_path.replace("{backend}", chosen_b)
     elif "{backend}" in config_path:
         raise SpecError(f"model '{model}' config has '{{backend}}' placeholder but no 'backends' list")
     elif backend is not None:

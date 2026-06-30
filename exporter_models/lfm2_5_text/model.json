@@ -1,0 +1,5 @@
+{
+  "config": "{size}/{backend}/config.json",
+  "sizes": ["350m", "1_2b"],
+  "backends": ["xnnpack", "mlx"]
+}

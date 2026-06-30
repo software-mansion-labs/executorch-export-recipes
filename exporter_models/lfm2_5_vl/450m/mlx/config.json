@@ -1,0 +1,91 @@
+{
+  "$schema": "https://huggingface.co/software-mansion/react-native-executorch-spec/resolve/main/config.schema.json",
+  "model": "lfm2_5_vl_450m",
+  "family": "lfm2_vl",
+  "capabilities": [
+    "vision"
+  ],
+  "backend": "mlx",
+  "license": "lfm-1.0",
+  "variants": [
+    {
+      "file": "lfm2_5_vl_450m_mlx_int4.pte",
+      "precision": "4w",
+      "quantized": true,
+      "default": true,
+      "methods": {
+        "vision_encoder": {
+          "inputs": [
+            {
+              "shape": [
+                1,
+                3,
+                512,
+                512
+              ],
+              "dtype": "float32"
+            }
+          ],
+          "outputs": [
+            {
+              "shape": [
+                1,
+                256,
+                1024
+              ],
+              "dtype": "float32"
+            }
+          ]
+        },
+        "token_embedding": {
+          "inputs": [
+            {
+              "shape": [
+                1,
+                2048
+              ],
+              "dtype": "int64"
+            }
+          ],
+          "outputs": [
+            {
+              "shape": [
+                1,
+                2048,
+                1024
+              ],
+              "dtype": "float32"
+            }
+          ]
+        },
+        "text_decoder": {
+          "inputs": [
+            {
+              "shape": [
+                1,
+                2048,
+                1024
+              ],
+              "dtype": "float32"
+            },
+            {
+              "shape": [
+                2048
+              ],
+              "dtype": "int64"
+            }
+          ],
+          "outputs": [
+            {
+              "shape": [
+                1,
+                65536
+              ],
+              "dtype": "float32"
+            }
+          ]
+        }
+      }
+    }
+  ]
+}

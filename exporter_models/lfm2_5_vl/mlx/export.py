@@ -7,7 +7,11 @@ from pathlib import Path
 
 _HERE = Path(__file__).resolve().parent
 _MODEL_DIR_PATH = _HERE.parent
-_MODEL_DIR = "LiquidAI/LFM2.5-VL-450M"
+
+_MODEL_DIRS = {
+    "450m": "LiquidAI/LFM2.5-VL-450M",
+    "1_6b": "LiquidAI/LFM2.5-VL-1.6B",
+}
 
 
 def _load_pkg():
@@ -27,10 +31,12 @@ def _load_pkg():
 
 
 def export(config: dict, out_dir: str) -> str:
+    model_dir = _MODEL_DIRS[config.get("size") or "450m"]
+
     pkg_name = _load_pkg()
     export_mod = importlib.import_module(f"{pkg_name}.export_lfm2_5_vl_mlx")
     export_all = export_mod.export_all
-    params_path = export_mod._resolve_params_path(_MODEL_DIR, None)
+    params_path = export_mod._resolve_params_path(model_dir, None)
 
     out_path = str(Path(out_dir) / config["variant"]["file"])
     Path(out_dir).mkdir(parents=True, exist_ok=True)
@@ -39,7 +45,7 @@ def export(config: dict, out_dir: str) -> str:
     os.chdir(tempfile.gettempdir())
     try:
         export_all(
-            model_dir=_MODEL_DIR,
+            model_dir=model_dir,
             output=out_path,
             quantize=True,
             params_path=params_path,
