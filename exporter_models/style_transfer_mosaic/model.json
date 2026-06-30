@@ -1,0 +1,5 @@
+{
+  "repo": "software-mansion/react-native-executorch-style-transfer-mosaic",
+  "config": "{backend}/config.json",
+  "backends": ["xnnpack", "coreml"]
+}
