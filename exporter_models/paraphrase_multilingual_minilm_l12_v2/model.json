@@ -1,4 +1,4 @@
 {
-  "backends": ["xnnpack"],
+  "backends": ["xnnpack", "coreml"],
   "config": "{backend}/config.json"
 }
