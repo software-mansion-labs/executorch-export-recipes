@@ -1,6 +1,6 @@
 {
   "repo": "software-mansion/react-native-executorch-whisper-{size}",
   "config": "{backend}/config.json",
-  "sizes": ["tiny", "base", "small", "tiny.en"],
+  "sizes": ["tiny", "base", "small", "tiny.en", "base.en", "small.en"],
   "backends": ["xnnpack", "coreml"]
 }
