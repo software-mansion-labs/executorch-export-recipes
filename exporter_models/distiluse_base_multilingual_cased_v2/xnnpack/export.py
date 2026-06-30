@@ -9,7 +9,7 @@ from exporter.backends import lower
 
 _HERE = Path(__file__).resolve().parent
 _MODEL_DIR = _HERE.parent
-_MAX_TOKENS = 512
+_MAX_TOKENS = 126  # model max_seq_length 128 - 2 for CLS/SEP
 
 
 def _load_model():
@@ -29,9 +29,12 @@ def export(config: dict, out_dir: str) -> str:
     variant = config["variant"]
     module = _load_model().load_embedder()
 
-    inputs = (torch.zeros(1, 8, dtype=torch.int64),)
+    inputs = (
+        torch.zeros(1, 8, dtype=torch.int64),
+        torch.ones(1, 8, dtype=torch.int64),
+    )
     dim = Dim("tokens", min=1, max=_MAX_TOKENS)
-    dynamic = {"input_ids": {1: dim}}
+    dynamic = {"input_ids": {1: dim}, "attention_mask": {1: dim}}
 
     if variant["quantized"]:
         qcfg = Int8DynamicActivationIntxWeightConfig(
