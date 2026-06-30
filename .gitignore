@@ -8,6 +8,11 @@ __pycache__/
 *.pt
 !exporter_models/**/precomputed_data/*.pt
 *.pth
+# blazeface weights come from a MediaPipe TFLite->PyTorch convert with no fetch
+# source, so they are vendored (the no-committed-weights exception).
+!exporter_models/blazeface/_blazeface/blazefaceback.pth
+*.npy
+!exporter_models/blazeface/_blazeface/anchorsback.npy
 docs/superpowers/
 .superpowers/
 tests/
