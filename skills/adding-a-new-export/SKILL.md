@@ -64,10 +64,11 @@ and an `export.py` per backend. See `skills/model-conventions` for the full
      Everything else lowers inline — see `skills/backends/{xnnpack,coreml,mlx}`.
    - Write the buffer to `Path(out_dir) / config["variant"]["file"]`, return it.
 
-5. **Verify:** `exporter export <model> [--size S] [--backend B] [--json]`. The
-   harness runs your `export.py`, then checks the produced `.pte`'s real I/O
-   matches the authored `methods` (fails loudly) and runs a runtime sanity +
-   benchmark. Use `exporter describe <model>` / `--dry-run` to inspect the plan.
+5. **Run it:** `exporter export <model> [--size S] [--backend B] [--json]`. The
+   harness resolves the spec, runs your `export.py`, and writes the `.pte`. Use
+   `exporter describe <model>` / `--dry-run` to inspect the plan first. Sanity
+   of the produced `.pte` (I/O shapes, runtime parity) is the author's
+   responsibility — check it against the authored `methods` / a reference run.
 
 ## Notes
 

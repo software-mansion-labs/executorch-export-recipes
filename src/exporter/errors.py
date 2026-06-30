@@ -19,13 +19,5 @@ class SpecError(_FixedCodeError):
     _code = "spec_invalid"
 
 
-class IOContractError(_FixedCodeError):
-    _code = "io_mismatch"
-
-
 class BackendError(_FixedCodeError):
     _code = "backend_unsupported"
-
-
-class EnvironmentError_(_FixedCodeError):
-    _code = "env_missing"

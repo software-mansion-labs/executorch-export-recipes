@@ -45,13 +45,11 @@ Installed as `exporter` (see `pyproject.toml`):
 exporter list [--json]
 exporter describe <model> [--size S] [--backend B] [--json]
 exporter export   <model> [--size S] [--backend B] [--variant P | --all-variants]
-                          [--atol F] [--output-dir DIR] [--dry-run] [--json]
-exporter verify   <pte> <config> [--json]
+                          [--output-dir DIR] [--dry-run] [--json]
 ```
 
-`export` runs the model's `export.py`, then checks the produced `.pte`'s real
-I/O matches the authored `methods` (fails loudly on mismatch) and runs a
-runtime sanity + benchmark where applicable. `--dry-run` prints the plan only.
+`export` resolves the spec, runs the model's `export.py`, and writes the
+`.pte`(s). `--dry-run` prints the plan only.
 
 ## The export.py contract
 

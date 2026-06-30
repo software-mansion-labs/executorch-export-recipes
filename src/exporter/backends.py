@@ -1,11 +1,4 @@
 from .errors import BackendError
-from .spec import _BACKENDS as SUPPORTED_BACKENDS
-
-
-def default_atol(backend: str, quantized: bool) -> float:
-    if backend not in SUPPORTED_BACKENDS:
-        raise BackendError(f"unknown backend '{backend}' (supported: {', '.join(sorted(SUPPORTED_BACKENDS))})")
-    return 1e-2 if quantized else 1e-4
 
 
 def lower(exported_program, backend: str):

@@ -1,13 +1,10 @@
 import argparse
 import json as _json
 import sys
-from pathlib import Path
 
 from . import registry
 from .errors import ExporterError
-from .pipeline import _select, compare_io, export_all, export_variant, plan
-from .pte_inspect import read_pte_io
-from .spec import load_spec_file
+from .pipeline import _select, export_all, export_variant, plan
 
 
 def build_parser() -> argparse.ArgumentParser:
@@ -29,15 +26,9 @@ def build_parser() -> argparse.ArgumentParser:
     e.add_argument("--local-spec", default=None)
     e.add_argument("--size", default=None)
     e.add_argument("--backend", default=None)
-    e.add_argument("--atol", type=float, default=None)
     e.add_argument("--output-dir", default=None)
     e.add_argument("--dry-run", action="store_true")
     e.add_argument("--json", action="store_true")
-
-    v = sub.add_parser("verify")
-    v.add_argument("pte")
-    v.add_argument("config")
-    v.add_argument("--json", action="store_true")
 
     return p
 
@@ -50,7 +41,7 @@ def _plan_dict(p):
     return {
         "model": p.model, "backend": p.backend,
         "export_script": p.export_script, "variants": p.variants,
-        "output_dir": p.output_dir, "atol": p.atol,
+        "output_dir": p.output_dir,
     }
 
 
@@ -65,7 +56,7 @@ def main(argv: list[str] | None = None) -> int:
         if args.command == "describe":
             spec = registry.load(args.model, size=args.size, backend=args.backend)
             script = registry.export_script_path(args.model, args.backend)
-            p = plan(spec, export_script=str(script), which=None, output_dir=spec.model, atol=None)
+            p = plan(spec, export_script=str(script), which=None, output_dir=spec.model)
             d = _plan_dict(p)
             d["size"] = args.size
             _emit(d, jm)
@@ -76,7 +67,7 @@ def main(argv: list[str] | None = None) -> int:
             script = registry.export_script_path(args.model, args.backend)
             which = "all" if args.all_variants else args.variant
             out_dir = args.output_dir or spec.model
-            p = plan(spec, export_script=str(script), which=which, output_dir=out_dir, atol=args.atol)
+            p = plan(spec, export_script=str(script), which=which, output_dir=out_dir)
             if args.dry_run:
                 d = _plan_dict(p)
                 d["size"] = args.size
@@ -84,31 +75,15 @@ def main(argv: list[str] | None = None) -> int:
                 return 0
             use_export_all = args.all_variants and registry.is_multi_pte(args.model)
             if use_export_all:
-                all_results = export_all(spec, export_script=str(script), output_dir=out_dir, atol=p.atol, size=args.size)
-                results = [
-                    {"file": r.file, "precision": r.precision,
-                     "io_ok": r.io_ok, "parity_ok": r.parity_ok, "bench_ms": r.bench_ms}
-                    for r in all_results
-                ]
+                all_results = export_all(spec, export_script=str(script), output_dir=out_dir, size=args.size)
+                results = [{"file": r.file, "precision": r.precision} for r in all_results]
             else:
                 results = []
                 for variant in _select(spec, which):
-                    r = export_variant(spec, variant, export_script=str(script), output_dir=out_dir, atol=p.atol, size=args.size)
-                    results.append({
-                        "file": r.file, "precision": r.precision,
-                        "io_ok": r.io_ok, "parity_ok": r.parity_ok, "bench_ms": r.bench_ms,
-                    })
+                    r = export_variant(spec, variant, export_script=str(script), output_dir=out_dir, size=args.size)
+                    results.append({"file": r.file, "precision": r.precision})
             _emit({"model": spec.model, "results": results}, jm)
             return 0
-
-        if args.command == "verify":
-            spec = load_spec_file(args.config)
-            pte_name = Path(args.pte).name
-            variant = next((v for v in spec.variants if v.file == pte_name), spec.default_variant())
-            actual = read_pte_io(args.pte)
-            check = compare_io(variant.methods, actual)
-            _emit({"ok": check.ok, "deltas": check.deltas}, jm)
-            return 0 if check.ok else 1
 
     except ExporterError as err:
         if jm:
