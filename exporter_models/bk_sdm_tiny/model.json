@@ -1,6 +1,9 @@
 {
+  "hf": "https://huggingface.co/software-mansion/react-native-executorch-bk-sdm-tiny",
   "repo": "software-mansion/react-native-executorch-bk-sdm-tiny",
   "config": "{backend}/config.json",
   "multi_pte": true,
-  "backends": ["xnnpack"]
+  "backends": [
+    "xnnpack"
+  ]
 }

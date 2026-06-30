@@ -1,4 +1,5 @@
 {
+  "hf": "https://huggingface.co/software-mansion/react-native-executorch-yolo26",
   "repo": "software-mansion/react-native-executorch-yolo26",
   "config": "{size}/{backend}/config.json",
   "sizes": [

@@ -1,5 +1,9 @@
 {
+  "hf": "https://huggingface.co/software-mansion/react-native-executorch-privacy-filter-nemotron",
   "repo": "OpenMed/privacy-filter-nemotron",
-  "backends": ["xnnpack", "mlx"],
+  "backends": [
+    "xnnpack",
+    "mlx"
+  ],
   "config": "{backend}/config.json"
 }

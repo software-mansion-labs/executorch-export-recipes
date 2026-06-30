@@ -1,4 +1,7 @@
 {
-  "backends": ["xnnpack"],
+  "hf": "https://huggingface.co/software-mansion/react-native-executorch-rfdetr-keypoint",
+  "backends": [
+    "xnnpack"
+  ],
   "config": "{backend}/config.json"
 }

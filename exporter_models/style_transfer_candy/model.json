@@ -1,5 +1,9 @@
 {
+  "hf": "https://huggingface.co/software-mansion/react-native-executorch-style-transfer-candy",
   "repo": "software-mansion/react-native-executorch-style-transfer-candy",
   "config": "{backend}/config.json",
-  "backends": ["xnnpack", "coreml"]
+  "backends": [
+    "xnnpack",
+    "coreml"
+  ]
 }

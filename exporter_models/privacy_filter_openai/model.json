@@ -1,5 +1,9 @@
 {
+  "hf": "https://huggingface.co/software-mansion/react-native-executorch-privacy-filter-openai",
   "repo": "openai/privacy-filter",
-  "backends": ["xnnpack", "mlx"],
+  "backends": [
+    "xnnpack",
+    "mlx"
+  ],
   "config": "{backend}/config.json"
 }

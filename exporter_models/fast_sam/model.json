@@ -1,6 +1,13 @@
 {
+  "hf": "https://huggingface.co/software-mansion/react-native-executorch-fast-sam",
   "repo": "software-mansion/react-native-executorch-fast-sam",
   "config": "{size}/{backend}/config.json",
-  "sizes": ["s", "x"],
-  "backends": ["xnnpack", "coreml"]
+  "sizes": [
+    "s",
+    "x"
+  ],
+  "backends": [
+    "xnnpack",
+    "coreml"
+  ]
 }

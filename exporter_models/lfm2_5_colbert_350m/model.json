@@ -1,5 +1,9 @@
 {
+  "hf": "https://huggingface.co/software-mansion/react-native-executorch-lfm2.5-colbert-350m",
   "repo": "software-mansion/react-native-executorch-lfm2.5-colbert-350m",
   "config": "{backend}/config.json",
-  "backends": ["xnnpack", "mlx"]
+  "backends": [
+    "xnnpack",
+    "mlx"
+  ]
 }

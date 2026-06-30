@@ -1,4 +1,7 @@
 {
-  "backends": ["xnnpack"],
+  "hf": "https://huggingface.co/software-mansion/react-native-executorch-all-MiniLM-L6-v2",
+  "backends": [
+    "xnnpack"
+  ],
   "config": "{backend}/config.json"
 }

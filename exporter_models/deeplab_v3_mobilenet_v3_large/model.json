@@ -1,5 +1,8 @@
 {
+  "hf": "https://huggingface.co/software-mansion/react-native-executorch-deeplab-v3",
   "repo": "software-mansion/react-native-executorch-deeplab-v3",
   "config": "{backend}/config.json",
-  "backends": ["xnnpack"]
+  "backends": [
+    "xnnpack"
+  ]
 }

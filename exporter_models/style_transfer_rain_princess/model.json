@@ -1,5 +1,9 @@
 {
+  "hf": "https://huggingface.co/software-mansion/react-native-executorch-style-transfer-rain-princess",
   "repo": "software-mansion/react-native-executorch-style-transfer-rain-princess",
   "config": "{backend}/config.json",
-  "backends": ["xnnpack", "coreml"]
+  "backends": [
+    "xnnpack",
+    "coreml"
+  ]
 }

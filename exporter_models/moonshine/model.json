@@ -1,5 +1,8 @@
 {
-  "backends": ["xnnpack"],
+  "hf": "https://huggingface.co/software-mansion/react-native-executorch-moonshine-tiny",
+  "backends": [
+    "xnnpack"
+  ],
   "config": "{backend}/config.json",
   "multi_pte": true
 }

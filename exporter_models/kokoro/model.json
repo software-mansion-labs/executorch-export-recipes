@@ -1,5 +1,8 @@
 {
-  "backends": ["xnnpack"],
+  "hf": "https://huggingface.co/software-mansion/react-native-executorch-kokoro",
+  "backends": [
+    "xnnpack"
+  ],
   "config": "{backend}/config.json",
   "multi_pte": true
 }

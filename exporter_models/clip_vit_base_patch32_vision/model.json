@@ -1,4 +1,7 @@
 {
-  "backends": ["xnnpack"],
+  "hf": "https://huggingface.co/software-mansion/react-native-executorch-clip-vit-base-patch32",
+  "backends": [
+    "xnnpack"
+  ],
   "config": "{backend}/config.json"
 }

@@ -1,6 +1,17 @@
 {
+  "hf": "https://huggingface.co/software-mansion/react-native-executorch-whisper-{size}",
   "repo": "software-mansion/react-native-executorch-whisper-{size}",
   "config": "{backend}/config.json",
-  "sizes": ["tiny", "base", "small", "tiny.en", "base.en", "small.en"],
-  "backends": ["xnnpack", "coreml"]
+  "sizes": [
+    "tiny",
+    "base",
+    "small",
+    "tiny.en",
+    "base.en",
+    "small.en"
+  ],
+  "backends": [
+    "xnnpack",
+    "coreml"
+  ]
 }

@@ -1,6 +1,9 @@
 {
+  "hf": "https://huggingface.co/software-mansion/react-native-executorch-detector-craft",
   "repo": "software-mansion/react-native-executorch-detector-craft",
   "config": "{backend}/config.json",
   "multi_pte": true,
-  "backends": ["xnnpack"]
+  "backends": [
+    "xnnpack"
+  ]
 }
