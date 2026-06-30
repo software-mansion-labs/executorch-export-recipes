@@ -1,5 +1,0 @@
-{
-  "repo": "software-mansion/react-native-executorch-whisper-tiny",
-  "config": "{backend}/config.json",
-  "backends": ["xnnpack", "coreml"]
-}

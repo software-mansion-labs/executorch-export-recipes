@@ -12,11 +12,11 @@ _MODEL_DIR = _HERE.parent
 def _load_custom_whisper():
     pkg_init = _MODEL_DIR / "_custom_whisper" / "__init__.py"
     spec = importlib.util.spec_from_file_location(
-        "whisper_tiny_xnnpack_custom_whisper", pkg_init,
+        "whisper_tiny_coreml_custom_whisper", pkg_init,
         submodule_search_locations=[str(_MODEL_DIR / "_custom_whisper")],
     )
     mod = importlib.util.module_from_spec(spec)
-    sys.modules["whisper_tiny_xnnpack_custom_whisper"] = mod
+    sys.modules["whisper_tiny_coreml_custom_whisper"] = mod
     spec.loader.exec_module(mod)
     return mod
 
@@ -31,14 +31,15 @@ def _set_default_tensor_type(dtype: torch.dtype):
 
 
 def export(config: dict, out_dir: str) -> str:
-    from executorch.backends.xnnpack.partition.xnnpack_partitioner import XnnpackPartitioner
-    from executorch.backends.transforms.addmm_mm_to_linear import AddmmToLinearTransform
-    from executorch.exir import to_edge_transform_and_lower, EdgeCompileConfig
+    import coremltools as ct
+    from executorch.backends.apple.coreml.compiler import CoreMLBackend
+    from executorch.backends.apple.coreml.partition import CoreMLPartitioner
+    from executorch.exir import to_edge_transform_and_lower
     from torch.export import Dim
     from transformers import AutoProcessor
 
     cw = _load_custom_whisper()
-    preprocessor_mod = importlib.import_module("whisper_tiny_xnnpack_custom_whisper.preprocessor")
+    preprocessor_mod = importlib.import_module("whisper_tiny_coreml_custom_whisper.preprocessor")
     ProcessorTorchModule = preprocessor_mod.ProcessorTorchModule
 
     class WhisperPositionalEmbedding(torch.nn.Module):
@@ -72,10 +73,14 @@ def export(config: dict, out_dir: str) -> str:
         def forward(self, tokens: torch.LongTensor, positions: torch.LongTensor, encodings: torch.FloatTensor):
             return self.decoder(tokens, positions, encodings)
 
+    precision = {"fp16": ct.precision.FLOAT16, "fp32": ct.precision.FLOAT32}[
+        config["variant"]["precision"]
+    ]
+    size = config.get("size") or "tiny"
     torch_dtype = torch.float32
 
     with _set_default_tensor_type(torch_dtype):
-        model = cw.load_model("tiny")
+        model = cw.load_model(size)
         model.eval()
 
         encoder = model.encoder
@@ -87,7 +92,7 @@ def export(config: dict, out_dir: str) -> str:
                 decoder.embed_positions.weight
             )
 
-        hf_preprocessor = AutoProcessor.from_pretrained("openai/whisper-tiny")
+        hf_preprocessor = AutoProcessor.from_pretrained(f"openai/whisper-{size}")
         preprocessor = ProcessorTorchModule(hf_preprocessor)
         preprocessor.eval()
 
@@ -125,13 +130,13 @@ def export(config: dict, out_dir: str) -> str:
         "decode": exported_decode,
     }
 
+    specs = CoreMLBackend.generate_compile_specs(
+        minimum_deployment_target=ct.target.iOS18,
+        compute_precision=precision,
+    )
     executorch_program = to_edge_transform_and_lower(
         methods,
-        partitioner=[XnnpackPartitioner()],
-        compile_config=EdgeCompileConfig(
-            _core_aten_ops_exception_list=[torch.ops.aten.linear.default],
-        ),
-        transform_passes=[AddmmToLinearTransform()],
+        partitioner=[CoreMLPartitioner(compile_specs=specs)],
     ).to_executorch()
 
     out_path = Path(out_dir) / config["variant"]["file"]

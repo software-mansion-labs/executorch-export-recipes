@@ -108,8 +108,8 @@ def _load_via_pointer(model: str, size: str | None, backend: str | None) -> Spec
 
     sizes = data.get("sizes")
     if sizes:
-        if "{size}" not in config_path:
-            raise SpecError(f"model '{model}' declares 'sizes' but 'config' has no '{{size}}' placeholder")
+        if "{size}" not in config_path and "{size}" not in data.get("repo", ""):
+            raise SpecError(f"model '{model}' declares 'sizes' but neither 'config' nor 'repo' has a '{{size}}' placeholder")
         chosen = size or sizes[0]
         if chosen not in sizes:
             raise SpecError(f"size '{chosen}' not in {sizes} for model '{model}'")
@@ -137,7 +137,10 @@ def _load_via_pointer(model: str, size: str | None, backend: str | None) -> Spec
 
     if "repo" not in data:
         raise SpecError(f"model.json for '{model}' must have 'repo' and 'config' keys")
-    return load_spec(_fetch_config(data["repo"], config_path))
+    repo = data["repo"]
+    if sizes:
+        repo = repo.replace("{size}", chosen)
+    return load_spec(_fetch_config(repo, config_path))
 
 
 def load(model: str, *, local_spec: str | None = None, size: str | None = None,
