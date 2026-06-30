@@ -46,13 +46,6 @@ def list_models() -> list[str]:
     return sorted(out)
 
 
-def spec_path(model: str) -> Path:
-    p = _config_path(model)
-    if not p.exists():
-        raise SpecError(f"no spec for model '{model}' at {p}")
-    return p
-
-
 def export_script_path(model: str, backend: str | None = None) -> Path:
     backends = model_backends(model)
     if backends:

@@ -11,7 +11,7 @@ _CAPABILITIES = frozenset({
     "image-embedding", "image-generation", "voice-activity-detection",
     "text-detection", "text-recognition",
 })
-_BACKENDS = frozenset({"xnnpack", "coreml", "vulkan", "qnn", "mlx"})
+_BACKENDS = frozenset({"xnnpack", "coreml", "mlx"})
 
 
 @dataclass

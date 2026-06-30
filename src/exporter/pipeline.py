@@ -11,7 +11,6 @@ from .spec import IOTensor, Method, Spec, Variant
 
 @dataclass
 class IOCheck:
-    method: str
     ok: bool
     deltas: list[str]
 
@@ -84,7 +83,7 @@ def compare_io(expected: dict[str, Method], actual: dict[str, dict]) -> IOCheck:
                     deltas.append(f"{mname} {kind}[{i}] shape {e.shape}!={a.shape}")
                 if e.dtype != a.dtype:
                     deltas.append(f"{mname} {kind}[{i}] dtype {e.dtype}!={a.dtype}")
-    return IOCheck(method="all", ok=not deltas, deltas=deltas)
+    return IOCheck(ok=not deltas, deltas=deltas)
 
 
 def export_variant(spec: Spec, variant: Variant, *, export_script: str, output_dir: str, atol: float, run_bench: bool = True, size: str | None = None) -> VariantResult:

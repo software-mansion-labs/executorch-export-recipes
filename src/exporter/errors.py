@@ -19,16 +19,8 @@ class SpecError(_FixedCodeError):
     _code = "spec_invalid"
 
 
-class WrapperNotFoundError(_FixedCodeError):
-    _code = "wrapper_not_found"
-
-
 class IOContractError(_FixedCodeError):
     _code = "io_mismatch"
-
-
-class ParityError(_FixedCodeError):
-    _code = "parity_failed"
 
 
 class BackendError(_FixedCodeError):

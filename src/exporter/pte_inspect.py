@@ -6,12 +6,6 @@ from pathlib import Path
 from .errors import EnvironmentError_
 from .spec import IOTensor
 
-DTYPE_NAMES = {
-    0: "uint8", 1: "int8", 2: "int16", 3: "int32", 4: "int64",
-    5: "float16", 6: "float32", 7: "float64", 8: "complex32",
-    9: "complex64", 10: "complex128", 11: "bool", 15: "bfloat16",
-}
-
 _WORKER = """
 import json, sys
 from executorch.extension.pybindings.portable_lib import _load_for_executorch
