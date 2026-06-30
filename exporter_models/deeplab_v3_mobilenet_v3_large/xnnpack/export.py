@@ -34,8 +34,8 @@ class _DeeplabWrapper(torch.nn.Module):
         self.model = model
 
     def forward(self, x):
-        out = self.model(x)
-        return out["out"], out["aux"]
+        # The shipped .pte returns only the main "out" head (no aux).
+        return self.model(x)["out"]
 
 
 def _arch_for(file_name: str):

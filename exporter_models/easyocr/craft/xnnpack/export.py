@@ -56,7 +56,13 @@ def export(config: dict, out_dir: str) -> None:
     )
     model.eval()
 
-    sizes = {"forward_1280": (1280, 1280), "forward_320": (320, 320)}
+    # Method sizes match the shipped .pte: forward_320 is a tall 1280x320 strip,
+    # not a 320x320 square; plus an 800x800 method.
+    sizes = {
+        "forward_320": (1280, 320),
+        "forward_800": (800, 800),
+        "forward_1280": (1280, 1280),
+    }
 
     fp32_eps = {}
     int8_eps = {}
