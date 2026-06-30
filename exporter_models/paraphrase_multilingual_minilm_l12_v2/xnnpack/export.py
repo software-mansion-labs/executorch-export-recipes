@@ -37,6 +37,17 @@ def export(config: dict, out_dir: str) -> str:
     max_tokens = variant["methods"]["forward"]["inputs"][0]["shape"][-1]
 
     module = _Embedder().eval()
+
+    if variant["quantized"]:
+        import torch.nn as nn
+        from torchao.quantization.granularity import PerGroup
+        from torchao.quantization.quant_api import Int8DynamicActivationIntxWeightConfig, quantize_
+
+        qcfg = Int8DynamicActivationIntxWeightConfig(
+            weight_dtype=torch.int4, weight_granularity=PerGroup(32)
+        )
+        quantize_(module, qcfg, filter_fn=lambda mod, fqn: isinstance(mod, nn.Linear))
+
     inputs = (
         torch.zeros(1, max_tokens, dtype=torch.int64),
         torch.ones(1, max_tokens, dtype=torch.int64),

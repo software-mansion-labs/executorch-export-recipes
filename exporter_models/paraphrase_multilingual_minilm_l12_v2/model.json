@@ -1,11 +1,12 @@
 {
   "hf": "https://huggingface.co/software-mansion/react-native-executorch-paraphrase-multilingual-MiniLM-L12-v2",
   "extras": [
-    "coreml"
+    "coreml",
+    "quant"
   ],
+  "config": "{backend}/config.json",
   "backends": [
     "xnnpack",
     "coreml"
-  ],
-  "config": "{backend}/config.json"
+  ]
 }

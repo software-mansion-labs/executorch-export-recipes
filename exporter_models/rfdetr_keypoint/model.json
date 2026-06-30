@@ -1,10 +1,13 @@
 {
   "hf": "https://huggingface.co/software-mansion/react-native-executorch-rfdetr-keypoint",
   "extras": [
+    "coreml",
     "detection"
   ],
+  "config": "{backend}/config.json",
   "backends": [
-    "xnnpack"
-  ],
-  "config": "{backend}/config.json"
+    "xnnpack",
+    "coreml",
+    "mlx"
+  ]
 }
