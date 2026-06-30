@@ -1,6 +1,6 @@
 {
   "$schema": "https://huggingface.co/software-mansion/react-native-executorch-spec/resolve/main/config.schema.json",
-  "model": "moonshine_tiny",
+  "model": "moonshine",
   "family": "moonshine",
   "capabilities": ["speech-to-text"],
   "backend": "xnnpack",

@@ -27,22 +27,30 @@ def pointer_path(model: str) -> Path:
     return p
 
 
+def _is_model_dir(model: str) -> bool:
+    d = MODELS_DIR / model
+    if not (d / "config.json").exists() and not (d / "model.json").exists():
+        return False
+    if (d / "export.py").exists():
+        return True
+    # backend-split models keep export.py inside each backend subdir
+    return any((d / b / "export.py").exists() for b in model_backends(model))
+
+
 def list_models() -> list[str]:
     if not MODELS_DIR.exists():
         return []
     out = []
     for d in MODELS_DIR.iterdir():
-        if not d.is_dir():
+        if not d.is_dir() or d.name.startswith((".", "_")):
             continue
-        has_top_export = (d / "export.py").exists()
-        # backend-split models keep export.py inside each backend subdir
-        has_backend_export = any(
-            (d / b / "export.py").exists() for b in model_backends(d.name)
-        )
-        if not (has_top_export or has_backend_export):
-            continue
-        if (d / "config.json").exists() or (d / "model.json").exists():
+        if _is_model_dir(d.name):
             out.append(d.name)
+            continue
+        # umbrella dir (e.g. easyocr/): discover nested models one level down
+        for sub in d.iterdir():
+            if sub.is_dir() and _is_model_dir(f"{d.name}/{sub.name}"):
+                out.append(f"{d.name}/{sub.name}")
     return sorted(out)
 
 
