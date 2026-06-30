@@ -39,7 +39,18 @@
               "dtype": "bfloat16"
             }
           ]
-        }
+        },
+        "enable_dynamic_shape": true,
+        "get_bos_id": 1,
+        "get_eos_ids": [
+          7
+        ],
+        "get_max_context_len": 2048,
+        "get_max_seq_len": 2048,
+        "get_n_layers": null,
+        "get_vocab_size": 65536,
+        "use_kv_cache": true,
+        "use_sdpa_with_kv_cache": true
       }
     },
     {
@@ -73,7 +84,18 @@
               "dtype": "bfloat16"
             }
           ]
-        }
+        },
+        "enable_dynamic_shape": true,
+        "get_bos_id": 1,
+        "get_eos_ids": [
+          7
+        ],
+        "get_max_context_len": 2048,
+        "get_max_seq_len": 2048,
+        "get_n_layers": null,
+        "get_vocab_size": 65536,
+        "use_kv_cache": true,
+        "use_sdpa_with_kv_cache": true
       }
     }
   ]

@@ -38,7 +38,12 @@ def export(config: dict, out_dir: str) -> str:
     cfg = LlmConfig()
     cfg.base.model_class = ModelType(spec["model_class"])
     cfg.base.params = params_path
-    cfg.base.metadata = p.METADATA
+    # bos/eos come from the config (single source of truth); export_llama
+    # derives the rest (seq_len, vocab) from params.
+    consts = config["variant"].get("constants", {})
+    cfg.base.metadata = json.dumps(
+        {k: consts[k] for k in ("get_bos_id", "get_eos_ids") if k in consts}
+    )
     cfg.model.use_kv_cache = True
     cfg.model.use_sdpa_with_kv_cache = True
     cfg.model.dtype_override = DtypeOverride.bf16

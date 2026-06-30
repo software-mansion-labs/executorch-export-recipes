@@ -51,6 +51,7 @@ def _variant_config(variant: Variant) -> dict:
             }
             for name, m in variant.methods.items()
         },
+        "constants": dict(variant.constants),
     }
 
 

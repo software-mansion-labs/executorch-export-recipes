@@ -37,6 +37,10 @@ class Variant:
     default: bool
     methods: dict[str, Method] = field(default_factory=dict)
     components: dict[str, str] | None = None
+    # LLM runner constants declared in the config as non-IO method entries
+    # (get_bos_id, get_eos_ids, get_max_seq_len, use_kv_cache, ...). Values are
+    # int / list / bool / null. Embedded into the .pte at export time.
+    constants: dict = field(default_factory=dict)
 
 
 @dataclass
@@ -114,12 +118,13 @@ def load_spec(data: dict) -> Spec:
                 f"model '{model}' variant must have exactly one of 'file' or 'components'"
             )
         methods = {}
+        constants = {}
         for mname, m in rv.get("methods", {}).items():
-            if not isinstance(m, dict):
-                continue
-            if "inputs" not in m or "outputs" not in m:
-                raise SpecError(f"method '{mname}' must have 'inputs' and 'outputs'")
-            methods[mname] = Method(name=mname, inputs=_io(m["inputs"]), outputs=_io(m["outputs"]))
+            if isinstance(m, dict) and "inputs" in m and "outputs" in m:
+                methods[mname] = Method(name=mname, inputs=_io(m["inputs"]), outputs=_io(m["outputs"]))
+            else:
+                # LLM runner constant (int/list/bool/null, or dict w/o IO)
+                constants[mname] = m
         variants.append(
             Variant(
                 file=rv.get("file"),
@@ -128,6 +133,7 @@ def load_spec(data: dict) -> Spec:
                 default=_require(rv, "default", bool),
                 methods=methods,
                 components=rv.get("components"),
+                constants=constants,
             )
         )
 

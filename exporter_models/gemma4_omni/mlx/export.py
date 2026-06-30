@@ -114,17 +114,8 @@ def export(config: dict, out_dir: str) -> str:
     logger.info("Building audio encoder ep (runner contract, XNNPACK 8da4w)...")
     _, ep_aud = _build_audio_runner_ep(checkpoint_path, GROUP_SIZE)
 
-    llm_metadata = {
-        "get_eos_ids": [1, 106, 50],
-        "get_bos_id": 2,
-        "get_vocab_size": int(gemma_config.vocab_size),
-        "get_max_seq_len": int(min(MAX_SEQ_LEN, window)) - 1,
-        "get_max_context_len": int(MAX_SEQ_LEN),
-        "use_kv_cache": True,
-        "enable_dynamic_shape": True,
-        "has_ple": True,
-        "image_placeholder_id": int(gemma_config.image_token_id),
-    }
+    # LLM runner constants come from the config (single source of truth).
+    llm_metadata = dict(config["variant"].get("constants", {}))
 
     programs = {
         "token_embedding": ep_tok,

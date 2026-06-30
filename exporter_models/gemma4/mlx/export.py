@@ -116,14 +116,8 @@ def export(config: dict, out_dir: str) -> str:
                 strict=True,
             )
 
-    llm_metadata = {
-        "get_eos_ids": [1, 106, 50],
-        "get_bos_id": 2,
-        "get_max_seq_len": int(CONTEXT_LEN),
-        "get_max_context_len": int(CONTEXT_LEN),
-        "use_kv_cache": True,
-        "enable_dynamic_shape": True,
-    }
+    # LLM runner constants come from the config (single source of truth).
+    llm_metadata = dict(config["variant"].get("constants", {}))
     logger.info(f"Embedding LLM runner metadata: {llm_metadata}")
 
     logger.info("Lowering to MLX backend...")

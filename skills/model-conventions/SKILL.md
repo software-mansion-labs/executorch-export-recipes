@@ -80,6 +80,27 @@ discovers one level of nesting: a top dir that isn't itself a model is scanned
 for child model dirs, emitted as `parent/child`. The rest of the registry
 handles slash-bearing model names via path joins.
 
+## LLM runner constants
+
+The published spec config declares LLM runner metadata as non-IO method
+entries with literal values — `get_bos_id: 2`, `get_eos_ids: [1,106,50]`,
+`get_max_seq_len`, `get_max_context_len`, `get_vocab_size`, `use_kv_cache`,
+`enable_dynamic_shape`, `has_ple`, `image_placeholder_id`, ... (int / list /
+bool / null). The spec loader collects every method entry that lacks
+`inputs`/`outputs` into `Variant.constants`, and the pipeline passes it through
+as `config["variant"]["constants"]`. LLM exports embed these into the `.pte`
+from the config (the single source of truth) — NOT hardcoded:
+
+- MLX (gemma4, gemma4_omni): `constant_methods=config["variant"]["constants"]`.
+- export_llama path (lfm2_5_text): `cfg.base.metadata` is built from the
+  config's `get_bos_id`/`get_eos_ids` (export_llama derives seq_len/vocab from
+  params). These per-(size,backend) values genuinely differ (e.g. text
+  `get_max_seq_len` is 2048 on xnnpack but 65 on mlx), which is why they live
+  in the config, not a shared constant.
+
+When a model's config carries these, set them there — never re-hardcode in
+export.py.
+
 ## Per-model dependencies (extras)
 
 Base deps (torch, torchvision, transformers, huggingface_hub,

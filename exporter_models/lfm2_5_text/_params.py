@@ -29,7 +29,6 @@ SIZES = {
     },
 }
 
-METADATA = '{"get_bos_id": 1, "get_eos_ids":[7]}'
 GROUP_SIZE = 64
 PREFILL_CAP = 64
 CONTEXT_LEN = 2048
