@@ -109,21 +109,15 @@ def export(config: dict, out_dir: str) -> str:
     )
 
     n_audio_state = model.dims.n_audio_state
+    # The shipped CoreML decode is static single-token (tokens [1,1], pos [1]),
+    # unlike the XNNPACK dynamic [1,128] decode.
     decode_inputs = (
-        torch.randint(1, 100, size=(1, 64)),
-        torch.arange(0, 64, dtype=torch.long),
+        torch.randint(1, 100, size=(1, 1)),
+        torch.arange(0, 1, dtype=torch.long),
         torch.randn(1, 1500, n_audio_state, dtype=torch_dtype),
     )
-    T_text = Dim("T_text", min=1, max=128)
-    decode_dynamic_shapes = (
-        {1: T_text},
-        {0: T_text},
-        None,
-    )
 
-    exported_decode = torch.export.export(
-        decoder_wrapper, decode_inputs, dynamic_shapes=decode_dynamic_shapes
-    )
+    exported_decode = torch.export.export(decoder_wrapper, decode_inputs)
 
     methods = {
         "encode": exported_encode,

@@ -6,7 +6,7 @@
     "quant"
   ],
   "repo": "software-mansion/react-native-executorch-whisper-{size}",
-  "config": "{backend}/config.json",
+  "config": "{backend}/{size}/config.json",
   "sizes": [
     "tiny",
     "base",
