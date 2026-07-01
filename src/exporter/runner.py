@@ -1,4 +1,5 @@
 import importlib.util
+import sys
 from collections.abc import Callable
 from pathlib import Path
 
@@ -9,8 +10,12 @@ def load_export_callable(export_py_path) -> Callable[[dict, str], str]:
     path = Path(export_py_path)
     if not path.exists():
         raise SpecError(f"export script not found: {path}")
-    spec = importlib.util.spec_from_file_location(f"exporter_model_{path.parent.name}", path)
+    # Unique, importable module name: torch.export/dynamo re-imports the module
+    # that defines any traced nn.Module by name, so it must live in sys.modules.
+    mod_name = f"exporter_model_{path.parent.parent.name}_{path.parent.name}"
+    spec = importlib.util.spec_from_file_location(mod_name, path)
     module = importlib.util.module_from_spec(spec)
+    sys.modules[mod_name] = module
     spec.loader.exec_module(module)
     fn = getattr(module, "export", None)
     if not callable(fn):
