@@ -25,6 +25,12 @@ def _load_model_keras():
 
 
 def export(config: dict, out_dir: str) -> None:
+    import os
+    # The weight conversion calls .permute() on keras weights, which only works
+    # with the torch backend (keras var .value is a torch tensor, not a TF
+    # ResourceVariable). Must be set before keras is imported.
+    os.environ["KERAS_BACKEND"] = "torch"
+
     from executorch.backends.xnnpack.partition.xnnpack_partitioner import XnnpackPartitioner
     from executorch.exir import ExecutorchBackendConfig, to_edge_transform_and_lower
     from torch.export import Dim
