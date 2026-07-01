@@ -16,3 +16,4 @@ __pycache__/
 docs/superpowers/
 .superpowers/
 tests/
+datasets/

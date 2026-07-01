@@ -7,7 +7,7 @@
   "license": "mit",
   "variants": [
     {
-      "file": "clip_vit_base_patch32_vision_xnnpack_fp32.pte",
+      "file": "clip_vit_base_patch32_image_xnnpack_fp32.pte",
       "precision": "fp32",
       "quantized": false,
       "default": true,
@@ -19,7 +19,7 @@
       }
     },
     {
-      "file": "clip_vit_base_patch32_vision_xnnpack_int8.pte",
+      "file": "clip_vit_base_patch32_image_xnnpack_int8.pte",
       "precision": "int8",
       "quantized": true,
       "default": false,

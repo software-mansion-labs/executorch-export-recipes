@@ -54,7 +54,7 @@ def export(config: dict, out_dir: str) -> str:
         cfg.quantization.qmode = "8da4w"
     cfg.backend.xnnpack.enabled = True
     cfg.backend.xnnpack.extended_ops = True
-    cfg.export.max_seq_length = p.PREFILL_CAP + 1
+    cfg.export.max_seq_length = p.CONTEXT_LEN
     cfg.export.max_context_length = p.CONTEXT_LEN
     cfg.export.output_name = out_path
 

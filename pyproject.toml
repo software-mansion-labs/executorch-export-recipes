@@ -20,7 +20,7 @@ dev = ["pytest"]
 # installed separately, not pip extras.)
 coreml = ["coremltools"]
 quant = ["torchao"]
-detection = ["rfdetr", "ultralytics", "numpy"]
+detection = ["rfdetr==1.7.1", "ultralytics", "numpy"]
 diffusion = ["diffusers"]
 asr = ["numpy", "tqdm"]
 vad = ["funasr", "numpy"]

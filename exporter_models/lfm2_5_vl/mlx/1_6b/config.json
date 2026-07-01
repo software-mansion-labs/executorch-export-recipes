@@ -9,7 +9,7 @@
   "license": "lfm-1.0",
   "variants": [
     {
-      "file": "lfm2_5_vl_1_6b_mlx_int4.pte",
+      "file": "lfm_2_5_vl_1_6b_mlx_int4.pte",
       "precision": "4w",
       "quantized": true,
       "default": true,
@@ -23,7 +23,7 @@
                 512,
                 512
               ],
-              "dtype": "float32"
+              "dtype": "bfloat16"
             }
           ],
           "outputs": [
@@ -33,7 +33,7 @@
                 256,
                 2048
               ],
-              "dtype": "float32"
+              "dtype": "bfloat16"
             }
           ]
         },
@@ -54,7 +54,7 @@
                 2048,
                 2048
               ],
-              "dtype": "float32"
+              "dtype": "bfloat16"
             }
           ]
         },
@@ -66,7 +66,7 @@
                 64,
                 2048
               ],
-              "dtype": "float32"
+              "dtype": "bfloat16"
             },
             {
               "shape": [
@@ -81,7 +81,7 @@
                 1,
                 65536
               ],
-              "dtype": "float32"
+              "dtype": "bfloat16"
             }
           ]
         },

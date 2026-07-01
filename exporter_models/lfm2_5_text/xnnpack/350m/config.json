@@ -9,7 +9,7 @@
   "license": "lfm-1.0",
   "variants": [
     {
-      "file": "lfm2_5_text_350m_xnnpack_8da4w.pte",
+      "file": "lfm_2_5_350m_xnnpack_8da4w.pte",
       "precision": "8da4w",
       "quantized": true,
       "default": true,
@@ -19,7 +19,7 @@
             {
               "shape": [
                 1,
-                64
+                2047
               ],
               "dtype": "int64"
             },
@@ -36,7 +36,7 @@
                 1,
                 65536
               ],
-              "dtype": "bfloat16"
+              "dtype": "float32"
             }
           ]
         },
@@ -54,7 +54,7 @@
       }
     },
     {
-      "file": "lfm2_5_text_350m_xnnpack_fp16.pte",
+      "file": "lfm_2_5_350m_xnnpack_fp16.pte",
       "precision": "fp16",
       "quantized": false,
       "default": false,
@@ -64,7 +64,7 @@
             {
               "shape": [
                 1,
-                64
+                2047
               ],
               "dtype": "int64"
             },
@@ -81,7 +81,7 @@
                 1,
                 65536
               ],
-              "dtype": "bfloat16"
+              "dtype": "float16"
             }
           ]
         },
