@@ -194,8 +194,13 @@ class Gemma4Config:
 
     @classmethod
     def from_config(cls, variant: str = "e2b") -> "Gemma4Config":
-        """Load a named config variant (e2b, e4b)."""
+        """Load a named config variant (e2b, e4b). The dataclass defaults are
+        the E2B architecture, so an absent JSON falls back to those."""
         config_path = Path(__file__).parent.parent / "config" / f"{variant}_config.json"
+        if not config_path.exists():
+            if variant == "e2b":
+                return cls()
+            raise FileNotFoundError(f"no config for variant '{variant}': {config_path}")
         return cls.from_json(str(config_path))
 
     @classmethod
