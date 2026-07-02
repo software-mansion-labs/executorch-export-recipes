@@ -54,6 +54,11 @@ def build_wrapper():
     wrapper_meta = variants.RFDETRKeypointPreview()
     inner = deepcopy(wrapper_meta.model.model.to("cpu")).eval()
     inner.export()
+    # LWDETR.export() swaps forward for an instance attribute (forward_export);
+    # that instance swap breaks run_decompositions on the export graph. The
+    # wrapper calls forward_export directly, so restore the original forward.
+    if hasattr(inner, "_forward_origin"):
+        inner.forward = inner._forward_origin
     resolution = wrapper_meta.model.resolution
     wrapper = RFDETRKeypointWrapper(inner, resolution).eval()
     example = (torch.randn(1, 3, resolution, resolution, dtype=torch.float32),)

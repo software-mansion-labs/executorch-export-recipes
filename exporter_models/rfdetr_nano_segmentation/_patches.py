@@ -201,7 +201,9 @@ def _gen_encoder_output_proposals(
 # ---------------------------------------------------------------------------
 
 
-def _transformer_forward(self, srcs, masks, pos_embeds, refpoint_embed, query_feat):
+def _transformer_forward(
+    self, srcs, masks, pos_embeds, refpoint_embed, query_feat, cross_attn_srcs=None
+):
     # Fixed-size inference has no padding — mask is always all-False.
     # Forcing None removes the entire where/eq/any/logical_not portable-op chain (~10 ms).
     masks = None
@@ -227,6 +229,20 @@ def _transformer_forward(self, srcs, masks, pos_embeds, refpoint_embed, query_fe
         mask_flatten = torch.cat(mask_flatten, 1)
         valid_ratios = torch.stack([self.get_valid_ratio(m) for m in masks], 1)
     lvl_pos_embed_flatten = torch.cat(lvl_pos_embed_flatten, 1)
+
+    # Flatten optional dual-projector features for keypoint-specific cross-attention.
+    cross_attn_memory = None
+    if cross_attn_srcs is not None:
+        ca_flatten = []
+        for src in cross_attn_srcs:
+            tensor = getattr(src, "tensors", src)
+            ca_flatten.append(tensor.flatten(2).transpose(1, 2))
+        cross_attn_memory = torch.cat(ca_flatten, 1)
+
+    if getattr(self, "dual_projector_kp_only", False) and cross_attn_memory is not None:
+        decoder_memory = memory
+    else:
+        decoder_memory = cross_attn_memory if cross_attn_memory is not None else memory
 
     # Keep Python list for export-friendly iteration
     spatial_shapes_list = list(spatial_shapes)
@@ -329,13 +345,13 @@ def _transformer_forward(self, srcs, masks, pos_embeds, refpoint_embed, query_fe
 
         hs, references = self.decoder(
             tgt,
-            memory,
+            decoder_memory,
             memory_key_padding_mask=mask_flatten,
             pos=lvl_pos_embed_flatten,
             refpoints_unsigmoid=refpoint_embed,
             level_start_index=level_start_index,
             spatial_shapes=spatial_shapes,
-            valid_ratios=valid_ratios.to(memory.dtype)
+            valid_ratios=valid_ratios.to(decoder_memory.dtype)
             if valid_ratios is not None
             else valid_ratios,
             spatial_shapes_list=spatial_shapes_list,
