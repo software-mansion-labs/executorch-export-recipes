@@ -37,17 +37,23 @@ def _lower(exported, precision: str):
     import coremltools as ct
     from executorch.backends.apple.coreml.compiler import CoreMLBackend
     from executorch.backends.apple.coreml.partition import CoreMLPartitioner
-    from executorch.exir import to_edge_transform_and_lower
+    from executorch.backends.transforms.addmm_mm_to_linear import AddmmToLinearTransform
+    from executorch.exir import EdgeCompileConfig, to_edge_transform_and_lower
 
-    # int8 weight-only CoreML quantization (per-channel linear-symmetric).
+    # int8 is weight-only (per-channel linear-symmetric); compute stays fp32.
     quant = {"mode": "linear_symmetric", "dtype": "int8", "granularity": "per_channel"}
     specs = CoreMLBackend.generate_compile_specs(
         minimum_deployment_target=ct.target.iOS18,
-        compute_precision=ct.precision.FLOAT16,
+        compute_precision=ct.precision.FLOAT32,
         op_linear_quantizer_config=quant if precision == "int8" else None,
     )
+    # lower_full_graph=False lets the partitioner leave ops CoreML can't take
+    # (e.g. a rank-6 reshape) on the CPU backend instead of failing the export.
     return to_edge_transform_and_lower(
-        exported, partitioner=[CoreMLPartitioner(compile_specs=specs)]
+        exported,
+        transform_passes=[AddmmToLinearTransform()],
+        partitioner=[CoreMLPartitioner(compile_specs=specs, lower_full_graph=False)],
+        compile_config=EdgeCompileConfig(_check_ir_validity=False),
     ).to_executorch()
 
 
