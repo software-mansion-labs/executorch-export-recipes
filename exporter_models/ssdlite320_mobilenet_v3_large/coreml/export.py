@@ -57,7 +57,13 @@ def export(config: dict, out_dir: str) -> str:
         compute_precision=precision,
     )
     program = to_edge_transform_and_lower(
-        ep, partitioner=[CoreMLPartitioner(compile_specs=specs)]
+        ep,
+        partitioner=[
+            CoreMLPartitioner(
+                compile_specs=specs,
+                skip_ops_for_coreml_delegation=["aten.select_scatter.default"],
+            )
+        ],
     ).to_executorch()
 
     out_path = Path(out_dir) / variant["file"]
