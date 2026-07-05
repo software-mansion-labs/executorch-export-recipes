@@ -65,7 +65,9 @@ def main(argv: list[str] | None = None) -> int:
         if args.command == "export":
             spec = registry.load(args.model, local_spec=args.local_spec, size=args.size, backend=args.backend)
             script = registry.export_script_path(args.model, args.backend)
-            which = "all" if args.all_variants else args.variant
+            # multi_pte models always emit the full variant set in one export call
+            use_export_all = registry.is_multi_pte(args.model)
+            which = "all" if (args.all_variants or use_export_all) else args.variant
             out_dir = args.output_dir or spec.model
             p = plan(spec, export_script=str(script), which=which, output_dir=out_dir)
             if args.dry_run:
@@ -74,7 +76,6 @@ def main(argv: list[str] | None = None) -> int:
                 _emit(d, jm)
                 return 0
             registry.check_extras(args.model)
-            use_export_all = args.all_variants and registry.is_multi_pte(args.model)
             if use_export_all:
                 all_results = export_all(spec, export_script=str(script), output_dir=out_dir, size=args.size)
                 results = [{"file": r.file, "precision": r.precision} for r in all_results]

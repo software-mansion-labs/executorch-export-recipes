@@ -11,7 +11,7 @@ the authored I/O contract.
 ```
 exporter_models/<model>/
   model.json                 # pointer: hf url, repo, config path, sizes, backends
-  <backend>/export.py        # the engine: export(config, out_dir) -> pte path
+  <backend>/export.py        # the engine: export(config, out_dir) writes the .pte(s)
   <backend>/config.json      # local spec (only when not fetched from HF)
   <size>/<backend>/config.json   # for sized models
   _vendored_code.py          # model code, vendored at the model-dir top
@@ -59,8 +59,9 @@ exporter export   <model> [--size S] [--backend B] [--variant P | --all-variants
 ## The export.py contract
 
 ```python
-def export(config: dict, out_dir: str) -> str:
-    """Build the model, export + lower, write the .pte, return its path."""
+def export(config: dict, out_dir: str) -> None:
+    """Build the model, export + lower, write the .pte(s) into out_dir.
+    The return value is advisory; the harness reports results from the spec."""
 ```
 
 Top-level imports must stay stdlib + torch only; executorch / transformers /

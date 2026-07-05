@@ -46,8 +46,9 @@ and an `export.py` per backend. See `skills/model-conventions` for the full
 4. **Write `export.py`** in the backend subdir:
 
    ```python
-   def export(config: dict, out_dir: str) -> str:
-       """Build the model, export + lower, write the .pte, return its path."""
+   def export(config: dict, out_dir: str) -> None:
+       """Build the model, export + lower, write the .pte(s) into out_dir.
+       The return value is advisory; the harness reports results from the spec."""
    ```
 
    - Top-level imports: stdlib + torch only. Import executorch / transformers /
@@ -62,7 +63,7 @@ and an `export.py` per backend. See `skills/model-conventions` for the full
    - **Lower:** simple single-method XNNPACK models can use the shared
      `from exporter.backends import lower; lower(ep, config["backend"])`.
      Everything else lowers inline — see `skills/backends/{xnnpack,coreml,mlx}`.
-   - Write the buffer to `Path(out_dir) / config["variant"]["file"]`, return it.
+   - Write the buffer to `Path(out_dir) / config["variant"]["file"]`.
 
 5. **Run it:** `exporter export <model> [--size S] [--backend B] [--json]`. The
    harness resolves the spec, runs your `export.py`, and writes the `.pte`. Use

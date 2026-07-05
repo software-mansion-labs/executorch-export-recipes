@@ -42,6 +42,7 @@ def plan(spec: Spec, *, export_script: str, which: str | None, output_dir: str) 
 def _variant_config(variant: Variant) -> dict:
     return {
         "file": variant.file,
+        "components": variant.components,
         "precision": variant.precision,
         "quantized": variant.quantized,
         "methods": {
