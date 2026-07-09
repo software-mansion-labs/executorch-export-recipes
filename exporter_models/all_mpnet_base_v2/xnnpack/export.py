@@ -6,6 +6,7 @@ from transformers import AutoModel
 from torch.export import Dim, export as torch_export
 
 from exporter.backends import lower
+from exporter.dynamic_dims import build_dynamic_dims_program
 
 _SOURCE = "sentence-transformers/all-mpnet-base-v2"
 _CLS = 0
@@ -45,7 +46,12 @@ def export(config: dict, out_dir: str) -> str:
     dynamic = {"input_ids": {1: dim}, "attention_mask": {1: dim}}
 
     ep = torch_export(module, inputs, dynamic_shapes=dynamic)
-    program = lower(ep, config["backend"])
+
+    # Advertise the dynamic sequence dimension to the runtime. Both inputs are
+    # [1, tokens]: batch static, tokens dynamic in [1, max_tokens].
+    seq_bounds = [[1, 1, 1], [1, max_tokens, 1]]
+    dims = build_dynamic_dims_program([seq_bounds, seq_bounds])
+    program = lower({"forward": ep, "get_dynamic_dims_forward": dims}, config["backend"])
 
     out_path = Path(out_dir) / variant["file"]
     out_path.parent.mkdir(parents=True, exist_ok=True)

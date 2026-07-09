@@ -6,6 +6,7 @@ import torch
 from torch.export import Dim, export as torch_export
 
 from exporter.backends import lower
+from exporter.dynamic_dims import build_dynamic_dims_program
 
 _HERE = Path(__file__).resolve().parent
 _MODEL_DIR = _HERE.parent
@@ -43,7 +44,12 @@ def export(config: dict, out_dir: str) -> str:
         quantize_(module, qcfg, filter_fn=lambda mod, fqn: isinstance(mod, nn.Linear))
 
     ep = torch_export(module, inputs, dynamic_shapes=dynamic)
-    program = lower(ep, config["backend"])
+
+    # Advertise the dynamic sequence dimension to the runtime. Both inputs are
+    # [1, tokens]: batch static, tokens dynamic in [1, _MAX_TOKENS].
+    seq_bounds = [[1, 1, 1], [1, _MAX_TOKENS, 1]]
+    dims = build_dynamic_dims_program([seq_bounds, seq_bounds])
+    program = lower({"forward": ep, "get_dynamic_dims_forward": dims}, config["backend"])
 
     out_path = Path(out_dir) / variant["file"]
     out_path.parent.mkdir(parents=True, exist_ok=True)
