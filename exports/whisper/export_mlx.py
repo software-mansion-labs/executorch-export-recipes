@@ -65,6 +65,47 @@ class DecoderWrapper(torch.nn.Module):
         return self.decoder(tokens, positions, encodings.to(self.dtype))
 
 
+# ---------------------------------
+# Dynamic-shape companion methods
+# ---------------------------------
+
+# The RNE runtime cannot recover the active (min, max, step) range of a dynamic
+# input dimension from .pte metadata alone: ExecuTorch only serializes the static
+# upper bound, not the live symbolic range. To expose it, we bundle a companion
+# method "get_dynamic_dims_<method>" next to each exported method. It takes no
+# arguments and returns, for every Tag::Tensor input of <method>, a [rank, 3]
+# int32 tensor whose rows are [min, max, step] per axis (static axes use
+# [size, size, 1]). See model.cpp::parseDynamicInputShapes for the contract.
+
+class GetDynamicDims(torch.nn.Module):
+    def __init__(self, rows_per_input) -> None:
+        super().__init__()
+        self._rows_per_input = rows_per_input
+
+    def forward(self):
+        return tuple(
+            torch.tensor(rows, dtype=torch.int32) for rows in self._rows_per_input
+        )
+
+
+def build_dynamic_dims_module(example_inputs, dynamic_shapes) -> GetDynamicDims:
+    """Derive a GetDynamicDims companion module from a method's example inputs and
+    its torch.export `dynamic_shapes` spec, keeping the reported ranges in
+    lock-step with what was actually exported."""
+    rows_per_input = []
+    for example, axis_map in zip(example_inputs, dynamic_shapes):
+        axis_map = axis_map or {}
+        rows = []
+        for axis, size in enumerate(example.shape):
+            dim = axis_map.get(axis)
+            if dim is None:
+                rows.append([int(size), int(size), 1])  # static axis
+            else:
+                rows.append([int(dim.min), int(dim.max), 1])
+        rows_per_input.append(rows)
+    return GetDynamicDims(rows_per_input)
+
+
 # ----------------
 # Context Managers
 # ----------------
@@ -169,12 +210,24 @@ def main():
         torch.tensor([0], dtype=torch.long),
         torch.randn(1, 1500, n_audio_state, dtype=torch.float32),
     )
+    # The MLX decoder runs one token at a time against a fixed-length self-attention
+    # KV cache, so every 'decode' input axis is static (no dynamic_shapes).
+    decode_dynamic_shapes = (None, None, None)
 
     print("  - Exporting 'decode'...")
     exported_decode = torch.export.export(
         decoder_wrapper, decode_inputs, strict=False
     )
     exported_decode = exported_decode.run_decompositions({})
+
+    # Export the dynamic-dim companion methods (no args, constant outputs).
+    print("  - Exporting 'get_dynamic_dims_encode' / 'get_dynamic_dims_decode'...")
+    exported_get_dynamic_dims_encode = torch.export.export(
+        build_dynamic_dims_module(encode_inputs, encode_dynamic_shapes), ()
+    )
+    exported_get_dynamic_dims_decode = torch.export.export(
+        build_dynamic_dims_module(decode_inputs, decode_dynamic_shapes), ()
+    )
 
     # ----------------
     # Lower to ExecuTorch with MLX delegate
@@ -188,8 +241,15 @@ def main():
     )
 
     edge_manager = to_edge_transform_and_lower(
-        {"encode": exported_encode, "decode": exported_decode},
+        {
+            "encode": exported_encode,
+            "decode": exported_decode,
+            "get_dynamic_dims_encode": exported_get_dynamic_dims_encode,
+            "get_dynamic_dims_decode": exported_get_dynamic_dims_decode,
+        },
         partitioner={
+            # Only the real compute methods are delegated to MLX; the companion
+            # methods just return constant int32 tensors and stay portable.
             "encode": [MLXPartitioner()],
             "decode": [MLXPartitioner()],
         },
