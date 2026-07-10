@@ -1,5 +1,16 @@
 # lfm2_5_embedding_350m (xnnpack) notes
 
+> **Update (react-native-executorch flow):** `xnnpack/export.py` and
+> `mlx/export.py` now target the RNE `createTextEmbedder` contract: forward
+> **prepends the `<|startoftext|>` CLS token (id 1)** and takes **raw, unpadded**
+> tokens with an all-ones mask (the native runtime tokenizer emits raw tokens),
+> and the program ships a **`get_dynamic_dims_forward` companion** advertising the
+> `[1, max_tokens]` sequence range — so the metadata-static `.pte` still accepts
+> variable-length input (this supersedes the "static seq 512" workaround below).
+> Config seq is `511` (forward adds the CLS token → 512 total). Verified: fp32
+> cosine 0.9999 vs the sentence-transformers reference; xnnpack 8da4w verified on
+> a physical Android device. MLX int4 exports but is **not** yet verified on iOS.
+
 LFM2.5-Embedding-350M dense bi-encoder (CLS pool + L2 norm → [B,1024]),
 text-embedding, family lfm2. Exported from the upstream publishing recipe
 `examples/models/lfm2_5_retrieval/produce_embedding_pte.py` (8da4w with the
