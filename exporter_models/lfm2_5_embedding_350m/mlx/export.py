@@ -9,6 +9,14 @@ from exporter.dynamic_dims import build_dynamic_dims_program
 _HERE = Path(__file__).resolve().parent
 _MODEL_DIR = _HERE.parent
 
+# IMPORTANT: the MLX delegate must be produced by the SAME ExecuTorch build that
+# compiled the runtime MLXBackend (software-mansion-labs/executorch, the
+# `ms-separate-backends-mlx-reconciled` branch). The MLX backend is experimental
+# and its serialized graph is version-locked to the runtime -- a delegate built
+# by upstream/pip ExecuTorch fails at execute with Error::InvalidProgram even
+# though it partitions and loads cleanly. Run this export with that fork on
+# PYTHONPATH (its exir/_serialize needs program.fbs + scalar_type.fbs copied in).
+
 # The tokenizer's post-processor prepends <|startoftext|> (id 1). The native
 # runtime tokenizer emits raw tokens, so forward prepends it to place the CLS
 # token (this model pools index 0) first. Inputs are fed at their exact length
@@ -45,9 +53,11 @@ class _BosPrepend(torch.nn.Module):
 
 
 def export(config: dict, out_dir: str) -> str:
-    from executorch.backends.mlx.partitioner import MLXPartitioner
-    from executorch.exir import EdgeCompileConfig, to_edge_transform_and_lower
-    from executorch.extension.llm.export.quantize import quantize_model_
+    from executorch import exir
+    from executorch.backends.mlx import MLXPartitioner
+    from executorch.backends.mlx.llm.quantization import quantize_model_
+    from executorch.backends.mlx.passes import get_default_passes
+    from executorch.exir import EdgeCompileConfig
 
     variant = config["variant"]
     max_tokens = variant["methods"]["forward"]["inputs"][0]["shape"][-1]
@@ -56,7 +66,17 @@ def export(config: dict, out_dir: str) -> str:
     model = _BosPrepend(inner).eval()
 
     if variant["quantized"]:
-        quantize_model_(model, qlinear_config="4w", qlinear_group_size=64)
+        # MLX-native quantization (NOT torchao) -- the runtime MLX backend only
+        # executes weights packed by executorch.backends.mlx.llm.quantization.
+        quantize_model_(
+            model,
+            qlinear_config="4w",
+            qlinear_group_size=64,
+            qembedding_config="4w",
+            qembedding_group_size=64,
+            skip_incompatible_shapes=True,
+        )
+        model.eval()
 
     inputs = (
         torch.zeros(1, max_tokens, dtype=torch.int64),
@@ -64,19 +84,21 @@ def export(config: dict, out_dir: str) -> str:
     )
     dim = torch.export.Dim("tokens", min=1, max=max_tokens)
     dynamic = {"input_ids": {1: dim}, "attention_mask": {1: dim}}
-
     ep = torch.export.export(model, inputs, dynamic_shapes=dynamic, strict=True)
 
-    # Advertise the dynamic sequence dimension to the runtime. The raw inputs are
+    # Advertise the dynamic sequence dimension to the runtime. Raw inputs are
     # [1, tokens]: batch static, tokens dynamic in [1, max_tokens]; forward adds
     # the CLS token internally.
     seq_bounds = [[1, 1, 1], [1, max_tokens, 1]]
     dims = build_dynamic_dims_program([seq_bounds, seq_bounds])
 
-    et_program = to_edge_transform_and_lower(
+    et_program = exir.to_edge_transform_and_lower(
         {"forward": ep, "get_dynamic_dims_forward": dims},
-        partitioner=[MLXPartitioner()],
-        compile_config=EdgeCompileConfig(_check_ir_validity=False),
+        transform_passes=get_default_passes(),
+        # Scope MLX to `forward`; MLXPartitioner would otherwise swallow the
+        # trivial companion graph into a second delegate.
+        partitioner={"forward": [MLXPartitioner()]},
+        compile_config=EdgeCompileConfig(_check_ir_validity=False, _skip_dim_order=True),
     ).to_executorch()
 
     out_path = Path(out_dir) / variant["file"]
