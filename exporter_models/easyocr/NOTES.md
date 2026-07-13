@@ -1,14 +1,19 @@
 # EasyOCR (fused, sized-by-language) — export notes
 
-Fused **CRAFT detector + CRNN recognizer** OCR. ONE PTE per (language, backend),
-**static bucketed** methods (`detect_<S>` / `detect_<W>x<H>` / `recognize_<W>`)
-plus an `is_bucketed()` constant returning `int32[2,N]` (row 0 = CRAFT square
-detector sides, row 1 = CRNN recognizer widths, `-1` padded). The C++ runtime
-snaps each input to the nearest bucket.
+Fused **CRAFT detector + CRNN recognizer** OCR. ONE PTE per (language, backend):
+
+- `detect [1,3,H,W]` — **true-dynamic**: H in `[800, 1280]`, W in `[320, 1280]`,
+  step 32 (CRAFT /32), with a `get_dynamic_dims_detect` companion (no-arg method
+  returning `int32 [4, 3]` rows `[min, max, step]`; static dims `[n, n, 1]`).
+  CoreML has no RangeDim → enumerated (800²/1280²/1280×320) + a
+  `detect_enum_shapes` constant (`int32 [3, 4]` NCHW) instead of the companion.
+- `recognize [1,3,64,512]` — ONE **fixed width** (512 on all backends), declared
+  via a `recognize_enum_shapes` constant (`int32 [1, 4]`); the C++ snaps every
+  crop to it. The CRNN's BiLSTM cannot be dynamic on CPU/ANE (see below).
 
 This **supersedes** the old split `easyocr/craft` + `easyocr/crnn` stubs — the
-fused, per-language model is canonical. EasyOCR is the *rigid fast fallback*
-(PP-OCR is primary); the bucketed deliverable is that rigid profile.
+fused, per-language model is canonical. EasyOCR is the *fast fallback*
+(PP-OCR is primary); the fixed-width recognizer is that rigid profile.
 
 ## Sizes = languages
 
@@ -30,7 +35,7 @@ Fetched at export time from the JaidedAI EasyOCR GitHub releases (same as
 ## Per-language vocab V (recognizer output last dim)
 
 `V = len(charset) + 1` (CTC blank at logit 0; `charset[i]` → logit `i+1`). The
-`recognize_<W>` output shape is `[1, W/4-1, V]`. V is fixed by the gen2 checkpoint:
+`recognize` output shape is `[1, W/4-1, V]`. V is fixed by the gen2 checkpoint:
 
 | lang | charset | V |
 |---|---|---|
@@ -64,19 +69,19 @@ depends on the `easyocr` package.
 
 ## CRNN time dim / unrolling / scan
 
-The bucketed CRNN is exported **unrolled** per width (`nn.LSTM` specializes the
-time dim → fully delegates at concrete `T = W/4-1`). The dynamic-time-dim
+The CRNN is exported **unrolled** at the fixed width (`nn.LSTM` specializes the
+time dim → fully delegates at concrete `T = W/4-1 = 127`). The dynamic-time-dim
 `scan`-based BiLSTM (`arch.ScanBiLSTM` / `ScanBiL`) is kept in the vendored arch
-for the alternative *true-dynamic* deliverable (runs portable CPU — `scan` is not
-a delegate op), but the shipped bucketed fallback does not use it.
+for a future *true-dynamic* recognizer (runs portable CPU — `scan` is not a
+delegate op), but the shipped fixed-width recognizer does not use it.
 
 ## Per-backend precision + delegate
 
-| backend | CRAFT detect | CRNN recognize | notes |
+| backend | CRAFT detect | CRNN recognize @512 | notes |
 |---|---|---|---|
-| xnnpack | int8 (per-tensor, real-img calib) | int8 (per-channel, real-img calib) | all XNNPACK CPU. |
-| coreml  | weight-only int8 | weight-only int8 | fp16 compute (ANE); static full-graph per method. |
-| vulkan  | int8 per-channel (**Vulkan** GPU) | int8 (**XNNPACK** CPU) | MIXED-delegate. q8ta CRAFT needs per-channel weights + `force_fp16=False` (smaller+faster than fp16 on a memory-bound net). CRNN BiLSTM won't delegate to Vulkan → XNNPACK. `texture_limits=(2048,2048,2048)` (Xclipse 3D-texture cap). |
+| xnnpack | **static-act int8** dynamic, H,W ∈ [320, 1280], calibrated at ≤800 only (norm folded into conv1) | int8 static (per-channel, real-img calib) | all XNNPACK CPU. Static int8 scales hold in the ≤800 band (corr 0.970–0.9997, 4 imgs × 5 shapes) — **above ~800 is BEST-EFFORT by deliberate decision** (~0.55–0.97 content-dependent at 1280²; no calibration fixes it, and both the OG dynamic AND the old bucketed detect_1280 were equally broken there, measured on the shipped artifacts). qs8 chains = bucketed-class speed: S24 detect warm **811ms@800² / 513@640² / 336@320×800 / ~2100@1280²** (bucketed 731ms; qd8 alt — correct@1280 — was 1296ms; fp16/fp32 are 2106/4214ms, fp16 is fake on XNNPACK). Norm fold dodges an ET delegate bug (quantize convert fed by in-blob sub/div fails xnn_reshape_runtime). The qd8 machinery (is_relu_node annotate patch, exclude_modules) stays in backends/xnnpack.py — flip to qd8 if correct 1280 CPU detect ever matters more than 485ms. |
+| coreml  | weight-only int8, enumerated | weight-only int8, static | fp16 compute (ANE); detect full-graph (enumerated requires it). |
+| vulkan  | fp16 dynamic via resize (**Vulkan** GPU) | int8 (**XNNPACK** CPU) | MIXED-delegate. int8 q8ta cannot resize → the dynamic contract forces fp16 (fp32 graph + `force_fp16`; the old static q8ta int8 was smaller+faster but rigid). CRNN BiLSTM won't delegate to Vulkan → XNNPACK. `texture_limits=(2048,2048,2048)` (Xclipse 3D-texture cap). |
 
 ## Calibration
 

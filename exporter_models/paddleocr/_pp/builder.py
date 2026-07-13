@@ -1,17 +1,24 @@
-"""PP-OCRv6 small — fused bucketed exporter, harness-facing.
+"""PP-OCRv6 small — fused DYNAMIC exporter, harness-facing.
 
-Builds ONE fused .pte (detect + recognize) of static per-size methods plus an
-`is_bucketed()` constant, for a given backend. Adapted from the standalone
-`export_ppocrv6.py`; the argparse / config-emission shell is gone — the harness
-authors config.json and calls `build_and_lower(backend, out_path)`.
+Builds ONE fused .pte per backend with true-dynamic `detect` + `recognize` methods
+plus `get_dynamic_dims_<method>` companions — the runtime validation contract: a
+no-arg method returning one int32 [rank, 3] tensor per tensor input of the target
+method, each row [min, max, step] (static dims encoded [n, n, 1]). CoreML has no
+RangeDim, so it ships enumerated single methods + `<method>_enum_shapes` constants
+instead of companions (the runtime snaps to the nearest enumerated shape).
 
-  det (DBNet)  [1,3,S,S] f32 [0,1] RGB  -> [1,1,S,S] f32 prob   (ImageNet norm baked)
-  rec (SVTR)   [1,3,48,W] f32 RGB       -> [1,W/8,18710] f32 probs
+  det (DBNet)  [1,3,H,W] f32 [0,1] RGB -> [1,1,H,W] f32 prob   (ImageNet norm baked)
+               H, W dynamic in [640, 1280] step 32
+  rec (SVTR)   [1,3,48,W] f32 RGB      -> [1,W/8,18710] f32 probs
+               W dynamic in [160, 1280] step 8 (H fixed 48)
 
 Backend fixes precision + delegate:
-  xnnpack : det int8 (real-page calib) + rec fp32 (int8 rec strands dequant).
-  coreml  : weight-only int8, fp16 compute (ANE).
-  vulkan  : MIXED — det Vulkan fp16 + rec XNNPACK fp32 (SVTR crashes Vulkan vocab head).
+  xnnpack : det + rec fp32 dynamic. int8 is OFF THE TABLE under dynamic shapes:
+            static-activation quant params don't transfer across scales (det IoU~0
+            even at the calib shape) and int8 rec wrecks the attention SVTR anyway.
+  coreml  : ENUMERATED — weight-only int8, fp16 compute (ANE), enum_shapes baked.
+  vulkan  : MIXED — det Vulkan fp16 dynamic via resize + rec XNNPACK fp32 dynamic
+            (SVTR crashes the Vulkan vocab head on device: make_ivec2).
 """
 import json
 import os
@@ -29,9 +36,12 @@ TS = os.path.join(HERE, "calib_data")          # vendored real-image calibration
 DET_ID = "PaddlePaddle/PP-OCRv6_small_det_safetensors"
 REC_ID = "PaddlePaddle/PP-OCRv6_small_rec_safetensors"
 
-DET_SQUARE = [640, 960, 1280]
-DET_PORTRAIT = [(1280, 640)]                    # (H, W)
-REC_WIDTHS = [160, 320, 480, 640, 1280]         # 1280 = long-line bucket
+# Dynamic bounds (legacy-proven). CoreML enumerates concrete shapes from the same sets.
+DET_MIN, DET_MAX = 640, 1280
+REC_W_MIN, REC_W_MAX = 160, 1280
+DET_SQUARE = [640, 960, 1280]                   # CoreML enumerated det shapes (square)
+DET_PORTRAIT = [(1280, 640)]                    # (H, W) CoreML enumerated portrait
+REC_WIDTHS = [160, 320, 480, 640, 1280]         # CoreML enumerated + calibration widths
 REC_H = 48
 DET_DIV, REC_DIV = 32, 8                         # spatial divisors (DBNet /32, SVTR width /8)
 
@@ -50,9 +60,15 @@ def load_rec():
     return PPOCRV6SmallRecForTextRecognition.from_pretrained(REC_ID).eval()
 
 
+def _det_loader():
+    # DBNet wants standard ImageNet on RGB (baked) -> runtime feeds raw [0,1] RGB; same
+    # norm as CRAFT, so the detector input contract unifies across both OCRs.
+    return Norm(load_det(), [0.485, 0.456, 0.406], [0.229, 0.224, 0.225])
+
+
 # ── real-crop calibration (PT2E int8) ──
 def load_calib(widths):
-    """Real test crops fitted into every bucket width (every bucket gets the full set)."""
+    """Real test crops fitted into every calibration width (each gets the full set)."""
     import cv2
     refs = json.load(open(os.path.join(TS, "refs.json")))
     imgs = [cv2.cvtColor(cv2.imread(os.path.join(TS, rel)), cv2.COLOR_BGR2RGB) for rel in refs]
@@ -82,89 +98,107 @@ def det_page_calib(h, w, n=12):
     return out or [torch.rand(1, 3, h, w)]
 
 
+# ── dynamic dims + companions ──
+def _dyn(stage):
+    """(dynamic_shapes dict, example (H,W)) for one stage's symbolic export."""
+    if stage == "det":
+        h = Dim("det_h", min=DET_MIN // DET_DIV, max=DET_MAX // DET_DIV)
+        w = Dim("det_w", min=DET_MIN // DET_DIV, max=DET_MAX // DET_DIV)
+        return {2: DET_DIV * h, 3: DET_DIV * w}, (DET_MAX, DET_MAX)
+    w = Dim("rec_w", min=REC_W_MIN // REC_DIV, max=REC_W_MAX // REC_DIV)
+    return {3: REC_DIV * w}, (REC_H, REC_W_MAX)
+
+
+def companions():
+    """get_dynamic_dims_<method> programs: int32 [rank,3] rows [min,max,step] per input."""
+    from exporter.dynamic_dims import build_dynamic_dims_program
+    det = [[1, 1, 1], [3, 3, 1],
+           [DET_MIN, DET_MAX, DET_DIV], [DET_MIN, DET_MAX, DET_DIV]]
+    rec = [[1, 1, 1], [3, 3, 1], [REC_H, REC_H, 1],
+           [REC_W_MIN, REC_W_MAX, REC_DIV]]
+    return {"get_dynamic_dims_detect": build_dynamic_dims_program([det]),
+            "get_dynamic_dims_recognize": build_dynamic_dims_program([rec])}
+
+
 # ── per-stage export-program builders ──
 def _wrap(model, precision):
     return StageFp16(model) if precision == "fp16" else Stage(model)
 
 
-def build_eps_static(model, precision, shapes, name_of):
-    mod = _wrap(model, precision)
-    return {name_of(h, w): te(mod, (torch.randn(1, 3, h, w),), strict=False)
-            for (h, w) in shapes}
+def build_stage_dynamic(stage, precision):
+    """ONE symbolic-dim ep for `stage` ('det'/'rec') at `precision` ('fp32'/'fp16'/'int8').
+
+    int8 (det only) = PT2E static int8 with dynamic shapes, real-page calibrated at the
+    max size. SVTR (rec) has no recurrence so it exports symbolically at any precision,
+    but int8 is never used for it (see module docstring).
+    """
+    dims, example = _dyn(stage)
+    loader = _det_loader if stage == "det" else load_rec
+    if precision == "int8":
+        h, w = example
+        return xnnpack.pt2e_int8(
+            lambda: Stage(loader()), (torch.randn(1, 3, h, w),), det_page_calib(h, w),
+            is_per_channel=True, dynamic_shapes=dims)
+    return te(_wrap(loader(), precision), (torch.randn(1, 3, *example),),
+              dynamic_shapes=({**dims},), strict=False)
 
 
-def export_xnnpack_int8_static(load_fn, shapes_named, is_rec):
-    """PT2E static int8 on XNNPACK, calibrated on real crops/pages. Returns {name: ep}."""
-    calib = load_calib(REC_WIDTHS) if is_rec else None
-    eps = {}
-    for (h, w), mname in shapes_named:
-        calib_inputs = list(calib[w]) if (is_rec and w in calib) else det_page_calib(h, w)
-        eps[mname] = xnnpack.pt2e_int8(
-            lambda: Stage(load_fn()), (torch.randn(1, 3, h, w),), calib_inputs,
-            is_per_channel=True)
-    return eps
-
-
-def build_stage(stage, backend, precision):
-    """Static bucketed eps for one stage ('det' or 'rec') on `backend`."""
-    is_rec = stage == "rec"
+def build_stage_enumerated(stage, precision):
+    """(ep, enum shape list) for CoreML: symbolic export + concrete enumerated shapes."""
+    dims, example = _dyn(stage)
+    loader = _det_loader if stage == "det" else load_rec
+    ep = te(_wrap(loader(), precision), (torch.randn(1, 3, *example),),
+            dynamic_shapes=({**dims},), strict=False)
     if stage == "det":
-        # DBNet wants standard ImageNet on RGB (baked) -> runtime feeds raw [0,1] RGB; same
-        # norm as CRAFT, so the detector input contract unifies across both OCRs.
-        loader = lambda: Norm(load_det(), [0.485, 0.456, 0.406], [0.229, 0.224, 0.225])
-        shapes = [(s, s) for s in DET_SQUARE] + [(h, w) for (h, w) in DET_PORTRAIT]
-        name_static = lambda h, w: (f"detect_{w}" if h == w else f"detect_{w}x{h}")
+        shapes = [(s, s) for s in DET_SQUARE] + list(DET_PORTRAIT)
     else:
-        loader = load_rec
         shapes = [(REC_H, w) for w in REC_WIDTHS]
-        name_static = lambda h, w: f"recognize_{w}"
-
-    if backend == "xnnpack" and precision == "int8":
-        return export_xnnpack_int8_static(loader, [(s, name_static(*s)) for s in shapes], is_rec)
-    return build_eps_static(loader(), precision, shapes, name_static)
-
-
-def bucket_metadata():
-    """Constant is_bucketed() -> int32[2,N]: row0 det square sizes, row1 rec widths (pad -1)."""
-    rows = [sorted(DET_SQUARE), sorted(REC_WIDTHS)]
-    n = max(len(r) for r in rows)
-    rows = [r + [-1] * (n - len(r)) for r in rows]
-    return {"is_bucketed": torch.tensor(rows, dtype=torch.int32)}
+    return ep, [[1, 3, h, w] for (h, w) in shapes]
 
 
 def build_and_lower(backend, out_path):
-    """Build the fused bucketed PTE for `backend` and write it to absolute `out_path`."""
+    """Build the fused dynamic PTE for `backend` and write it to absolute `out_path`."""
     assert os.path.isabs(out_path), "out_path must be absolute"
-    consts = bucket_metadata()
-
-    if backend == "vulkan":
-        # MIXED-delegate: det=Vulkan fp16, rec=XNNPACK fp32 (SVTR vocab head crashes Vulkan).
-        det_eps = build_stage("det", "vulkan", "fp32")
-        rec_eps = build_stage("rec", "xnnpack", "fp32")
-        eps = {**det_eps, **rec_eps}
-        parts = {n: [vulkan.partitioner(dynamic=False, texture_limits=(2048, 2048, 2048))]
-                 for n in det_eps}
-        parts.update({n: [xnnpack.partitioner()] for n in rec_eps})
-        return _lower_save(eps, parts, out_path,
-                           transform_passes=[xnnpack.InsertContig()],
-                           extra_constants=consts, width=18)
 
     if backend == "xnnpack":
-        det_eps = build_stage("det", "xnnpack", "int8")     # detector int8 (real-page calib)
-        rec_eps = build_stage("rec", "xnnpack", "fp32")     # rec fp32 (int8 strands dequant)
-        eps = {**det_eps, **rec_eps}
-        parts = [xnnpack.partitioner()]
+        # BOTH stages fp32: static-activation int8 quant params do not transfer across
+        # dynamic scales (det corr 0.59-0.88 / IoU~0 even at the calibration shape;
+        # multi-size calib stays unstable) — fp32 dynamic is bit-exact at every shape.
+        # fp16 is no lever here: the XNNPACK delegate blob stays fp32-sized (measured
+        # 9.94 vs 9.90 MB) with worse delegation. int8 rec additionally wrecks SVTR.
+        eps = {"detect": build_stage_dynamic("det", "fp32"),
+               "recognize": build_stage_dynamic("rec", "fp32"),
+               **companions()}
+        return _lower_save(eps, [xnnpack.partitioner()], out_path,
+                           transform_passes=[xnnpack.InsertContig()], width=28)
+
+    if backend == "vulkan":
+        # MIXED-delegate: det=Vulkan fp16 dynamic via resize, rec=XNNPACK fp32 dynamic.
+        # Delegate the DBNet FPN bilinear upsamples to Vulkan (else portable upsample
+        # splits detect into 4 blobs -> GPU<->CPU round-trips; scale_factor path only,
+        # safe on Xclipse). fp16 = fp32 graph + force_fp16 (never a .half() graph).
+        vulkan.patch_upsample_resize()
+        eps = {"detect": build_stage_dynamic("det", "fp32"),
+               "recognize": build_stage_dynamic("rec", "fp32"),
+               **companions()}
+        parts = {"detect": [vulkan.partitioner(dynamic=True,
+                                               texture_limits=(2048, 2048, 2048))]}
+        parts.update({n: [xnnpack.partitioner()] for n in eps if n != "detect"})
         return _lower_save(eps, parts, out_path,
-                           transform_passes=[xnnpack.InsertContig()],
-                           extra_constants=consts, width=18)
+                           transform_passes=[xnnpack.InsertContig()], width=28)
 
     if backend == "coreml":
-        det_eps = build_stage("det", "coreml", "int8")
-        rec_eps = build_stage("rec", "coreml", "int8")
-        eps = {**det_eps, **rec_eps}
-        # weight-only int8, fp16 compute (ANE); static methods -> full-graph per method.
-        parts = {n: [coreml.partitioner("fp16", quantize="int8", lower_full_graph=True)]
+        # weight-only int8, fp16 compute (ANE); enumerated -> full-graph per method,
+        # `<method>_enum_shapes` constants for the runtime snap (no companions).
+        det_ep, det_shapes = build_stage_enumerated("det", "int8")
+        rec_ep, rec_shapes = build_stage_enumerated("rec", "int8")
+        eps = {"detect": det_ep, "recognize": rec_ep}
+        enum_map = {n: {ep.graph_signature.user_inputs[0]: shapes}
+                    for n, ep, shapes in [("detect", det_ep, det_shapes),
+                                          ("recognize", rec_ep, rec_shapes)]}
+        parts = {n: [coreml.partitioner("fp16", quantize="int8", lower_full_graph=True,
+                                        extra_specs=[coreml.enumerated_spec(eps[n], enum_map[n])])]
                  for n in eps}
-        return _lower_save(eps, parts, out_path, extra_constants=consts, width=18)
+        return _lower_save(eps, parts, out_path, enum_map=enum_map, width=28)
 
     raise ValueError(f"unknown backend '{backend}'")

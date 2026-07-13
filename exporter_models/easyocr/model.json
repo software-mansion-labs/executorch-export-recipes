@@ -14,7 +14,8 @@
   ],
   "extras": [
     "quant",
-    "coreml"
+    "coreml",
+    "ocr"
   ],
   "backends": [
     "xnnpack",

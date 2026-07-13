@@ -11,44 +11,11 @@
   "variants": [
     {
       "file": "EasyOCR_latin_vulkan.pte",
-      "precision": "int8",
+      "precision": "fp16",
       "quantized": true,
       "default": true,
       "methods": {
-        "detect_800": {
-          "inputs": [
-            {
-              "shape": [
-                1,
-                3,
-                800,
-                800
-              ],
-              "dtype": "float32"
-            }
-          ],
-          "outputs": [
-            {
-              "shape": [
-                1,
-                400,
-                400,
-                2
-              ],
-              "dtype": "float32"
-            },
-            {
-              "shape": [
-                1,
-                32,
-                400,
-                400
-              ],
-              "dtype": "float32"
-            }
-          ]
-        },
-        "detect_1280": {
+        "detect": {
           "inputs": [
             {
               "shape": [
@@ -81,109 +48,7 @@
             }
           ]
         },
-        "detect_320x1280": {
-          "inputs": [
-            {
-              "shape": [
-                1,
-                3,
-                1280,
-                320
-              ],
-              "dtype": "float32"
-            }
-          ],
-          "outputs": [
-            {
-              "shape": [
-                1,
-                640,
-                160,
-                2
-              ],
-              "dtype": "float32"
-            },
-            {
-              "shape": [
-                1,
-                32,
-                640,
-                160
-              ],
-              "dtype": "float32"
-            }
-          ]
-        },
-        "recognize_64": {
-          "inputs": [
-            {
-              "shape": [
-                1,
-                3,
-                64,
-                64
-              ],
-              "dtype": "float32"
-            }
-          ],
-          "outputs": [
-            {
-              "shape": [
-                1,
-                15,
-                352
-              ],
-              "dtype": "float32"
-            }
-          ]
-        },
-        "recognize_128": {
-          "inputs": [
-            {
-              "shape": [
-                1,
-                3,
-                64,
-                128
-              ],
-              "dtype": "float32"
-            }
-          ],
-          "outputs": [
-            {
-              "shape": [
-                1,
-                31,
-                352
-              ],
-              "dtype": "float32"
-            }
-          ]
-        },
-        "recognize_256": {
-          "inputs": [
-            {
-              "shape": [
-                1,
-                3,
-                64,
-                256
-              ],
-              "dtype": "float32"
-            }
-          ],
-          "outputs": [
-            {
-              "shape": [
-                1,
-                63,
-                352
-              ],
-              "dtype": "float32"
-            }
-          ]
-        },
-        "recognize_512": {
+        "recognize": {
           "inputs": [
             {
               "shape": [
@@ -206,13 +71,25 @@
             }
           ]
         },
-        "is_bucketed": {
+        "recognize_enum_shapes": {
           "inputs": [],
           "outputs": [
             {
               "shape": [
-                2,
+                1,
                 4
+              ],
+              "dtype": "int32"
+            }
+          ]
+        },
+        "get_dynamic_dims_detect": {
+          "inputs": [],
+          "outputs": [
+            {
+              "shape": [
+                4,
+                3
               ],
               "dtype": "int32"
             }

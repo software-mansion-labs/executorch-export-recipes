@@ -11,59 +11,11 @@
   "variants": [
     {
       "file": "PP-OCRv6_xnnpack.pte",
-      "precision": "int8",
-      "quantized": true,
+      "precision": "fp32",
+      "quantized": false,
       "default": true,
       "methods": {
-        "detect_640": {
-          "inputs": [
-            {
-              "shape": [
-                1,
-                3,
-                640,
-                640
-              ],
-              "dtype": "float32"
-            }
-          ],
-          "outputs": [
-            {
-              "shape": [
-                1,
-                1,
-                640,
-                640
-              ],
-              "dtype": "float32"
-            }
-          ]
-        },
-        "detect_960": {
-          "inputs": [
-            {
-              "shape": [
-                1,
-                3,
-                960,
-                960
-              ],
-              "dtype": "float32"
-            }
-          ],
-          "outputs": [
-            {
-              "shape": [
-                1,
-                1,
-                960,
-                960
-              ],
-              "dtype": "float32"
-            }
-          ]
-        },
-        "detect_1280": {
+        "detect": {
           "inputs": [
             {
               "shape": [
@@ -87,123 +39,7 @@
             }
           ]
         },
-        "detect_640x1280": {
-          "inputs": [
-            {
-              "shape": [
-                1,
-                3,
-                1280,
-                640
-              ],
-              "dtype": "float32"
-            }
-          ],
-          "outputs": [
-            {
-              "shape": [
-                1,
-                1,
-                1280,
-                640
-              ],
-              "dtype": "float32"
-            }
-          ]
-        },
-        "recognize_160": {
-          "inputs": [
-            {
-              "shape": [
-                1,
-                3,
-                48,
-                160
-              ],
-              "dtype": "float32"
-            }
-          ],
-          "outputs": [
-            {
-              "shape": [
-                1,
-                20,
-                18710
-              ],
-              "dtype": "float32"
-            }
-          ]
-        },
-        "recognize_320": {
-          "inputs": [
-            {
-              "shape": [
-                1,
-                3,
-                48,
-                320
-              ],
-              "dtype": "float32"
-            }
-          ],
-          "outputs": [
-            {
-              "shape": [
-                1,
-                40,
-                18710
-              ],
-              "dtype": "float32"
-            }
-          ]
-        },
-        "recognize_480": {
-          "inputs": [
-            {
-              "shape": [
-                1,
-                3,
-                48,
-                480
-              ],
-              "dtype": "float32"
-            }
-          ],
-          "outputs": [
-            {
-              "shape": [
-                1,
-                60,
-                18710
-              ],
-              "dtype": "float32"
-            }
-          ]
-        },
-        "recognize_640": {
-          "inputs": [
-            {
-              "shape": [
-                1,
-                3,
-                48,
-                640
-              ],
-              "dtype": "float32"
-            }
-          ],
-          "outputs": [
-            {
-              "shape": [
-                1,
-                80,
-                18710
-              ],
-              "dtype": "float32"
-            }
-          ]
-        },
-        "recognize_1280": {
+        "recognize": {
           "inputs": [
             {
               "shape": [
@@ -226,13 +62,25 @@
             }
           ]
         },
-        "is_bucketed": {
+        "get_dynamic_dims_detect": {
           "inputs": [],
           "outputs": [
             {
               "shape": [
-                2,
-                5
+                4,
+                3
+              ],
+              "dtype": "int32"
+            }
+          ]
+        },
+        "get_dynamic_dims_recognize": {
+          "inputs": [],
+          "outputs": [
+            {
+              "shape": [
+                4,
+                3
               ],
               "dtype": "int32"
             }

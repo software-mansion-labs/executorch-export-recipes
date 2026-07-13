@@ -1,27 +1,30 @@
-"""EasyOCR (CRAFT detector + per-language CRNN recognizer) — fused bucketed exporter.
+"""EasyOCR (CRAFT detector + per-language CRNN recognizer) — fused DYNAMIC exporter.
 
-Builds ONE fused .pte (detect + recognize) of static per-size methods plus an
-`is_bucketed()` constant, for a given backend + language. Ported from the standalone
-`export_easyocr.py` (the `--bucketed` fused path); the argparse / config-emission
-shell is gone — the harness authors config.json and calls
-`build_and_lower(backend, lang, out_path)`.
+Builds ONE fused .pte per backend + language: a true-dynamic `detect` (CRAFT) with a
+`get_dynamic_dims_detect` companion (no-arg method returning one int32 [rank, 3]
+tensor per tensor input, rows [min, max, step]; static dims [n, n, 1]) plus a
+fixed-width `recognize` (CRNN) declared via a `recognize_enum_shapes` constant —
+the CRNN's BiLSTM cannot be dynamic on CPU/ANE (symbolic T -> torch.scan -> portable
+~15s; concrete T -> nn.LSTM unrolls into matmuls that fully delegate), so the C++
+snaps every crop to the baked width.
 
   CRAFT (detect)  [1,3,H,W] f32 [0,1] RGB -> ([1,H/2,W/2,2] score, [1,32,H/2,W/2] feat)
+                  H,W dynamic, step 32 — per-backend band (see companion):
+                  xnnpack [320, 800] both dims; vulkan H [800, 1280], W [320, 1280]
                   (ImageNet norm BAKED -> runtime feeds raw [0,1] RGB; unifies w/ DBNet)
-  CRNN  (recognize) [1,3,64,W] f32 RGB    -> [1, W/4-1, V] probs
+  CRNN  (recognize) [1,3,64,512] f32 RGB  -> [1, 127, V] probs, ONE fixed width
                   (RGB->gray 1x1 conv + softmax BAKED -> same contract as SVTR)
 
 Per-backend precision + delegate (fixed; no knob):
-  xnnpack : CRAFT int8 (per-tensor) + CRNN int8 (per-channel), all on XNNPACK CPU.
-  coreml  : weight-only int8, fp16 compute (ANE); static full-graph per method.
-  vulkan  : MIXED — CRAFT int8 per-channel on Vulkan GPU (q8ta: per-channel weights +
-            force_fp16=False), CRNN int8 on XNNPACK CPU (the BiLSTM won't delegate to
-            Vulkan; bucketed -> unrolled at concrete T -> XNNPACK matmuls).
+  xnnpack : detect NARROW-BAND static-act int8 dynamic [320,800] (qs8 chains =
+            bucketed-class speed; norm folded into conv1) + recognize int8 @512.
+  coreml  : ENUMERATED detect (weight-only int8, fp16 ANE) + recognize static @512;
+            enum_shapes constants, no companions (no RangeDim on CoreML).
+  vulkan  : MIXED — detect Vulkan fp16 dynamic via resize (fp32 graph + force_fp16;
+            int8 q8ta cannot resize) + recognize int8 on XNNPACK @512.
 
-CRNN is exported UNROLLED per bucket (nn.LSTM specializes the time dim and fully
-delegates at concrete T). The dynamic-time-dim `scan` BiLSTM (arch.ScanBiLSTM) is
-kept in the vendored arch for the alternative true-dynamic deliverable, but the
-shipped bucketed fallback does not use it.
+The scan BiLSTM (arch.ScanBiL) stays in the vendored arch for a future true-dynamic
+recognizer; nothing here uses it.
 """
 import json
 import os
@@ -38,11 +41,22 @@ from . import weights
 
 HERE = os.path.dirname(os.path.abspath(__file__))
 
-CRAFT_SHAPES = [(800, 800), (1280, 1280), (1280, 320)]   # (H, W) detector buckets
-CRNN_WIDTHS = [64, 128, 256, 512]
+# Dynamic bounds. Vulkan (fp16 resizes losslessly): legacy-proven 800-1280 range.
+DET_H_MIN, DET_H_MAX = 800, 1280
+DET_W_MIN, DET_W_MAX = 320, 1280
+# XNNPACK: static-act int8 over the FULL [320, 1280] range, calibrated ONLY at
+# <=800 sizes (DET_XNN_BAND). Static int8 scales are stable within a narrow size
+# band (corr 0.97-0.9997 over 4 imgs at <=800) but no calibration makes them hold
+# at 1280 (~0.55-0.97 content-dependent; the OG dynamic AND the old bucketed
+# detect_1280 were equally broken there — measured on the shipped artifacts).
+# DELIBERATE tradeoff (user call): keep 1280 in the contract as best-effort rather
+# than cap the range; quality above ~800 is not guaranteed. qs8 chains = bucketed-
+# class speed (S24 811ms@800² vs bucketed 731ms; qd8 alt: correct@1280 but 1296ms).
+DET_XNN_MIN, DET_XNN_MAX = 320, 1280
+DET_XNN_BAND = [(640, 640), (736, 736), (800, 800), (800, 320), (320, 800)]  # calib
+CRAFT_SHAPES = [(800, 800), (1280, 1280), (1280, 320)]   # (H, W) CoreML enumerated set
 CRNN_H = 64
-CRNN_FIXED_W = 512   # CoreML fixed width (ANE @512 fast)  — enumerated-path leftover
-CRNN_XNN_W = 256     # XNNPACK fixed width                 — enumerated-path leftover
+CRNN_FIXED_W = 512   # recognize width, all backends (max bucket = no truncation)
 CRAFT_DIV, CRNN_DIV = 32, 4                               # spatial divisors
 
 
@@ -54,27 +68,12 @@ def load_craft(dynamic):
     return m.eval()
 
 
-def load_crnn(lang, dynamic=False):
+def load_crnn(lang):
     m = CRNNModel(input_channel=1, output_channel=256, hidden_size=256,
                   num_class=weights.num_class(lang))
     sd = torch.load(str(weights.crnn_path(lang)), map_location="cpu", weights_only=False)
-    m.load_state_dict(OrderedDict((k[7:], v) for k, v in sd.items())); m.eval()
-    if dynamic:
-        m.SequenceModeling = nn.Sequential(
-            ScanBiL(m.SequenceModeling[0]), ScanBiL(m.SequenceModeling[1]))
+    m.load_state_dict(OrderedDict((k[7:], v) for k, v in sd.items()))
     return m.eval()
-
-
-class CrnnFp16(nn.Module):
-    """CRNN in fp16 (testing variant)."""
-    def __init__(self, m): super().__init__(); self.m = m.half()
-    def forward(self, x): return self.m(x.half()).float()
-
-
-def _wrap(model, precision, stage):
-    if precision == "fp16" and stage == "crnn":
-        return CrnnFp16(model)
-    return model
 
 
 # ── unified-contract bakes ──
@@ -93,6 +92,31 @@ class DetNorm(nn.Module):
 
     def forward(self, x):
         return self.m((x - self.mean) / self.std)
+
+
+def fold_detnorm_into_conv1(craft, mean=IMAGENET_MEAN, std=IMAGENET_STD):
+    """Fold (x-mean)/std into CRAFT's first conv IN PLACE — exact algebra, same [0,1]
+    RGB runtime contract as DetNorm, but no sub/div ops in the graph.
+
+    Required for the XNNPACK qd8 path: a qd8 dynamic-quantize convert whose input is
+    produced INSIDE the delegate blob (here the broadcast sub/div) fails
+    xnn_reshape_runtime with xnn_status_invalid_parameter on every execute; feeding
+    the convert straight from the graph input sidesteps it (ET delegate bug).
+
+      W'[o,c,:,:] = W[o,c,:,:] / std_c
+      b'[o]       = b[o] - sum_c,kh,kw W[o,c,kh,kw] * mean_c / std_c
+    """
+    conv = craft.basenet.slice1[0]
+    assert isinstance(conv, nn.Conv2d) and conv.in_channels == 3, conv
+    m = torch.tensor(mean).view(1, 3, 1, 1)
+    s = torch.tensor(std).view(1, 3, 1, 1)
+    with torch.no_grad():
+        w = conv.weight.data
+        boff = (w * (m / s)).sum(dim=(1, 2, 3))
+        conv.weight.data = w / s
+        conv.bias = (nn.Parameter(-boff) if conv.bias is None
+                     else nn.Parameter(conv.bias.data - boff))
+    return craft
 
 
 class UnifiedCRNN(nn.Module):
@@ -150,98 +174,72 @@ def craft_calib(shapes):
     return out
 
 
-def export_xnnpack_int8(load_fn, stage, items, dynamic, calib):
-    """PT2E static int8 (CRAFT per-tensor, CRNN per-channel); orchestrates the bucket loop."""
-    per_channel = (stage == "crnn")
-    ch = 3   # both: CRAFT RGB, CRNN now RGB (gray-conv baked)
-    eps = {}
-    def cal_for(h, w): return calib.get((h, w)) or calib.get(w) or next(iter(calib.values()))
-    if dynamic:
-        h, w = items["example"]; dims = items["dims"]
-        eps[items["mname"]] = xnnpack.pt2e_int8(
-            load_fn, (torch.randn(1, ch, h, w),), cal_for(h, w),
-            is_per_channel=per_channel, dynamic_shapes=dims)
-    else:
-        for (h, w), mname in items:
-            eps[mname] = xnnpack.pt2e_int8(
-                load_fn, (torch.randn(1, ch, h, w),), cal_for(h, w),
-                is_per_channel=per_channel)
-    return eps
+# ── dynamic dims + companion ──
+def _det_dyn():
+    """(dynamic_shapes dict, example (H,W)) for the symbolic CRAFT export."""
+    h = Dim("det_h", min=DET_H_MIN // CRAFT_DIV, max=DET_H_MAX // CRAFT_DIV)
+    w = Dim("det_w", min=DET_W_MIN // CRAFT_DIV, max=DET_W_MAX // CRAFT_DIV)
+    return {2: CRAFT_DIV * h, 3: CRAFT_DIV * w}, (DET_H_MAX, DET_W_MAX)
 
 
-def _det_name(h, w):
-    return f"detect_{w}" if h == w else f"detect_{w}x{h}"
+def det_companion(h_bounds=(DET_H_MIN, DET_H_MAX), w_bounds=(DET_W_MIN, DET_W_MAX)):
+    """get_dynamic_dims_detect: int32 [4,3] rows [min,max,step] for the CRAFT input.
+    Bounds are per-backend: XNNPACK ships the narrow [320,800] band, Vulkan the full
+    [800..1280 x 320..1280] range."""
+    from exporter.dynamic_dims import build_dynamic_dims_program
+    rows = [[1, 1, 1], [3, 3, 1],
+            [h_bounds[0], h_bounds[1], CRAFT_DIV], [w_bounds[0], w_bounds[1], CRAFT_DIV]]
+    return {"get_dynamic_dims_detect": build_dynamic_dims_program([rows])}
 
 
-# ── build one stage -> (eps, enum_map) ──
-def build_stage(stage, backend, precision, mode, lang, crnn_w=None):
-    if stage == "craft":
-        shapes, div, ch = CRAFT_SHAPES, CRAFT_DIV, 3
-        name_static = _det_name
-        mname, axes = "detect", {2: True, 3: True}
-        loader = lambda: DetNorm(load_craft(dynamic=(mode != "static")))   # bake norm -> [0,1] in
-    else:
-        shapes, div, ch = [(CRNN_H, w) for w in CRNN_WIDTHS], CRNN_DIV, 3   # 3ch: gray-conv baked
-        name_static = lambda h, w: f"recognize_{w}"
-        mname, axes = "recognize", {3: True}
-        loader = lambda: UnifiedCRNN(load_crnn(lang, dynamic=(mode != "static")))  # 3ch RGB->probs
-    model = loader()
+# ── per-stage export-program builders ──
+def build_detect_dynamic(precision):
+    """ONE symbolic-dim `detect` ep.
 
-    if mode == "static":
-        if backend == "xnnpack" and precision == "int8":
-            calib = craft_calib(shapes) if stage == "craft" else crnn_calib(CRNN_WIDTHS)
-            return export_xnnpack_int8(loader, stage,
-                [(s, name_static(*s)) for s in shapes], dynamic=False, calib=calib), None
-        m = _wrap(model, precision, stage)
-        return {name_static(h, w): te(m, (torch.randn(1, ch, h, w),), strict=False)
-                for (h, w) in shapes}, None
+    int8 (XNNPACK) = NARROW-BAND static-act int8: dims in [320, 800], calibrated on
+    real pages at DET_XNN_BAND sizes, norm FOLDED into conv1 (a qd8/quantize convert
+    fed by in-blob sub/div fails xnn_reshape_runtime; the fold also serves qs8 by
+    keeping the input observer on the raw [0,1] image). qs8 int8-int8 chains run at
+    bucketed-class speed — vs qd8 (1.6x slower) or fp32 (5x, and fp16 is fake on
+    XNNPACK: fp32-sized AND fp32-speed).
 
-    # CRNN enumerated = ONE fixed-width unrolled `recognize` for XNNPACK/CoreML.
-    if backend in ("xnnpack", "coreml") and mode == "enumerated" and stage == "crnn":
-        h = CRNN_H
-        w = crnn_w or (CRNN_XNN_W if backend == "xnnpack" else CRNN_FIXED_W)
-        if backend == "xnnpack" and precision == "int8":
-            eps = export_xnnpack_int8(lambda: UnifiedCRNN(load_crnn(lang, dynamic=False)), stage,
-                                      [((h, w), mname)], dynamic=False, calib=crnn_calib([w]))
-        else:
-            m = _wrap(UnifiedCRNN(load_crnn(lang, dynamic=False)), precision, stage)
-            eps = {mname: te(m, (torch.randn(1, ch, h, w),), strict=False)}
-        in_name = eps[mname].graph_signature.user_inputs[0]
-        return eps, {mname: {in_name: [[1, ch, h, w]]}}
-
-    # dynamic / enumerated
-    def derived(name, vals):
-        lo, hi = min(vals), max(vals)
-        return div * Dim(name, min=lo // div, max=hi // div) if hi > lo else lo
-    hs = sorted({h for h, _ in shapes}); ws = sorted({w for _, w in shapes})
-    dims = {}
-    if 2 in axes and len(hs) > 1: dims[2] = derived(f"{stage}_h", hs)
-    dims[3] = derived(f"{stage}_w", ws)
-    dims = {k: v for k, v in dims.items() if not isinstance(v, int)}
-    example = (max(hs), max(ws))
-
-    if backend in ("xnnpack", "vulkan"):
-        if backend == "xnnpack" and precision == "int8":
-            calib = craft_calib([example]) if stage == "craft" else crnn_calib([example[1]])
-            return export_xnnpack_int8(loader, stage,
-                {"dims": dims, "example": example, "mname": mname}, dynamic=True, calib=calib), None
-        m = _wrap(model, precision, stage)
-        return {mname: te(m, (torch.randn(1, ch, *example),), dynamic_shapes=({**dims},), strict=False)}, None
-
-    # coreml -> enumerated
-    m = _wrap(model, precision, stage)
-    ep = te(m, (torch.randn(1, ch, *example),), dynamic_shapes=({**dims},), strict=False)
-    in_name = ep.graph_signature.user_inputs[0]
-    return {mname: ep}, {mname: {in_name: [[1, ch, h, w] for (h, w) in shapes]}}
+    fp32 (Vulkan) = plain graph with DetNorm baked over the full [800..1280 x
+    320..1280] range (fp16 via force_fp16 resizes losslessly; never .half())."""
+    if precision == "int8":
+        h = Dim("det_h", min=DET_XNN_MIN // CRAFT_DIV, max=DET_XNN_MAX // CRAFT_DIV)
+        w = Dim("det_w", min=DET_XNN_MIN // CRAFT_DIV, max=DET_XNN_MAX // CRAFT_DIV)
+        dims = {2: CRAFT_DIV * h, 3: CRAFT_DIV * w}
+        cmap = craft_calib(DET_XNN_BAND)
+        cal = [x for s in DET_XNN_BAND for x in cmap[s][:4]]
+        return xnnpack.pt2e_int8(
+            fold_detnorm_into_conv1(load_craft(dynamic=True)).eval(),
+            (torch.randn(1, 3, DET_XNN_MAX, DET_XNN_MAX),), cal,
+            is_per_channel=True, dynamic_shapes=dims)
+    dims, example = _det_dyn()
+    return te(DetNorm(load_craft(dynamic=True)), (torch.randn(1, 3, *example),),
+              dynamic_shapes=({**dims},), strict=False)
 
 
-def bucket_metadata(craft_shapes, crnn_widths):
-    """is_bucketed() -> int32[2,N]: row0 CRAFT square sizes, row1 CRNN widths (-1 padded)."""
-    det = sorted({w for (h, w) in craft_shapes if h == w})
-    rows = [det, sorted(crnn_widths)]
-    w = max(len(r) for r in rows)
-    rows = [r + [-1] * (w - len(r)) for r in rows]
-    return {"is_bucketed": torch.tensor(rows, dtype=torch.int32)}
+def build_detect_enumerated():
+    """(ep, enum shape list) for CoreML: symbolic CRAFT + concrete enumerated shapes."""
+    dims, example = _det_dyn()
+    ep = te(DetNorm(load_craft(dynamic=True)), (torch.randn(1, 3, *example),),
+            dynamic_shapes=({**dims},), strict=False)
+    return ep, [[1, 3, h, w] for (h, w) in CRAFT_SHAPES]
+
+
+def build_recognize_fixed(lang, w, *, int8):
+    """ONE fixed-width unrolled `recognize` ep (nn.LSTM at concrete T fully delegates)."""
+    if int8:
+        return xnnpack.pt2e_int8(
+            lambda: UnifiedCRNN(load_crnn(lang)),
+            (torch.randn(1, 3, CRNN_H, w),), crnn_calib([w])[w], is_per_channel=True)
+    return te(UnifiedCRNN(load_crnn(lang)), (torch.randn(1, 3, CRNN_H, w),), strict=False)
+
+
+def _rec_enum(ep, w):
+    """enum_map entry declaring the baked recognize width for the runtime snap."""
+    return {ep.graph_signature.user_inputs[0]: [[1, 3, CRNN_H, w]]}
 
 
 def emit_charset(lang, out_path):
@@ -261,46 +259,52 @@ def emit_charset(lang, out_path):
 
 
 def build_and_lower(backend, lang, out_path):
-    """Build the fused bucketed PTE for `backend` + `lang` and write it to absolute
+    """Build the fused dynamic PTE for `backend` + `lang` and write it to absolute
     `out_path`. Emits `EasyOCR_<lang>.charset.txt` alongside. Returns the .pte path."""
     assert os.path.isabs(out_path), "out_path must be absolute"
     if lang not in weights.CRNN:
         raise ValueError(f"unknown lang '{lang}' (have {list(weights.CRNN)})")
-    consts = bucket_metadata(CRAFT_SHAPES, CRNN_WIDTHS)
 
     if backend == "xnnpack":
-        # CRAFT int8 (per-tensor) + CRNN int8 (per-channel), all XNNPACK CPU.
-        craft_eps, _ = build_stage("craft", "xnnpack", "int8", "static", None)
-        crnn_eps, _ = build_stage("crnn", "xnnpack", "int8", "static", lang)
-        eps = {**craft_eps, **crnn_eps}
+        # detect narrow-band int8 dynamic + recognize static int8 per-channel @512.
+        rec = build_recognize_fixed(lang, CRNN_FIXED_W, int8=True)
+        eps = {"detect": build_detect_dynamic("int8"), "recognize": rec,
+               **det_companion(h_bounds=(DET_XNN_MIN, DET_XNN_MAX),
+                               w_bounds=(DET_XNN_MIN, DET_XNN_MAX))}
         path = lower_save(eps, [xnnpack.partitioner()], out_path,
-                          transform_passes=[xnnpack.InsertContig()], extra_constants=consts)
+                          transform_passes=[xnnpack.InsertContig()],
+                          enum_map={"recognize": _rec_enum(rec, CRNN_FIXED_W)}, width=24)
 
     elif backend == "coreml":
-        # weight-only int8, fp16 compute (ANE); static methods -> full-graph per method.
-        craft_eps, _ = build_stage("craft", "coreml", "int8", "static", None)
-        crnn_eps, _ = build_stage("crnn", "coreml", "int8", "static", lang)
-        eps = {**craft_eps, **crnn_eps}
-        parts = {n: [coreml.partitioner("fp16", quantize="int8", lower_full_graph=True)]
-                 for n in eps}
-        path = lower_save(eps, parts, out_path, extra_constants=consts)
+        # ENUMERATED detect (weight-only int8, fp16 ANE, full-graph) + static
+        # recognize @512; enum_shapes constants drive the runtime snap for both.
+        det_ep, det_shapes = build_detect_enumerated()
+        rec_ep = build_recognize_fixed(lang, CRNN_FIXED_W, int8=False)
+        eps = {"detect": det_ep, "recognize": rec_ep}
+        enum_map = {"detect": {det_ep.graph_signature.user_inputs[0]: det_shapes},
+                    "recognize": _rec_enum(rec_ep, CRNN_FIXED_W)}
+        parts = {"detect": [coreml.partitioner(
+                     "fp16", quantize="int8", lower_full_graph=True,
+                     extra_specs=[coreml.enumerated_spec(det_ep, enum_map["detect"])])],
+                 "recognize": [coreml.partitioner("fp16", quantize="int8",
+                                                  lower_full_graph=False)]}
+        path = lower_save(eps, parts, out_path, enum_map=enum_map, width=24)
 
     elif backend == "vulkan":
-        # MIXED-delegate: CRAFT int8 per-channel on Vulkan (q8ta needs per-channel weights +
-        # force_fp16=False — smaller AND faster than fp16 on a memory-bound net), CRNN int8 on
-        # XNNPACK (the BiLSTM won't delegate to Vulkan; unrolled at concrete T -> XNNPACK matmuls).
-        craft_eps = {
-            _det_name(h, w): xnnpack.pt2e_int8(
-                lambda h=h, w=w: DetNorm(load_craft(dynamic=False)),
-                (torch.randn(1, 3, h, w),), craft_calib([(h, w)])[(h, w)],
-                is_per_channel=True)
-            for (h, w) in CRAFT_SHAPES}
-        crnn_eps, _ = build_stage("crnn", "xnnpack", "int8", "static", lang)
-        eps = {**craft_eps, **crnn_eps}
-        parts = {n: [vulkan.partitioner(False, force_fp16=False)] for n in craft_eps}
-        parts.update({n: [xnnpack.partitioner()] for n in crnn_eps})
+        # MIXED-delegate: detect Vulkan fp16 dynamic via resize (int8 q8ta cannot
+        # resize) + recognize int8 on XNNPACK @512 (the BiLSTM won't delegate to
+        # Vulkan; unrolled at concrete T -> XNNPACK matmuls). Delegate CRAFT's FPN
+        # upsamples to Vulkan (scale_factor path only, safe on Xclipse) — else
+        # portable upsample splits detect into ~4 blobs of GPU<->CPU round-trips.
+        vulkan.patch_upsample_resize()
+        rec = build_recognize_fixed(lang, CRNN_FIXED_W, int8=True)
+        eps = {"detect": build_detect_dynamic("fp32"), "recognize": rec,
+               **det_companion()}
+        parts = {"detect": [vulkan.partitioner(True)]}
+        parts.update({n: [xnnpack.partitioner()] for n in eps if n != "detect"})
         path = lower_save(eps, parts, out_path,
-                          transform_passes=[xnnpack.InsertContig()], extra_constants=consts)
+                          transform_passes=[xnnpack.InsertContig()],
+                          enum_map={"recognize": _rec_enum(rec, CRNN_FIXED_W)}, width=24)
 
     else:
         raise ValueError(f"unknown backend '{backend}'")

@@ -43,6 +43,27 @@ def layout_partitioner(quantize):
     return XnnpackPartitioner(**kw)
 
 
+def _prepare_qd8_all_convs(gm, qcfg):
+    """prepare_pt2e with conv->relu convs INCLUDED under dynamic (qd8) quant.
+
+    The stock annotator defers relu-followed convs to the `conv_relu` pattern, but
+    that pattern is disabled for dynamic configs (SUPPORTED_PATTERNS is_dynamic=False)
+    — so every conv->relu would silently stay fp32. A qd8 conv's output is fp32
+    anyway, so annotating the conv alone is exact; all relu-consuming patterns are
+    inert under a dynamic config, making it safe to neutralize is_relu_node for the
+    duration of prepare (annotate) only.
+    """
+    from torchao.quantization.pt2e.quantize_pt2e import prepare_pt2e
+    from executorch.backends.xnnpack.quantizer import xnnpack_quantizer_utils as QU
+    from executorch.backends.xnnpack.quantizer.xnnpack_quantizer import XNNPACKQuantizer
+    orig = QU.is_relu_node
+    QU.is_relu_node = lambda n: False
+    try:
+        return prepare_pt2e(gm, XNNPACKQuantizer().set_global(qcfg))
+    finally:
+        QU.is_relu_node = orig
+
+
 def pt2e_int8(module_or_factory, example_inputs, calib_inputs, *,
               is_per_channel=True, is_dynamic=False, dynamic_shapes=None):
     """PT2E int8 for one method: trace -> prepare -> calibrate -> convert.
@@ -66,7 +87,10 @@ def pt2e_int8(module_or_factory, example_inputs, calib_inputs, *,
     qcfg = get_symmetric_quantization_config(is_per_channel=is_per_channel,
                                              is_dynamic=is_dynamic)
     gm = te(module, example_inputs, dynamic_shapes=ds, strict=False).module()
-    gm = prepare_pt2e(gm, XNNPACKQuantizer().set_global(qcfg))
+    if is_dynamic:
+        gm = _prepare_qd8_all_convs(gm, qcfg)
+    else:
+        gm = prepare_pt2e(gm, XNNPACKQuantizer().set_global(qcfg))
     for c in calib_inputs:
         gm(*c) if isinstance(c, tuple) else gm(c)
     gm = convert_pt2e(gm)
