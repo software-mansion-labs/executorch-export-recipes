@@ -13,6 +13,7 @@ __pycache__/
 !exporter_models/blazeface/_blazeface/blazefaceback.pth
 *.npy
 !exporter_models/blazeface/_blazeface/anchorsback.npy
+*.pte
 docs/superpowers/
 .superpowers/
 tests/

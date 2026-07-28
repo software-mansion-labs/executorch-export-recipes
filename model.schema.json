@@ -1,0 +1,252 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "title": "ModelSpec<ConcreteDim>",
+  "description": "Schema definition for ExecuTorch ModelSpec<ConcreteDim> describing exported model methods, parameters, dimension domains, and runtime constraints.",
+  "type": "object",
+  "additionalProperties": {
+    "$ref": "#/definitions/MethodSpec"
+  },
+  "definitions": {
+    "MethodSpec": {
+      "type": "object",
+      "properties": {
+        "inputs": {
+          "type": "array",
+          "items": {
+            "$ref": "#/definitions/ParamSpec"
+          },
+          "description": "Ordered input parameter specifications for the method."
+        },
+        "outputs": {
+          "type": "array",
+          "items": {
+            "$ref": "#/definitions/ParamSpec"
+          },
+          "description": "Ordered output parameter specifications for the method."
+        },
+        "runtimeConstraints": {
+          "type": "array",
+          "items": {
+            "$ref": "#/definitions/RuntimeConstraint"
+          },
+          "description": "Runtime constraints declared over tensor dimensions."
+        }
+      },
+      "required": ["inputs", "outputs", "runtimeConstraints"],
+      "additionalProperties": false
+    },
+    "ParamSpec": {
+      "oneOf": [
+        {
+          "$ref": "#/definitions/TensorParamSpec"
+        },
+        {
+          "$ref": "#/definitions/PrimitiveParamSpec"
+        }
+      ]
+    },
+    "TensorParamSpec": {
+      "type": "object",
+      "properties": {
+        "kind": {
+          "const": "Tensor"
+        },
+        "dtype": {
+          "$ref": "#/definitions/DType"
+        },
+        "shape": {
+          "type": "array",
+          "items": {
+            "$ref": "#/definitions/ConcreteDim"
+          },
+          "description": "Dimension domain specifications for each axis of the tensor."
+        }
+      },
+      "required": ["kind", "dtype", "shape"],
+      "additionalProperties": false
+    },
+    "PrimitiveParamSpec": {
+      "type": "object",
+      "properties": {
+        "kind": {
+          "enum": [
+            "None",
+            "Int",
+            "Double",
+            "Bool",
+            "String",
+            "ListBool",
+            "ListDouble",
+            "ListInt",
+            "ListTensor"
+          ],
+          "description": "Primitive ExecuTorch value tag."
+        }
+      },
+      "required": ["kind"],
+      "additionalProperties": false
+    },
+    "DType": {
+      "type": "string",
+      "enum": ["float32", "uint8", "int32", "int64"],
+      "description": "Supported tensor element data types."
+    },
+    "ConcreteDim": {
+      "description": "Dimension domain specification for a single axis.",
+      "oneOf": [
+        {
+          "$ref": "#/definitions/ConstantDim"
+        },
+        {
+          "$ref": "#/definitions/RangeDim"
+        },
+        {
+          "$ref": "#/definitions/EnumDim"
+        }
+      ]
+    },
+    "ConstantDim": {
+      "type": "object",
+      "properties": {
+        "kind": {
+          "const": "constant"
+        },
+        "value": {
+          "type": "integer",
+          "minimum": 1,
+          "description": "Exact static dimension size."
+        }
+      },
+      "required": ["kind", "value"],
+      "additionalProperties": false
+    },
+    "RangeDim": {
+      "type": "object",
+      "properties": {
+        "kind": {
+          "const": "range"
+        },
+        "range": {
+          "type": "object",
+          "properties": {
+            "min": {
+              "type": "integer",
+              "minimum": 1,
+              "description": "Minimum inclusive bound."
+            },
+            "max": {
+              "type": "integer",
+              "minimum": 1,
+              "description": "Maximum inclusive bound."
+            },
+            "step": {
+              "type": "integer",
+              "minimum": 1,
+              "description": "Step increment."
+            }
+          },
+          "required": ["min", "max", "step"],
+          "additionalProperties": false
+        }
+      },
+      "required": ["kind", "range"],
+      "additionalProperties": false
+    },
+    "EnumDim": {
+      "type": "object",
+      "properties": {
+        "kind": {
+          "const": "enum"
+        },
+        "choices": {
+          "type": "array",
+          "items": {
+            "type": "integer",
+            "minimum": 1
+          },
+          "minItems": 1,
+          "description": "Allowed discrete integer values for this dimension."
+        }
+      },
+      "required": ["kind", "choices"],
+      "additionalProperties": false
+    },
+    "RuntimeConstraint": {
+      "description": "Constraint on dimension runtime values across tensor parameters.",
+      "oneOf": [
+        {
+          "$ref": "#/definitions/EqualityConstraint"
+        },
+        {
+          "$ref": "#/definitions/LinearConstraint"
+        }
+      ]
+    },
+    "EqualityConstraint": {
+      "type": "object",
+      "properties": {
+        "kind": {
+          "const": "equality"
+        },
+        "dims": {
+          "type": "array",
+          "items": {
+            "$ref": "#/definitions/DimRef"
+          },
+          "minItems": 2,
+          "description": "List of dimension references required to take equal runtime values."
+        }
+      },
+      "required": ["kind", "dims"],
+      "additionalProperties": false
+    },
+    "LinearConstraint": {
+      "type": "object",
+      "properties": {
+        "kind": {
+          "const": "linear"
+        },
+        "dimLhs": {
+          "$ref": "#/definitions/DimRef"
+        },
+        "dimRhs": {
+          "$ref": "#/definitions/DimRef"
+        },
+        "coefficients": {
+          "type": "array",
+          "items": {
+            "type": "integer"
+          },
+          "minItems": 2,
+          "maxItems": 2,
+          "description": "Integer coefficients [a, b] for constraint: dimLhs = a * dimRhs + b"
+        }
+      },
+      "required": ["kind", "dimLhs", "dimRhs", "coefficients"],
+      "additionalProperties": false
+    },
+    "DimRef": {
+      "type": "object",
+      "description": "Reference to a specific tensor dimension.",
+      "properties": {
+        "paramSide": {
+          "type": "string",
+          "enum": ["input", "output"],
+          "description": "Side of parameter list (input or output)."
+        },
+        "tensorIdx": {
+          "type": "integer",
+          "minimum": 0,
+          "description": "0-based index counting only tensor parameters."
+        },
+        "dimIdx": {
+          "type": "integer",
+          "minimum": 0,
+          "description": "0-based dimension axis index inside the tensor."
+        }
+      },
+      "required": ["paramSide", "tensorIdx", "dimIdx"],
+      "additionalProperties": false
+    }
+  }
+}

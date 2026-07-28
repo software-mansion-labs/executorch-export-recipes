@@ -1,0 +1,75 @@
+{
+  "$schema": "https://huggingface.co/software-mansion/react-native-executorch-spec/resolve/main/config.schema.json",
+  "model": "whisper_base",
+  "family": "whisper",
+  "capabilities": [
+    "speech-to-text"
+  ],
+  "backend": "mlx",
+  "license": "apache-2.0",
+  "variants": [
+    {
+      "file": "whisper_base_mlx_bf16.pte",
+      "precision": "bfloat16",
+      "quantized": false,
+      "default": true,
+      "methods": {
+        "decode": {
+          "inputs": [
+            {
+              "shape": [
+                1,
+                1
+              ],
+              "dtype": "int64"
+            },
+            {
+              "shape": [
+                1
+              ],
+              "dtype": "int64"
+            },
+            {
+              "shape": [
+                1,
+                1500,
+                512
+              ],
+              "dtype": "bfloat16"
+            }
+          ],
+          "outputs": [
+            {
+              "shape": [
+                1,
+                1,
+                51865
+              ],
+              "dtype": "bfloat16"
+            }
+          ]
+        },
+        "encode": {
+          "inputs": [
+            {
+              "shape": [
+                480000
+              ],
+              "dtype": "float32"
+            }
+          ],
+          "outputs": [
+            {
+              "shape": [
+                1,
+                1500,
+                512
+              ],
+              "dtype": "bfloat16"
+            }
+          ]
+        }
+      }
+    }
+  ]
+}

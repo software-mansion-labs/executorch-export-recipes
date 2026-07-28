@@ -4,8 +4,6 @@ from pathlib import Path
 
 import torch
 
-from exporter.dynamic_dims import build_dynamic_dims_program
-
 _HERE = Path(__file__).resolve().parent
 _MODEL_DIR = _HERE.parent
 
@@ -76,14 +74,8 @@ def export(config: dict, out_dir: str) -> str:
 
     ep = torch.export.export(model, inputs, dynamic_shapes=dynamic, strict=True)
 
-    # Advertise the dynamic sequence dimension to the runtime. The raw inputs are
-    # [1, tokens]: batch static, tokens dynamic in [1, max_tokens]; forward adds
-    # the CLS token internally.
-    seq_bounds = [[1, 1, 1], [1, max_tokens, 1]]
-    dims = build_dynamic_dims_program([seq_bounds, seq_bounds])
-
     et_program = to_edge_transform_and_lower(
-        {"forward": ep, "get_dynamic_dims_forward": dims},
+        {"forward": ep},
         partitioner=[XnnpackPartitioner()],
         compile_config=EdgeCompileConfig(_check_ir_validity=False),
     ).to_executorch()

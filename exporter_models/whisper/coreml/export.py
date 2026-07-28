@@ -119,6 +119,14 @@ def export(config: dict, out_dir: str) -> str:
 
     exported_decode = torch.export.export(decoder_wrapper, decode_inputs)
 
+    schema_template = (_MODEL_DIR / "schema.json").read_text()
+    dtype_str = "float32" if config["variant"]["precision"] in ["fp32", "float32"] else config["variant"]["precision"]
+    schema_json = (
+        schema_template
+        .replace("{dtype}", dtype_str)
+        .replace("{n_audio_state}", str(n_audio_state))
+    )
+
     methods = {
         "encode": exported_encode,
         "decode": exported_decode,
@@ -131,6 +139,7 @@ def export(config: dict, out_dir: str) -> str:
     executorch_program = to_edge_transform_and_lower(
         methods,
         partitioner=[CoreMLPartitioner(compile_specs=specs)],
+        constant_methods={"get_model_schema": schema_json},
     ).to_executorch()
 
     out_path = Path(out_dir) / config["variant"]["file"]

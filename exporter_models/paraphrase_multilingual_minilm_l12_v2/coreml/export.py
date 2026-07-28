@@ -5,7 +5,8 @@ import torch.nn.functional as F
 from transformers import AutoModel
 from torch.export import Dim, export as torch_export
 
-from exporter.dynamic_dims import build_dynamic_dims_program
+_HERE = Path(__file__).resolve().parent
+_MODEL_DIR = _HERE.parent
 
 _SOURCE = "sentence-transformers/paraphrase-multilingual-MiniLM-L12-v2"
 _CLS = 0
@@ -56,18 +57,16 @@ def export(config: dict, out_dir: str) -> str:
 
     ep = torch_export(module, inputs, dynamic_shapes=dynamic)
 
-    # Advertise the dynamic sequence dimension to the runtime. The single input
-    # is [1, tokens]: batch static, tokens dynamic in [1, _MAX_TOKENS].
-    seq_bounds = [[1, 1, 1], [1, _MAX_TOKENS, 1]]
-    dims = build_dynamic_dims_program([seq_bounds])
+    schema_json = (_MODEL_DIR / "schema.json").read_text()
 
     specs = CoreMLBackend.generate_compile_specs(
         minimum_deployment_target=ct.target.iOS18,
         compute_precision=precision,
     )
     program = to_edge_transform_and_lower(
-        {"forward": ep, "get_dynamic_dims_forward": dims},
+        {"forward": ep},
         partitioner=[CoreMLPartitioner(compile_specs=specs)],
+        constant_methods={"get_model_schema": schema_json},
     ).to_executorch()
 
     out_path = Path(out_dir) / variant["file"]
