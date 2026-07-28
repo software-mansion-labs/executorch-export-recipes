@@ -15,7 +15,7 @@
           },
           {
             "kind": "constant",
-            "value": 400
+            "value": 512
           }
         ]
       }

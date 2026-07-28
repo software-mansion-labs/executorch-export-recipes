@@ -117,13 +117,9 @@ def export(config: dict, out_dir: str) -> str:
     )
     exported_decode = exported_decode.run_decompositions({})
 
+    n_vocab = model.dims.n_vocab
     schema_template = (_MODEL_DIR / "schema.json").read_text()
-    dtype_str = "float32" if precision in ["fp32", "float32"] else precision
-    schema_json = (
-        schema_template
-        .replace("{dtype}", dtype_str)
-        .replace("{n_audio_state}", str(n_audio_state))
-    )
+    schema_json = schema_template.replace("{n_audio_state}", str(n_audio_state)).replace("{n_vocab}", str(n_vocab))
 
     edge_config = EdgeCompileConfig(
         _check_ir_validity=False,
