@@ -7,6 +7,9 @@ from torch.export import Dim, export as torch_export
 
 from exporter.backends import lower
 
+_HERE = Path(__file__).resolve().parent
+_MODEL_DIR = _HERE.parent
+
 _SOURCE = "openai/clip-vit-base-patch32"
 _BOS = 49406
 _EOS = 49407
@@ -45,7 +48,13 @@ def export(config: dict, out_dir: str) -> str:
 
     ep = torch_export(module, inputs, dynamic_shapes=dynamic)
 
-    program = lower({"forward": ep}, config["backend"])
+    schema_json = (_MODEL_DIR / "schema.json").read_text()
+
+    program = lower(
+        {"forward": ep},
+        config["backend"],
+        constant_methods={"get_model_schema": schema_json},
+    )
 
     out_path = Path(out_dir) / variant["file"]
     out_path.parent.mkdir(parents=True, exist_ok=True)
