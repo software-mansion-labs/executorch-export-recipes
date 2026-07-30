@@ -1,0 +1,42 @@
+{
+  "$schema": "https://huggingface.co/software-mansion/react-native-executorch-spec/resolve/main/config.schema.json",
+  "model": "ssdlite320_mobilenet_v3_large",
+  "family": "ssdlite",
+  "capabilities": ["object-detection"],
+  "backend": "coreml",
+  "license": "bsd-3-clause",
+  "variants": [
+    {
+      "file": "ssdlite320_mobilenet_v3_large_coreml_fp16.pte",
+      "precision": "fp16",
+      "quantized": false,
+      "default": true,
+      "methods": {
+        "forward": {
+          "inputs": [{ "shape": [3, 320, 320], "dtype": "float32" }],
+          "outputs": [
+            { "shape": [300, 4], "dtype": "float32" },
+            { "shape": [300], "dtype": "float32" },
+            { "shape": [300], "dtype": "float32" }
+          ]
+        }
+      }
+    },
+    {
+      "file": "ssdlite320_mobilenet_v3_large_coreml_fp32.pte",
+      "precision": "fp32",
+      "quantized": false,
+      "default": false,
+      "methods": {
+        "forward": {
+          "inputs": [{ "shape": [3, 320, 320], "dtype": "float32" }],
+          "outputs": [
+            { "shape": [300, 4], "dtype": "float32" },
+            { "shape": [300], "dtype": "float32" },
+            { "shape": [300], "dtype": "float32" }
+          ]
+        }
+      }
+    }
+  ]
+}

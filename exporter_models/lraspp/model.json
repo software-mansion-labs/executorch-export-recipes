@@ -1,0 +1,11 @@
+{
+  "hf": "https://huggingface.co/software-mansion/react-native-executorch-lraspp",
+  "extras": [
+    "quant"
+  ],
+  "repo": "software-mansion/react-native-executorch-lraspp",
+  "config": "{backend}/config.json",
+  "backends": [
+    "xnnpack"
+  ]
+}

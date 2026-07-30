@@ -1,0 +1,12 @@
+{
+  "hf": "https://huggingface.co/software-mansion/react-native-executorch-lfm2.5-embedding-350m",
+  "extras": [
+    "quant"
+  ],
+  "repo": "software-mansion/react-native-executorch-lfm2.5-embedding-350m",
+  "config": "{backend}/config.json",
+  "backends": [
+    "xnnpack",
+    "mlx"
+  ]
+}

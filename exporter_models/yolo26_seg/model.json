@@ -1,0 +1,17 @@
+{
+  "hf": "https://huggingface.co/software-mansion/react-native-executorch-yolo26-seg",
+  "extras": [
+    "detection"
+  ],
+  "config": "{backend}/{size}/config.json",
+  "sizes": [
+    "n",
+    "s",
+    "m",
+    "l",
+    "x"
+  ],
+  "backends": [
+    "xnnpack"
+  ]
+}

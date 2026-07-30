@@ -1,0 +1,14 @@
+{
+  "hf": "https://huggingface.co/software-mansion/react-native-executorch-rfdetr-nano-segmentation",
+  "extras": [
+    "coreml",
+    "detection"
+  ],
+  "repo": "software-mansion/react-native-executorch-rfdetr-nano-segmentation",
+  "config": "{backend}/config.json",
+  "backends": [
+    "xnnpack",
+    "coreml",
+    "mlx"
+  ]
+}

@@ -1,0 +1,226 @@
+{
+  "$schema": "https://huggingface.co/software-mansion/react-native-executorch-spec/resolve/main/config.schema.json",
+  "model": "craft",
+  "family": "craft",
+  "capabilities": [
+    "text-detection"
+  ],
+  "backend": "xnnpack",
+  "license": "mit",
+  "variants": [
+    {
+      "file": "craft_xnnpack_int8.pte",
+      "precision": "int8",
+      "quantized": true,
+      "default": true,
+      "methods": {
+        "forward_320": {
+          "inputs": [
+            {
+              "shape": [
+                1,
+                3,
+                1280,
+                320
+              ],
+              "dtype": "float32"
+            }
+          ],
+          "outputs": [
+            {
+              "shape": [
+                1,
+                640,
+                160,
+                2
+              ],
+              "dtype": "float32"
+            },
+            {
+              "shape": [
+                1,
+                32,
+                640,
+                160
+              ],
+              "dtype": "float32"
+            }
+          ]
+        },
+        "forward_800": {
+          "inputs": [
+            {
+              "shape": [
+                1,
+                3,
+                800,
+                800
+              ],
+              "dtype": "float32"
+            }
+          ],
+          "outputs": [
+            {
+              "shape": [
+                1,
+                400,
+                400,
+                2
+              ],
+              "dtype": "float32"
+            },
+            {
+              "shape": [
+                1,
+                32,
+                400,
+                400
+              ],
+              "dtype": "float32"
+            }
+          ]
+        },
+        "forward_1280": {
+          "inputs": [
+            {
+              "shape": [
+                1,
+                3,
+                1280,
+                1280
+              ],
+              "dtype": "float32"
+            }
+          ],
+          "outputs": [
+            {
+              "shape": [
+                1,
+                640,
+                640,
+                2
+              ],
+              "dtype": "float32"
+            },
+            {
+              "shape": [
+                1,
+                32,
+                640,
+                640
+              ],
+              "dtype": "float32"
+            }
+          ]
+        }
+      }
+    },
+    {
+      "file": "craft_xnnpack_fp32.pte",
+      "precision": "fp32",
+      "quantized": false,
+      "default": true,
+      "methods": {
+        "forward_320": {
+          "inputs": [
+            {
+              "shape": [
+                1,
+                3,
+                1280,
+                320
+              ],
+              "dtype": "float32"
+            }
+          ],
+          "outputs": [
+            {
+              "shape": [
+                1,
+                640,
+                160,
+                2
+              ],
+              "dtype": "float32"
+            },
+            {
+              "shape": [
+                1,
+                32,
+                640,
+                160
+              ],
+              "dtype": "float32"
+            }
+          ]
+        },
+        "forward_800": {
+          "inputs": [
+            {
+              "shape": [
+                1,
+                3,
+                800,
+                800
+              ],
+              "dtype": "float32"
+            }
+          ],
+          "outputs": [
+            {
+              "shape": [
+                1,
+                400,
+                400,
+                2
+              ],
+              "dtype": "float32"
+            },
+            {
+              "shape": [
+                1,
+                32,
+                400,
+                400
+              ],
+              "dtype": "float32"
+            }
+          ]
+        },
+        "forward_1280": {
+          "inputs": [
+            {
+              "shape": [
+                1,
+                3,
+                1280,
+                1280
+              ],
+              "dtype": "float32"
+            }
+          ],
+          "outputs": [
+            {
+              "shape": [
+                1,
+                640,
+                640,
+                2
+              ],
+              "dtype": "float32"
+            },
+            {
+              "shape": [
+                1,
+                32,
+                640,
+                640
+              ],
+              "dtype": "float32"
+            }
+          ]
+        }
+      }
+    }
+  ]
+}

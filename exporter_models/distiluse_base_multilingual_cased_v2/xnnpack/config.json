@@ -1,0 +1,84 @@
+{
+  "$schema": "https://huggingface.co/software-mansion/react-native-executorch-spec/resolve/main/config.schema.json",
+  "model": "distiluse_base_multilingual_cased_v2",
+  "family": "distiluse",
+  "capabilities": [
+    "text-embedding"
+  ],
+  "backend": "xnnpack",
+  "license": "apache-2.0",
+  "tokenizer": "../tokenizer.json",
+  "tokenizer_config": "../tokenizer_config.json",
+  "variants": [
+    {
+      "file": "distiluse_base_multilingual_cased_v2_xnnpack_fp32.pte",
+      "precision": "fp32",
+      "quantized": false,
+      "default": true,
+      "methods": {
+        "forward": {
+          "inputs": [
+            {
+              "shape": [
+                1,
+                126
+              ],
+              "dtype": "int64"
+            },
+            {
+              "shape": [
+                1,
+                126
+              ],
+              "dtype": "int64"
+            }
+          ],
+          "outputs": [
+            {
+              "shape": [
+                1,
+                512
+              ],
+              "dtype": "float32"
+            }
+          ]
+        }
+      }
+    },
+    {
+      "file": "distiluse_base_multilingual_cased_v2_xnnpack_8da4w.pte",
+      "precision": "8da4w",
+      "quantized": true,
+      "default": false,
+      "methods": {
+        "forward": {
+          "inputs": [
+            {
+              "shape": [
+                1,
+                126
+              ],
+              "dtype": "int64"
+            },
+            {
+              "shape": [
+                1,
+                126
+              ],
+              "dtype": "int64"
+            }
+          ],
+          "outputs": [
+            {
+              "shape": [
+                1,
+                512
+              ],
+              "dtype": "float32"
+            }
+          ]
+        }
+      }
+    }
+  ]
+}

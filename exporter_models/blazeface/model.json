@@ -1,0 +1,6 @@
+{
+  "hf": "https://huggingface.co/software-mansion/react-native-executorch-blazeface",
+  "repo": "software-mansion/react-native-executorch-blazeface",
+  "config": "{backend}/config.json",
+  "backends": ["xnnpack"]
+}

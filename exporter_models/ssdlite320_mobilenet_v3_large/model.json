@@ -1,0 +1,13 @@
+{
+  "hf": "https://huggingface.co/software-mansion/react-native-executorch-ssdlite320-mobilenet-v3-large",
+  "extras": [
+    "coreml"
+  ],
+  "repo": "software-mansion/react-native-executorch-ssdlite320-mobilenet-v3-large",
+  "config": "{backend}/config.json",
+  "backends": [
+    "xnnpack",
+    "coreml",
+    "mlx"
+  ]
+}

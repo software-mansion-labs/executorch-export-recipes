@@ -1,0 +1,35 @@
+# Per-model export environment for gemma4_omni (MLX backend).
+#
+# REQUIRES executorch built from the software-mansion-labs fork
+# (branch @ms/separate-backends), version-locked to the MLX runtime. That is a
+# native source build (buck2/cmake/submodules) that `uv sync` cannot produce
+# here -- run this export in the ET-source dev env. The published .pte already
+# ships on HF. This file records the pinned intent + fork source; no uv.lock is
+# generated (the git source can't be resolved without the full source build).
+[project]
+name = "exporter-model-gemma4-omni"
+version = "0"
+requires-python = "==3.10.*"
+dependencies = [
+    "exporter",
+    "torch==2.14.0.dev20260702",
+    "executorch",
+    "safetensors==0.8.0",
+    "torchao==0.18.0.dev20260702",
+    "transformers==5.14.1",
+]
+
+[tool.uv]
+environments = ["sys_platform == 'darwin' and platform_machine == 'arm64'"]
+
+[tool.uv.sources]
+exporter = { path = "../..", editable = true }
+torch = { index = "pytorch-nightly" }
+torchao = { index = "pytorch-nightly" }
+# MLX runtime-locked fork -- native source build (see header).
+executorch = { git = "https://github.com/software-mansion-labs/executorch", branch = "@ms/separate-backends" }
+
+[[tool.uv.index]]
+name = "pytorch-nightly"
+url = "https://download.pytorch.org/whl/nightly/cpu"
+explicit = true
