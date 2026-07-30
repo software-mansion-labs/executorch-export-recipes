@@ -1,0 +1,160 @@
+{
+  "$schema": "https://huggingface.co/software-mansion/react-native-executorch-spec/resolve/main/config.schema.json",
+  "model": "gemma_4",
+  "family": "gemma",
+  "capabilities": [
+    "text-generation",
+    "image-text-to-text",
+    "audio-text-to-text"
+  ],
+  "backend": "mlx",
+  "license": "gemma",
+  "variants": [
+    {
+      "file": "gemma4_e2b_mlx_int4.pte",
+      "precision": "int4",
+      "quantized": true,
+      "default": true,
+      "methods": {
+        "enable_dynamic_shape": true,
+        "get_bos_id": 2,
+        "get_eos_ids": [
+          1,
+          106,
+          50
+        ],
+        "get_max_context_len": 2048,
+        "get_max_seq_len": 511,
+        "get_vocab_size": 262144,
+        "has_ple": true,
+        "image_placeholder_id": 262145,
+        "use_kv_cache": true,
+        "audio_encoder": {
+          "inputs": [
+            {
+              "shape": [
+                1,
+                476160
+              ],
+              "dtype": "float32"
+            }
+          ],
+          "outputs": [
+            {
+              "shape": [
+                1,
+                744,
+                1536
+              ],
+              "dtype": "float32"
+            },
+            {
+              "shape": [
+                1,
+                744
+              ],
+              "dtype": "float32"
+            }
+          ]
+        },
+        "text_decoder": {
+          "inputs": [
+            {
+              "shape": [
+                1,
+                511,
+                1536
+              ],
+              "dtype": "float32"
+            },
+            {
+              "shape": [
+                1,
+                511,
+                35,
+                256
+              ],
+              "dtype": "float32"
+            },
+            {
+              "shape": [
+                511
+              ],
+              "dtype": "int64"
+            }
+          ],
+          "outputs": [
+            {
+              "shape": [
+                1,
+                1,
+                262144
+              ],
+              "dtype": "float32"
+            }
+          ]
+        },
+        "token_embedding": {
+          "inputs": [
+            {
+              "shape": [
+                1,
+                2048
+              ],
+              "dtype": "int64"
+            }
+          ],
+          "outputs": [
+            {
+              "shape": [
+                1,
+                2048,
+                1536
+              ],
+              "dtype": "float32"
+            },
+            {
+              "shape": [
+                1,
+                2048,
+                35,
+                256
+              ],
+              "dtype": "float32"
+            }
+          ]
+        },
+        "vision_encoder": {
+          "inputs": [
+            {
+              "shape": [
+                1,
+                3,
+                448,
+                640
+              ],
+              "dtype": "float32"
+            }
+          ],
+          "outputs": [
+            {
+              "shape": [
+                1,
+                280,
+                1536
+              ],
+              "dtype": "float32"
+            }
+          ]
+        }
+      }
+    }
+  ],
+  "size": "e2b",
+  "_methods_needing_shapes": [
+    "audio_encoder",
+    "text_decoder",
+    "token_embedding",
+    "vision_encoder"
+  ]
+}

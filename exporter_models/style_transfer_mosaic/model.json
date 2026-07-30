@@ -1,0 +1,13 @@
+{
+  "hf": "https://huggingface.co/software-mansion/react-native-executorch-style-transfer-mosaic",
+  "extras": [
+    "coreml"
+  ],
+  "repo": "software-mansion/react-native-executorch-style-transfer-mosaic",
+  "config": "{backend}/config.json",
+  "backends": [
+    "xnnpack",
+    "coreml",
+    "mlx"
+  ]
+}

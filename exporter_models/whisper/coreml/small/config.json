@@ -1,0 +1,76 @@
+{
+  "$schema": "https://huggingface.co/software-mansion/react-native-executorch-spec/resolve/main/config.schema.json",
+  "model": "whisper",
+  "family": "whisper",
+  "capabilities": [
+    "speech-to-text"
+  ],
+  "backend": "coreml",
+  "license": "mit",
+  "tokenizer": "../tokenizer.json",
+  "variants": [
+    {
+      "file": "whisper_small_coreml_fp16.pte",
+      "precision": "fp16",
+      "quantized": false,
+      "default": true,
+      "methods": {
+        "encode": {
+          "inputs": [
+            {
+              "shape": [
+                480000
+              ],
+              "dtype": "float32"
+            }
+          ],
+          "outputs": [
+            {
+              "shape": [
+                1,
+                1500,
+                768
+              ],
+              "dtype": "float32"
+            }
+          ]
+        },
+        "decode": {
+          "inputs": [
+            {
+              "shape": [
+                1,
+                1
+              ],
+              "dtype": "int64"
+            },
+            {
+              "shape": [
+                1
+              ],
+              "dtype": "int64"
+            },
+            {
+              "shape": [
+                1,
+                1500,
+                768
+              ],
+              "dtype": "float32"
+            }
+          ],
+          "outputs": [
+            {
+              "shape": [
+                1,
+                1,
+                51865
+              ],
+              "dtype": "float32"
+            }
+          ]
+        }
+      }
+    }
+  ]
+}

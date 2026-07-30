@@ -1,0 +1,14 @@
+{
+  "hf": "https://huggingface.co/software-mansion/react-native-executorch-rfdetr-nano-detector",
+  "extras": [
+    "coreml",
+    "detection"
+  ],
+  "repo": "software-mansion/react-native-executorch-rfdetr-nano-detector",
+  "config": "{backend}/config.json",
+  "backends": [
+    "xnnpack",
+    "coreml",
+    "mlx"
+  ]
+}
