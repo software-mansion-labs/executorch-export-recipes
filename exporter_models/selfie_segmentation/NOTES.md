@@ -1,0 +1,17 @@
+# selfie_segmentation notes
+
+- Source: https://github.com/drumichiro/selfie-segmentation-pytorch — a PyTorch
+  port of MediaPipe Selfie Segmentation. The model code is vendored in
+  `_selfie_segmentation.py`; the `.pth` checkpoints are fetched from the same
+  GitHub repo at export time into `weights/` (gitignored).
+- The port repo ships no LICENSE file; the license in the config is that of the
+  original MediaPipe model (Apache-2.0).
+- Output is `(1, 1, H, W)` **sigmoid probabilities** (not logits) — the
+  react-native-executorch `BaseSemanticSegmentation` single-channel binary path
+  thresholds foreground at 0.5. Input is `[0, 1]` RGB with **no**
+  mean/std normalization (pass no `normMean`/`normStd` from JS).
+- Two variants, differing only in input size: portrait 256x256 (default) and
+  landscape 256x144 (`selfie_segmentation_landscape.pth`).
+- If verifying a `.pte` from a numpy image, `np.transpose` leaves the array
+  channels-last; the ExecuTorch runtime reads raw buffers as contiguous NCHW —
+  `np.ascontiguousarray` first, or the output is garbage.

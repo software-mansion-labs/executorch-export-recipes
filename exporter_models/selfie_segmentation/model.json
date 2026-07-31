@@ -1,0 +1,5 @@
+{
+  "hf": "https://huggingface.co/software-mansion/react-native-executorch-selfie-segmentation",
+  "config": "{backend}/config.json",
+  "backends": ["xnnpack"]
+}
