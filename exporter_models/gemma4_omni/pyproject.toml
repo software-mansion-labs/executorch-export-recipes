@@ -1,11 +1,21 @@
-# Per-model export environment for gemma4_omni (MLX backend).
+# Per-model export environment for gemma4_omni (mlx + xnnpack + vulkan backends).
 #
-# REQUIRES executorch built from the software-mansion-labs fork
-# (branch @ms/separate-backends), version-locked to the MLX runtime. That is a
-# native source build (buck2/cmake/submodules) that `uv sync` cannot produce
-# here -- run this export in the ET-source dev env. The published .pte already
-# ships on HF. This file records the pinned intent + fork source; no uv.lock is
-# generated (the git source can't be resolved without the full source build).
+# NO uv.lock IS GENERATED. Every backend here needs a native ExecuTorch source
+# build (buck2/cmake/submodules) that `uv sync` cannot produce:
+#   - mlx     -> the software-mansion-labs fork, branch @ms/separate-backends,
+#                version-locked to the MLX runtime.
+#   - vulkan  -> patched backends/vulkan/ kernels (softmax max-subtraction,
+#                gelu/tanh fp16 clamp, GemmaSDPA.cpp, resize_fn fixes) that live
+#                in a SEPARATE repository and are not vendored here.
+#   - xnnpack -> would be wheel-installable on its own, but shares the tree.
+# Run these exports in the ET-source dev env. The published .pte ships on HF.
+# This file records the pinned intent + fork source.
+#
+# CAVEAT: the pins below are the MLX-verified stack. The xnnpack and vulkan
+# recipes were validated on a DIFFERENT one -- python
+# 3.12.13, torch 2.11.0, transformers 5.7.0, torchao 0.15.0+git9338966da -- and
+# have never been re-verified here. See NOTES.md, "Dependency stacks are
+# unreconciled".
 [project]
 name = "exporter-model-gemma4-omni"
 version = "0"

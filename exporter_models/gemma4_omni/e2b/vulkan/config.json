@@ -1,0 +1,66 @@
+{
+  "$schema": "https://huggingface.co/software-mansion/react-native-executorch-spec/resolve/main/config.schema.json",
+  "model": "gemma_4",
+  "family": "gemma",
+  "capabilities": [
+    "text-generation",
+    "image-text-to-text",
+    "audio-text-to-text"
+  ],
+  "backend": "vulkan",
+  "license": "gemma",
+  "variants": [
+    {
+      "file": "gemma_4_e2b_vulkan_8da4w.pte",
+      "precision": "8da4w",
+      "quantized": true,
+      "default": true,
+      "methods": {
+        "enable_dynamic_shape": true,
+        "get_bos_id": 2,
+        "get_eos_ids": [
+          1,
+          106,
+          50
+        ],
+        "get_max_context_len": 2048,
+        "get_max_seq_len": 128,
+        "get_vocab_size": 262144,
+        "use_kv_cache": true,
+        "audio_block_k_max": 62,
+        "audio_block_k_min": 1,
+        "audio_block_samples": 7680,
+        "audio_encoder": {
+          "inputs": [],
+          "outputs": []
+        },
+        "audio_placeholder_id": 258881,
+        "audio_sample_count_max": 476160,
+        "audio_sample_count_min": 7680,
+        "audio_sample_k": 62,
+        "audio_soft_tokens_max": 744,
+        "has_ple": true,
+        "image_placeholder_id": 262145,
+        "text_decoder": {
+          "inputs": [],
+          "outputs": []
+        },
+        "token_embedding": {
+          "inputs": [],
+          "outputs": []
+        },
+        "vision_encoder": {
+          "inputs": [],
+          "outputs": []
+        }
+      }
+    }
+  ],
+  "size": "e2b",
+  "_methods_needing_shapes": [
+    "audio_encoder",
+    "text_decoder",
+    "token_embedding",
+    "vision_encoder"
+  ]
+}
