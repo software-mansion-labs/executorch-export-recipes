@@ -57,12 +57,18 @@ def export(config: dict, out_dir: str) -> str:
     dummy = (torch.randn(*feat_shape, dtype=torch.float32),)
     dynamic_shapes = ({0: Dim("T", min=100, max=1000)},)
 
+    from exporter.schema import load_and_validate_schema
+
+    schema_json = load_and_validate_schema(_MODEL_DIR / "schema.json")
+
     with torch.no_grad():
         ep = torch_export(model, dummy, dynamic_shapes=dynamic_shapes)
+        methods = {"forward": ep}
         et_program = to_edge_transform_and_lower(
-            ep,
+            methods,
             partitioner=[XnnpackPartitioner()],
             compile_config=EdgeCompileConfig(_check_ir_validity=False),
+            constant_methods={"get_model_schema": schema_json},
         ).to_executorch()
 
     out_path = Path(out_dir) / config["variant"]["file"]

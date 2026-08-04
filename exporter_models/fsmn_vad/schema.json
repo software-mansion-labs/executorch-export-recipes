@@ -1,0 +1,49 @@
+{
+  "forward": {
+    "inputs": [
+      {
+        "kind": "Tensor",
+        "dtype": "float32",
+        "shape": [
+          {
+            "kind": "range",
+            "range": {
+              "min": 100,
+              "max": 1000,
+              "step": 1
+            }
+          },
+          {
+            "kind": "constant",
+            "value": 512
+          }
+        ]
+      }
+    ],
+    "outputs": [
+      {
+        "kind": "Tensor",
+        "dtype": "float32",
+        "shape": [
+          {
+            "kind": "constant",
+            "value": 1
+          },
+          {
+            "kind": "range",
+            "range": {
+              "min": 100,
+              "max": 1000,
+              "step": 1
+            }
+          },
+          {
+            "kind": "constant",
+            "value": 248
+          }
+        ]
+      }
+    ],
+    "runtimeConstraints": []
+  }
+}

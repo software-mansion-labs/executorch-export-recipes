@@ -13,7 +13,10 @@
       "default": true,
       "methods": {
         "forward": {
-          "inputs": [{ "shape": [1, 510], "dtype": "int64" }],
+          "inputs": [
+            { "shape": [1, 126], "dtype": "int64" },
+            { "shape": [1, 126], "dtype": "int64" }
+          ],
           "outputs": [{ "shape": [1, 384], "dtype": "float32" }]
         }
       }
@@ -25,7 +28,10 @@
       "default": false,
       "methods": {
         "forward": {
-          "inputs": [{ "shape": [1, 510], "dtype": "int64" }],
+          "inputs": [
+            { "shape": [1, 126], "dtype": "int64" },
+            { "shape": [1, 126], "dtype": "int64" }
+          ],
           "outputs": [{ "shape": [1, 384], "dtype": "float32" }]
         }
       }

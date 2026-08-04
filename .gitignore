@@ -17,3 +17,5 @@ docs/superpowers/
 .superpowers/
 tests/
 datasets/
+logs/
+*.pte
