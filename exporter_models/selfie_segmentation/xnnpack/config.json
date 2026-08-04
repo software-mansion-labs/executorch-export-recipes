@@ -1,7 +1,7 @@
 {
   "$schema": "https://huggingface.co/software-mansion/react-native-executorch-spec/resolve/main/config.schema.json",
   "model": "selfie_segmentation",
-  "family": "selfie_segmentation",
+  "family": "selfie",
   "capabilities": ["semantic-segmentation"],
   "backend": "xnnpack",
   "license": "apache-2.0",

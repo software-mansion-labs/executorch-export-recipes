@@ -10,7 +10,14 @@ import torch.nn as nn
 import torch.nn.functional as F
 
 SOURCE_REPO = "drumichiro/selfie-segmentation-pytorch"
-WEIGHTS_URL = "https://raw.githubusercontent.com/drumichiro/selfie-segmentation-pytorch/master/models/{checkpoint}"
+# Pinned to a commit, not `master`: the upstream port is an unversioned GitHub
+# repo, so a moving ref would silently change what we export.
+SOURCE_COMMIT = "d7450bbc0612133af5a372a189854e79e5423328"
+WEIGHTS_URL = f"https://raw.githubusercontent.com/{SOURCE_REPO}/{SOURCE_COMMIT}/models/{{checkpoint}}"
+WEIGHTS_SHA256 = {
+    "selfie_segmentation.pth": "84e09c1a1b358347bae907aac85c0c6fa442e4ac440e8995493982a54aeae0c3",
+    "selfie_segmentation_landscape.pth": "70406a9612341452bca2606056d5b278b4fef3fa7869f009298801c409c633b6",
+}
 
 
 class SelfieBlock(nn.Module):

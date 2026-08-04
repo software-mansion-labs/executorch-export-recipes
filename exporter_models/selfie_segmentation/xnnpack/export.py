@@ -1,3 +1,4 @@
+import hashlib
 import importlib.util
 import sys
 import urllib.request
@@ -21,11 +22,19 @@ def _load_selfie_segmentation():
     return mod
 
 
-def _fetch_weights(url_template: str, checkpoint: str) -> Path:
+def _fetch_weights(ss, checkpoint: str) -> Path:
     path = _WEIGHTS_DIR / checkpoint
     if not path.exists():
         _WEIGHTS_DIR.mkdir(parents=True, exist_ok=True)
-        urllib.request.urlretrieve(url_template.format(checkpoint=checkpoint), path)
+        urllib.request.urlretrieve(ss.WEIGHTS_URL.format(checkpoint=checkpoint), path)
+
+    expected = ss.WEIGHTS_SHA256[checkpoint]
+    actual = hashlib.sha256(path.read_bytes()).hexdigest()
+    if actual != expected:
+        raise ValueError(
+            f"checkpoint '{checkpoint}' sha256 {actual} != expected {expected}; "
+            f"delete {path} and re-run, or update WEIGHTS_SHA256 if upstream moved"
+        )
     return path
 
 
@@ -46,7 +55,7 @@ def export(config: dict, out_dir: str) -> str:
     _, _, height, width = shape
 
     model = ss.SelfieSegmentation(width, height)
-    weights = _fetch_weights(ss.WEIGHTS_URL, _checkpoint_for(variant["file"]))
+    weights = _fetch_weights(ss, _checkpoint_for(variant["file"]))
     model.load_state_dict(torch.load(weights, map_location="cpu"))
     model.eval()
 
