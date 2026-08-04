@@ -10,8 +10,8 @@
   "tokenizer": "../tokenizer.json",
   "variants": [
     {
-      "file": "whisper_base_en_mlx_fp32.pte",
-      "precision": "fp32",
+      "file": "whisper_base_en_mlx_bf16.pte",
+      "precision": "bf16",
       "quantized": false,
       "default": true,
       "methods": {
