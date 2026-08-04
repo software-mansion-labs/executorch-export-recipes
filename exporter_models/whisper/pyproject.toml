@@ -1,14 +1,9 @@
-# Per-model export environment for whisper (pinned, verified stack).
-#   uv run --project exporter_models/whisper exporter export whisper --backend <b> --output-dir <dir>
+# Per-model export environment for whisper XNNPACK & CoreML (pinned executorch==1.2.0 stack).
+#   uv run --project exporter_models/whisper exporter export whisper --backend xnnpack --output-dir <dir>
 #
-# NOTE: the `mlx` backend REQUIRES executorch built from the software-mansion-labs
-# fork (branch @ms/separate-backends), version-locked to the MLX runtime. That is
-# a native source build (buck2/cmake/submodules) that `uv sync` cannot produce
-# here, so it is NOT reflected below: the committed uv.lock and the pinned
-# executorch==1.3.1 cover only the xnnpack + coreml exports. Adding the git fork
-# source here would break xnnpack/coreml locking, so the mlx export instead runs
-# in the ET-source dev env (matching efficientnet_v2_s, which likewise keeps
-# executorch==1.3.1 while listing mlx as a backend).
+# NOTE: CoreML export requires ExecuTorch 1.2.0 (fails on 1.3.1).
+# The MLX backend requires ExecuTorch 1.3.1+, so MLX export uses its own pyproject.toml:
+#   uv run --project exporter_models/whisper/mlx exporter export whisper --backend mlx --output-dir <dir>
 [project]
 name = "exporter-model-whisper"
 version = "0"
@@ -16,7 +11,7 @@ requires-python = "==3.10.*"
 dependencies = [
     "exporter",
     "torch==2.14.0.dev20260702",
-    "executorch==1.3.1",
+    "executorch==1.2.0",
     "transformers==5.14.1",
     "safetensors==0.8.0",
     "torchao==0.18.0.dev20260702",

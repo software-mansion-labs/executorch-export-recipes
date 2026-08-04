@@ -10,9 +10,8 @@ sampling, the flow-matching loop) around them:
                        latent_mask, current_step, total_step)         -> denoised_latent
     vocoder           (latent)                                        -> wav
 
-Each .pte also carries a companion ``get_dynamic_dims_forward`` method
-advertising the per-input [min, max, step] bounds the RNE runtime needs to drive
-the dynamic text length T and latent length L.
+Each .pte also carries a constant method ``get_model_schema`` advertising
+its tensor parameters and dynamic bounds.
 
 Weights: the upstream Supertone/supertonic-3 ONNX files, fetched from HF and
 converted to PyTorch state dicts by the vendored ``_supertonic`` package.
@@ -20,10 +19,13 @@ converted to PyTorch state dicts by the vendored ``_supertonic`` package.
 
 import contextlib
 import importlib.util
+import json
 import sys
 from pathlib import Path
 
 import torch
+
+from exporter.schema import load_and_validate_schema
 
 _HERE = Path(__file__).resolve().parent
 _MODEL_DIR = _HERE.parent
@@ -110,23 +112,6 @@ def _example_inputs(t_text=64, t_latent=80):
     )
 
 
-def _dynamic_dims_bounds(example_inputs, dynamic_shapes):
-    """[min, max, step] rows per input axis, from example shapes + dynamic_shapes
-    (dynamic axes -> the Dim's [min, max, 1]; static axes -> [n, n, 1])."""
-    rows_per_input = []
-    for example, axis_map in zip(example_inputs, dynamic_shapes):
-        axis_map = axis_map or {}
-        rows = []
-        for axis, size in enumerate(example.shape):
-            dim = axis_map.get(axis)
-            if dim is None:
-                rows.append([int(size), int(size), 1])
-            else:
-                rows.append([int(dim.min), int(dim.max), 1])
-        rows_per_input.append(rows)
-    return rows_per_input
-
-
 def _method_spec(models, ex):
     """(model, example inputs tuple, dynamic_shapes tuple) per sub-model name.
     Each method gets its own fresh Dim objects."""
@@ -170,11 +155,11 @@ def export(config: dict, out_dir: str):
     from executorch.backends.xnnpack.partition.xnnpack_partitioner import XnnpackPartitioner
     from executorch.exir import EdgeCompileConfig, to_edge_transform_and_lower
 
-    from exporter.dynamic_dims import build_dynamic_dims_program
-
     convert = _load_convert()
     onnx_dir = _download_onnx_dir()
     models = convert.load_models(onnx_dir=onnx_dir)
+
+    all_schemas = json.loads(load_and_validate_schema(_MODEL_DIR / "schema.json"))
 
     out_dir = Path(out_dir)
     out_dir.mkdir(parents=True, exist_ok=True)
@@ -190,16 +175,18 @@ def export(config: dict, out_dir: str):
             model, inputs, dynamic_shapes = specs[name]
 
             ep = torch.export.export(model, inputs, dynamic_shapes=dynamic_shapes, strict=False)
-            ep_dims = build_dynamic_dims_program(_dynamic_dims_bounds(inputs, dynamic_shapes))
+
+            sub_schema_json = json.dumps({"forward": all_schemas[name]})
 
             program = to_edge_transform_and_lower(
-                {"forward": ep, "get_dynamic_dims_forward": ep_dims},
+                {"forward": ep},
                 partitioner=[XnnpackPartitioner()],
                 compile_config=EdgeCompileConfig(
                     _check_ir_validity=False,
                     _core_aten_ops_exception_list=[torch.ops.aten.linear.default],
                 ),
                 transform_passes=[AddmmToLinearTransform()],
+                constant_methods={"get_model_schema": sub_schema_json},
             ).to_executorch()
 
             out_path = out_dir / variant["file"]

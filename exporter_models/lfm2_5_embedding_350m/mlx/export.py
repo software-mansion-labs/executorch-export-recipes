@@ -4,18 +4,10 @@ from pathlib import Path
 
 import torch
 
-from exporter.dynamic_dims import build_dynamic_dims_program
+from exporter.schema import load_and_validate_schema
 
 _HERE = Path(__file__).resolve().parent
 _MODEL_DIR = _HERE.parent
-
-# IMPORTANT: the MLX delegate must be produced by the SAME ExecuTorch build that
-# compiled the runtime MLXBackend (software-mansion-labs/executorch, the
-# `ms-separate-backends-mlx-reconciled` branch). The MLX backend is experimental
-# and its serialized graph is version-locked to the runtime -- a delegate built
-# by upstream/pip ExecuTorch fails at execute with Error::InvalidProgram even
-# though it partitions and loads cleanly. Run this export with that fork on
-# PYTHONPATH (its exir/_serialize needs program.fbs + scalar_type.fbs copied in).
 
 # The tokenizer's post-processor prepends <|startoftext|> (id 1). The native
 # runtime tokenizer emits raw tokens, so forward prepends it to place the CLS
@@ -92,19 +84,14 @@ def export(config: dict, out_dir: str) -> str:
     dynamic = {"input_ids": {1: dim}, "attention_mask": {1: dim}}
     ep = torch.export.export(model, inputs, dynamic_shapes=dynamic, strict=True)
 
-    # Advertise the dynamic sequence dimension to the runtime. Raw inputs are
-    # [1, tokens]: batch static, tokens dynamic in [1, max_tokens]; forward adds
-    # the CLS token internally.
-    seq_bounds = [[1, 1, 1], [1, max_tokens, 1]]
-    dims = build_dynamic_dims_program([seq_bounds, seq_bounds])
+    schema_json = load_and_validate_schema(_MODEL_DIR / "schema.json")
 
     et_program = exir.to_edge_transform_and_lower(
-        {"forward": ep, "get_dynamic_dims_forward": dims},
+        {"forward": ep},
         transform_passes=get_default_passes(),
-        # Scope MLX to `forward`; MLXPartitioner would otherwise swallow the
-        # trivial companion graph into a second delegate.
         partitioner={"forward": [MLXPartitioner()]},
         compile_config=EdgeCompileConfig(_check_ir_validity=False, _skip_dim_order=True),
+        constant_methods={"get_model_schema": schema_json},
     ).to_executorch()
 
     out_path = Path(out_dir) / variant["file"]

@@ -4,7 +4,7 @@
 > `mlx/export.py` now target the RNE `createTextEmbedder` contract: forward
 > **prepends the `<|startoftext|>` CLS token (id 1)** and takes **raw, unpadded**
 > tokens with an all-ones mask (the native runtime tokenizer emits raw tokens),
-> and the program ships a **`get_dynamic_dims_forward` companion** advertising the
+> and the program ships a **`get_model_schema` constant method** advertising the
 > `[1, max_tokens]` sequence range — so the metadata-static `.pte` still accepts
 > variable-length input (this supersedes the "static seq 512" workaround below).
 > Config seq is `511` (forward adds the CLS token → 512 total). Verified: fp32

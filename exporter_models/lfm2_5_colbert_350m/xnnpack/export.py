@@ -4,6 +4,8 @@ from pathlib import Path
 
 import torch
 
+from exporter.schema import load_and_validate_schema
+
 _HERE = Path(__file__).resolve().parent
 _MODEL_DIR = _HERE.parent
 
@@ -39,10 +41,13 @@ def export(config: dict, out_dir: str) -> str:
 
     ep = torch.export.export(model, (ex_ids, ex_mask), dynamic_shapes=dynamic_shapes, strict=True)
 
+    schema_json = load_and_validate_schema(_MODEL_DIR / "schema.json")
+
     et_program = to_edge_transform_and_lower(
-        ep,
+        {"forward": ep},
         partitioner=[XnnpackPartitioner()],
         compile_config=EdgeCompileConfig(_check_ir_validity=False),
+        constant_methods={"get_model_schema": schema_json},
     ).to_executorch()
 
     out_path = Path(out_dir) / config["variant"]["file"]

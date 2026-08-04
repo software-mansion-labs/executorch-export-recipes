@@ -4,8 +4,6 @@ from pathlib import Path
 
 import torch
 
-from exporter.dynamic_dims import build_dynamic_dims_program
-
 _HERE = Path(__file__).resolve().parent
 _MODEL_DIR = _HERE.parent
 
@@ -46,20 +44,18 @@ def export(config: dict, out_dir: str) -> str:
     )
     quantize_(model, qcfg, filter_fn=lambda mod, fqn: isinstance(mod, nn.Linear))
 
+    # Dynamic sequence length: the token-classification MoE runs every expert on
+    # every token, so it is O(tokens) and padding a short input up to SEQ_LEN
+    # wastes proportional compute.
+    seq = torch.export.Dim("tokens", min=2, max=SEQ_LEN)
     ids, mask = m.example_inputs(tok, SEQ_LEN)
     wrapper = m.ClassifierWrapper(model).eval()
 
-    # Dynamic sequence length: the token-classification MoE runs every expert on
-    # every token, so it is O(tokens) and padding a short input up to SEQ_LEN
-    # wastes proportional compute. Export a symbolic sequence dim plus the
-    # get_dynamic_dims_forward companion the runtime reads the active
-    # [min, max, step] range from.
-    seq = torch.export.Dim("tokens", min=2, max=SEQ_LEN)
     dynamic = {"input_ids": {1: seq}, "attention_mask": {1: seq}}
     ep = torch.export.export(wrapper, (ids, mask), dynamic_shapes=dynamic, strict=True)
 
-    seq_bounds = [[1, 1, 1], [1, SEQ_LEN, 1]]
-    dims = build_dynamic_dims_program([seq_bounds, seq_bounds])
+    from exporter.schema import load_and_validate_schema
+    schema_json = load_and_validate_schema(_MODEL_DIR / "schema.json")
 
     # Drop MaxDimConfig from the partitioner: the model's attention subtracts
     # combined_logits.max(dim=-1), and XNNPACK's amax visitor mis-serializes that
@@ -72,9 +68,10 @@ def export(config: dict, out_dir: str) -> str:
         c for c in ALL_PARTITIONER_CONFIGS if c.__name__ != "MaxDimConfig"
     ]
     et = to_edge_transform_and_lower(
-        {"forward": ep, "get_dynamic_dims_forward": dims},
+        {"forward": ep},
         partitioner=[XnnpackPartitioner(configs=partitioner_configs)],
         compile_config=EdgeCompileConfig(_check_ir_validity=False),
+        constant_methods={"get_model_schema": schema_json},
     ).to_executorch()
 
     out_path = Path(out_dir) / config["variant"]["file"]

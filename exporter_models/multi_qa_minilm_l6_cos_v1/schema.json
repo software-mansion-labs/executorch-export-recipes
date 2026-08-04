@@ -1,0 +1,75 @@
+{
+  "forward": {
+    "inputs": [
+      {
+        "kind": "Tensor",
+        "dtype": "int64",
+        "shape": [
+          {
+            "kind": "constant",
+            "value": 1
+          },
+          {
+            "kind": "range",
+            "range": {
+              "min": 1,
+              "max": 510,
+              "step": 1
+            }
+          }
+        ]
+      },
+      {
+        "kind": "Tensor",
+        "dtype": "int64",
+        "shape": [
+          {
+            "kind": "constant",
+            "value": 1
+          },
+          {
+            "kind": "range",
+            "range": {
+              "min": 1,
+              "max": 510,
+              "step": 1
+            }
+          }
+        ]
+      }
+    ],
+    "outputs": [
+      {
+        "kind": "Tensor",
+        "dtype": "float32",
+        "shape": [
+          {
+            "kind": "constant",
+            "value": 1
+          },
+          {
+            "kind": "constant",
+            "value": 384
+          }
+        ]
+      }
+    ],
+    "runtimeConstraints": [
+      {
+        "kind": "equality",
+        "dims": [
+          {
+            "paramSide": "input",
+            "tensorIdx": 0,
+            "dimIdx": 1
+          },
+          {
+            "paramSide": "input",
+            "tensorIdx": 1,
+            "dimIdx": 1
+          }
+        ]
+      }
+    ]
+  }
+}
