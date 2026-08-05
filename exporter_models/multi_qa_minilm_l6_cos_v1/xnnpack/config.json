@@ -14,8 +14,8 @@
       "methods": {
         "forward": {
           "inputs": [
-            { "shape": [1, 509], "dtype": "int64" },
-            { "shape": [1, 509], "dtype": "int64" }
+            { "shape": [1, 510], "dtype": "int64" },
+            { "shape": [1, 510], "dtype": "int64" }
           ],
           "outputs": [{ "shape": [1, 384], "dtype": "float32" }]
         }

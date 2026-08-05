@@ -5,6 +5,8 @@ from pathlib import Path
 
 import torch
 
+from exporter.schema import load_and_validate_schema
+
 _HERE = Path(__file__).resolve().parent
 _MODEL_DIR = _HERE.parent
 
@@ -12,11 +14,11 @@ _MODEL_DIR = _HERE.parent
 def _load_custom_whisper():
     pkg_init = _MODEL_DIR / "_custom_whisper" / "__init__.py"
     spec = importlib.util.spec_from_file_location(
-        "whisper_tiny_xnnpack_custom_whisper", pkg_init,
+        "whisper_xnnpack_custom_whisper", pkg_init,
         submodule_search_locations=[str(_MODEL_DIR / "_custom_whisper")],
     )
     mod = importlib.util.module_from_spec(spec)
-    sys.modules["whisper_tiny_xnnpack_custom_whisper"] = mod
+    sys.modules["whisper_xnnpack_custom_whisper"] = mod
     spec.loader.exec_module(mod)
     return mod
 
@@ -38,7 +40,7 @@ def export(config: dict, out_dir: str) -> str:
     from transformers import AutoProcessor
 
     cw = _load_custom_whisper()
-    preprocessor_mod = importlib.import_module("whisper_tiny_xnnpack_custom_whisper.preprocessor")
+    preprocessor_mod = importlib.import_module("whisper_xnnpack_custom_whisper.preprocessor")
     ProcessorTorchModule = preprocessor_mod.ProcessorTorchModule
 
     class WhisperPositionalEmbedding(torch.nn.Module):
@@ -120,19 +122,17 @@ def export(config: dict, out_dir: str) -> str:
 
     n_audio_state = model.dims.n_audio_state
     decode_inputs = (
-        torch.randint(1, 100, size=(1, 64)),
-        torch.arange(0, 64, dtype=torch.long),
+        torch.randint(1, 100, size=(1, 1)),
+        torch.tensor([0], dtype=torch.long),
         torch.randn(1, 1500, n_audio_state, dtype=torch_dtype),
     )
-    T_text = Dim("T_text", min=1, max=128)
-    decode_dynamic_shapes = (
-        {1: T_text},
-        {0: T_text},
-        None,
-    )
 
-    exported_decode = torch.export.export(
-        decoder_wrapper, decode_inputs, dynamic_shapes=decode_dynamic_shapes
+    exported_decode = torch.export.export(decoder_wrapper, decode_inputs)
+
+    n_vocab = model.dims.n_vocab
+    schema_json = load_and_validate_schema(
+        _MODEL_DIR / "schema.json",
+        replacements={"n_audio_state": str(n_audio_state), "n_vocab": str(n_vocab)},
     )
 
     methods = {
@@ -147,6 +147,7 @@ def export(config: dict, out_dir: str) -> str:
             _core_aten_ops_exception_list=[torch.ops.aten.linear.default],
         ),
         transform_passes=[AddmmToLinearTransform()],
+        constant_methods={"get_model_schema": schema_json},
     ).to_executorch()
 
     out_path = Path(out_dir) / config["variant"]["file"]
