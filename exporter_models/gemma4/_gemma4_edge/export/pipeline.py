@@ -46,8 +46,9 @@ quantize is therefore the order-safe direction.
 WHAT IS NOT HERE
 ----------------
 No parity harness, no on-device smoke, no phase-A/phase-B split. The
-reference drivers interleave those with the build; `validate.py` covers the
-pre-flight rules and everything else belongs in a separate script.
+reference drivers interleave those with the build; everything else belongs in a
+separate script. The dropped `validate.py`'s pre-flight rules are prose in the
+model's NOTES.md.
 """
 from __future__ import annotations
 
@@ -61,7 +62,6 @@ import torch.nn as nn
 from torch.export import Dim, ExportedProgram
 from torch.export import export as torch_export
 
-from executorch.backends.vulkan.partitioner.vulkan_partitioner import VulkanPartitioner
 from executorch.backends.xnnpack.partition.xnnpack_partitioner import (
     XnnpackDynamicallyQuantizedPartitioner,
     XnnpackPartitioner,
@@ -74,26 +74,27 @@ from executorch.exir import (
 from executorch.exir.dialects._ops import ops as exir_ops
 from executorch.exir.passes.init_mutable_pass import InitializedMutableBufferPass
 
-# Side-effect imports that register the `et_vk::` operator schemas named in
-# the Vulkan `preserve_ops` list below. `custom_sdpa_ops` defines
-# `gemma_sdpa_with_kv_cache` / `gemma_custom_sdpa` (with eager reference
-# impls); `custom_ops_lib` defines `apply_rotary_emb` and the rest of the
-# et_vk library. Both are cheap and idempotent, so they stay at module scope
-# — unlike `executorch.extension.llm.custom_ops.custom_ops`, which loads a
-# shared library and is deferred to the one place that needs it.
+# Side-effect import that registers the `et_vk::gemma_sdpa_with_kv_cache` /
+# `et_vk::gemma_custom_sdpa` schemas (with eager reference impls). Pure torch,
+# cheap and idempotent, so it stays at module scope.
 # NOTE: `executorch.runtime` / `executorch.kernels.quantized` are deliberately
-# NOT imported here — `gemma4/export/__main__.py` already imports them, in the
+# NOT imported here — each `<backend>/export.py` imports them first, in the
 # order that matters (Runtime first, or the quantized kernel registration
 # silently no-ops and `embedding_{2,4}bit.out` fails at load_method time).
-import executorch.backends.vulkan.custom_ops_lib  # noqa: F401
 from ..model import custom_sdpa_ops  # noqa: F401
+
+# `executorch.backends.vulkan.*` is NOT imported at module scope. The Vulkan
+# backend is only present in an ExecuTorch built from source with the patched
+# `backends/vulkan/` kernels; importing it here would make the XNNPACK export
+# unrunnable on a stock ExecuTorch wheel. Every Vulkan symbol is imported
+# inside the branch that uses it — `_register_et_vk_ops`, `_build_partitioners`
+# and `_setup_caches_and_transforms`.
 
 from ..model.audio import RMSNorm as AudioRMSNorm
 from ..model.text import Gemma4Attention, Gemma4EdgeForCausalLM
 from ..model.text import RMSNorm as TextRMSNorm
 from ..model.transforms.kv_quant import replace_kv_cache_with_quantized_kv_cache
 from ..model.transforms.kv_ring import replace_sliding_kv_cache_with_ring_kv_cache
-from ..model.transforms.rope import replace_gemma_rope_with_paired_fused
 from ..model.transforms.sdpa import replace_gemma_sdpa_with_custom_op
 from ..model.truncated import load_truncated_from_safetensors
 
@@ -146,7 +147,7 @@ _AUDIO_TRACE_K = 2
 
 # Token id looked up for the vision method's per-layer PLE constants. The
 # multimodal contract puts `0` (pad) at every spliced position, never the
-# placeholder id — see docs/MODEL_INTERFACE.md "The splice".
+# placeholder id — see the model's MODEL_INTERFACE.md "The splice".
 _PAD_TOKEN_ID = 0
 
 # Mutable buffers whose initial contents must be baked into the PTE rather
@@ -170,6 +171,16 @@ _INIT_MUTABLE_BUFFERS = [
 # ---------------------------------------------------------------------------
 # Small helpers
 # ---------------------------------------------------------------------------
+
+
+def _register_et_vk_ops() -> None:
+    """Import the et_vk custom-op library, which registers `apply_rotary_emb`
+    and the rest of the `et_vk::` schemas named in the Vulkan `preserve_ops`
+    list. Vulkan-only, so it is deferred out of module scope: a stock
+    ExecuTorch wheel has no `backends.vulkan` and the XNNPACK export must not
+    need one. Cheap and idempotent, so callers need not track it.
+    """
+    import executorch.backends.vulkan.custom_ops_lib  # noqa: F401
 
 
 def _human_bytes(n: int) -> str:
@@ -552,7 +563,7 @@ def _setup_caches_and_transforms(
     if A.vulkan_sdpa_transform:
         # Constraint 8, first half. Raises rather than degrading if it meets
         # ring KV / use_dynamic_kv_slice / use_bshd_kv=False / caches that
-        # were never set up — validate.py rules R1-R3 catch those first.
+        # were never set up — NOTES.md records these as rules R1-R3.
         replace_gemma_sdpa_with_custom_op(model)
         _say(
             verbose,
@@ -565,6 +576,11 @@ def _setup_caches_and_transforms(
         # transform just installed, so it cannot run first. Consumer
         # (KV-shared) layers are skipped — the fused op needs both q and k,
         # and consumers have no k projection to feed it.
+        #
+        # Imported here rather than at module scope: `transforms/rope.py`
+        # pulls in `executorch.backends.vulkan.custom_ops_lib`.
+        from ..model.transforms.rope import replace_gemma_rope_with_paired_fused
+
         replace_gemma_rope_with_paired_fused(model)
         _say(
             verbose,
@@ -769,7 +785,7 @@ def _build_towers(
         # Output cast: Vulkan appends `.to(fp16)` so the host splice into the
         # text_decoder's fp16 embeds buffer is a clean memcpy; XNNPACK returns
         # the encoder dtype unchanged. This is the
-        # documented runtime contract in docs/MODEL_INTERFACE.md — "on the
+        # documented runtime contract in MODEL_INTERFACE.md — "on the
         # Vulkan path the audio encoder output is Half; on fp32 paths float".
         out_dtype = torch.float16 if recipe.backend == "vulkan" else None
         audio = AudioEncoderWavExport(
@@ -1024,7 +1040,7 @@ def _build_partitioners(recipe: Recipe) -> dict:
     `audio_encoder` runs on XNNPACK even inside an otherwise-Vulkan PTE: the
     Vulkan `gemma_custom_sdpa` per-head + softcap shader measured cos 0.40
     against eager, and every recipe since reroutes it.
-    `validate.py` rule R10 refuses `audio_backend="vulkan"` outright.
+    NOTES.md records this as rule R10: `audio_backend="vulkan"` is refused.
     """
 
     def _xnnpack_pair() -> list:
@@ -1032,6 +1048,10 @@ def _build_partitioners(recipe: Recipe) -> dict:
 
     if recipe.backend == "xnnpack":
         return {m: _xnnpack_pair() for m in recipe.method_names}
+
+    from executorch.backends.vulkan.partitioner.vulkan_partitioner import (
+        VulkanPartitioner,
+    )
 
     shared = VulkanPartitioner(
         compile_options={"require_dynamic_shapes": True},
@@ -1111,13 +1131,15 @@ def _lower_and_write(
     recipe: Recipe,
     out_path: Path,
     *,
+    schema_json: Optional[str] = None,
     verbose: bool = True,
 ) -> Path:
     """`to_edge_transform_and_lower` -> `to_executorch` -> serialize."""
     if recipe.backend == "vulkan":
+        # Registers `et_vk::apply_rotary_emb`, named in `preserve_ops` below.
+        _register_et_vk_ops()
         compile_config = EdgeCompileConfig(
             _check_ir_validity=False,
-            _skip_dim_order=False,
             # Without this the edge-lowering decomposition table shreds the
             # three fused ops back into their reference implementations, and
             # the Vulkan partitioner then sees the decomposed chain instead of
@@ -1146,6 +1168,15 @@ def _lower_and_write(
         )
 
     constant_methods = recipe.constant_methods()
+    if schema_json is not None:
+        # The react-native-executorch runtime reads the model's I/O spec from
+        # this constant method: `ModelHostObject` executes `get_model_schema`
+        # at load and parses the JSON into a ModelSpec with real dynamic-dim
+        # domains and runtime constraints. Without it the runtime falls back to
+        # `methodSpecFromMetadata`, where every dim is a static constant taken
+        # from the compiled upper bound -- so a decode call at S=1 against a
+        # graph traced to S<=1024 is rejected. See src/exporter/schema.py.
+        constant_methods["get_model_schema"] = schema_json
     _say(verbose, "\n[lower] constant_methods:")
     for key, value in constant_methods.items():
         _say(verbose, f"    {key:<26} {value!r}")
@@ -1156,7 +1187,6 @@ def _lower_and_write(
         compile_config=compile_config,
         partitioner=partitioners,
         constant_methods=constant_methods,
-        generate_etrecord=False,
     )
     _say(
         verbose,
@@ -1208,6 +1238,7 @@ def export(
     *,
     checkpoint: Path,
     out_path: Path,
+    schema_json: Optional[str] = None,
     verbose: bool = True,
 ) -> Path:
     """Build, transform, quantize, export, lower and write the PTE.
@@ -1219,8 +1250,9 @@ def export(
     vision and audio towers); a direct path to a .safetensors file is also
     accepted for text-only recipes.
 
-    This does not validate the recipe — call `validate.assert_valid(recipe)`
-    first, or go through the CLI, which does.
+    This does not validate the recipe. The dropped `validate.py`'s rules are
+    prose in the model's NOTES.md and are NOT enforced in code — check them by
+    hand when changing a recipe.
     """
     t_start = time.perf_counter()
     checkpoint = Path(checkpoint)
@@ -1236,12 +1268,12 @@ def export(
     _say(verbose, "")
 
     # [1/8] Monkey-patches, before anything is constructed, quantised or
-    # traced. P1-P3 mutate the decomposition table and two edge-lowering
+    # traced. P1/P3 mutate the decomposition table and one edge-lowering
     # passes, so they must land before `to_edge_transform_and_lower`; P5/P6
     # patch HF classes and are only meaningful when a recipe wraps the HF
     # vision tower. All are idempotent no-ops if already applied.
     applied = apply_patches(
-        # The unbacked-SymInt trio, required whenever an `.item()` call
+        # The unbacked-SymInt pair, required whenever an `.item()` call
         # reaches edge lowering — which is exactly `use_dynamic_kv_slice`.
         dynamic_kv_slice=recipe.attn.use_dynamic_kv_slice,
         # HF `Gemma4AudioModel._convert_4d_mask_to_blocked_5d` does not
@@ -1287,7 +1319,10 @@ def export(
     # Narrow to the methods that actually produced a program — a partitioner
     # keyed on a method that is not in `programs` has nothing to partition.
     partitioners = {m: partitioners[m] for m in programs}
-    _lower_and_write(programs, partitioners, recipe, out_path, verbose=verbose)
+    _lower_and_write(
+        programs, partitioners, recipe, out_path,
+        schema_json=schema_json, verbose=verbose,
+    )
 
     _say(verbose, f"\n[done] total wall {time.perf_counter() - t_start:.1f}s")
     return out_path

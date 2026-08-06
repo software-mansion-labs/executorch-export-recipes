@@ -24,7 +24,9 @@ the optimisation history in `LEVERS.md` — copied verbatim from the former root
 
 `e2b/vulkan/config.json` and `vulkan/export.py` declare
 `text_decoder_prefill_len = 128`, matching the multimodal Vulkan PTE published
-on HF today.
+on HF today. `vulkan/export.py` now carries a pointer to this section at that
+constant, since its neighbours (`wrappers.py`, `RECIPES.md`) still call 768
+"the fix".
 
 **128 is correct and deliberate, not an under-sized bound.** The Vulkan
 text_decoder garbles whenever a single `execute()` carries `seq_len >= 129` —
@@ -120,45 +122,72 @@ added (`HarnessRecipe` sources LLM constants from `config.json`, plus
   Both edge recipes use 62 (29.76 s at 16 kHz, T_soft 744), which is what
   `MODEL_INTERFACE.md` and the runner assume.
 
-## The xnnpack / vulkan configs are VERBATIM copies of the published contract
+## The xnnpack / vulkan configs are CORRECTED copies of the published contract
 
-`e2b/xnnpack/config.json` and `e2b/vulkan/config.json` are byte-identical to
+`e2b/xnnpack/config.json` and `e2b/vulkan/config.json` started as copies of
 `software-mansion/react-native-executorch-gemma-4-multimodal`'s own
-`e2b/<backend>/config.json`, vendored only to pin the contract. The published
-file is authoritative; corrections belong upstream, not here.
+`e2b/<backend>/config.json`. The published files disagree with what the recipes
+build, so they are vendored **corrected** — `skills/model-conventions` vendors a
+local config precisely when the HF one is wrong. The same fixes are still owed
+upstream.
 
-**Neither declares any I/O shapes.** All four methods appear as
-`{"inputs": [], "outputs": []}`, with a `_methods_needing_shapes` key listing
-exactly those four — an explicit upstream TODO. The harness therefore has no
-shape contract to verify a `.pte` against for either backend. The shapes the
-recipes actually produce are recorded below, so the information is not lost.
+- **All four methods now declare their I/O.** The published configs carry
+  `{"inputs": [], "outputs": []}` for `token_embedding`, `text_decoder`,
+  `vision_encoder` and `audio_encoder` — an explicit upstream TODO that left the
+  harness with no contract to verify a `.pte` against. The blocks here are
+  derived from the `torch.export` calls in `export/pipeline.py` and the wrapper
+  docstrings in `export/wrappers.py`, NOT read off a built `.pte`; re-check them
+  against `method_meta` on the next real export.
+- **`image_placeholder_id`** was `262145`, the UPSTREAM `gemma3n` id that
+  `MODEL_INTERFACE.md` says explicitly not to use; the local Gemma4 fork uses
+  **258880**. The published config mixed lineages — its `audio_placeholder_id`
+  (258881) was already the local-fork value. Since the config's constants are
+  what `HarnessRecipe` bakes into the `.pte`, this shipped a model that told the
+  runner to splice image tokens at a position the tokenizer never emits.
+- **`get_max_seq_len`** was `4048` on xnnpack (equal to `get_max_context_len`)
+  where the recipe's `text_decoder` bound is 1024, and the runner reads the key
+  as the per-call prefill chunk size. Now 1024 / 768 respectively.
+- **The audio keys were renamed** to the set `Recipe.constant_methods()` emits
+  (`audio_block_samples`, `audio_block_k_{min,max}`, `audio_sample_count_*`,
+  `audio_soft_tokens_max`). The xnnpack config used an older spelling
+  (`audio_block_frames`, `audio_blocks_max: 63`, ...) that `check_constants`
+  does not know, so those values passed unchecked — including the 63-vs-62
+  discrepancy `RECIPES.md` had already resolved to 62.
 
-Two constants disagree with the recipes:
+There is no `KNOWN_CONFIG_DEVIATIONS` allowlist any more: `check_constants`
+refuses any disagreement between config and recipe, because every declared
+value is baked into the `.pte` verbatim.
 
-- **`image_placeholder_id: 262145`** (both backends, and the mlx config too)
-  where the recipes use **258880**. `MODEL_INTERFACE.md` states 262145 is the
-  UPSTREAM `gemma3n` id and "do not use those". The published config is
-  internally inconsistent about this: its `audio_placeholder_id` (258881) IS
-  the local-fork value, so it mixes the two lineages.
-- **`get_max_seq_len: 4048` on xnnpack**, equal to `get_max_context_len`, where
-  the recipe's `text_decoder` bound is 1024 and the runner reads the key as the
-  per-call prefill chunk size. vulkan's 128 agrees with the recipe.
+## ⚠ No `schema.json` yet — the runtime cannot load these PTEs
 
-The xnnpack config also uses the **older audio key names** —
-`audio_block_frames`, `audio_blocks_max: 63`, `audio_blocks_min`,
-`audio_samples_per_block` — which have since been renamed, and 63 where
-`RECIPES.md` resolved the discrepancy to 62. Those old
-names are not in `check_constants`'s expectation set, so they pass unremarked;
-the vulkan config uses the current names correctly.
+Unlike gemma4 (text), this model ships no `schema.json` and bakes no
+`get_model_schema` constant method, because **its interchange dtypes cannot be
+expressed**. `token_embedding` emits `embeds` / `ple_tokens` as fp16,
+`text_decoder` consumes them as fp16 and returns fp16 logits, and the Vulkan
+`audio_encoder` deliberately casts its output to fp16 so the host splice into
+the decoder's fp16 buffer is a clean memcpy.
 
-Disagreements are named per export in `KNOWN_CONFIG_DEVIATIONS` with a
-justification and logged at WARNING every run; the `.pte` carries the config's
-value. Any other disagreement raises before the export starts.
+The react-native-executorch runtime supports exactly `{uint8, int32, int64,
+float32}`: the root `model.schema.json` DType enum has no `float16`, and
+`dtypeFromScalarType` (`cpp/core/dtype.cpp`) throws "Unsupported ScalarType" on
+`Half` — inside the `ModelHostObject` constructor, which walks every method. So
+these PTEs fail to LOAD, schema or no schema.
+
+Two ways forward, neither of them a config edit:
+
+1. Land fp16 in the runtime's `DType` enum + the schema's, or
+2. move the whole embeds/ple_tokens/logits interchange to fp32 — which doubles
+   those buffers and is a numerics change nobody has measured on device.
+
+Until one of them happens, the multimodal PTEs are exportable but not runnable
+under the current runtime. The text model is unaffected: its only tensor
+boundary is `tokens`/`input_pos` in, fp32 logits out.
 
 ## Shapes the recipes actually produce
 
-Not in either config (see above). Hidden 1536, layers 35, PLE dim 256, vocab
-262144; values are the dynamic dims' upper bounds.
+Now also declared in both configs (see above); this section is the derivation.
+Hidden 1536, layers 35, PLE dim 256, vocab 262144; values are the dynamic dims'
+upper bounds.
 
 **xnnpack** (`prefill_len` 1024, `text_decoder` bound 1024, `return_last_only`
 true, logits fp16):

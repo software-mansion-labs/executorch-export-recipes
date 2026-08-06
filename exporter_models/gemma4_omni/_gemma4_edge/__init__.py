@@ -1,10 +1,13 @@
 """Gemma 4 E2B edge port — model definition and ExecuTorch export machinery.
 
 Vendored per the harness convention that each model owns its code. The tree is
-byte-identical in `exporter_models/gemma4/` and `exporter_models/gemma4_omni/`;
-the text model does not use `model.vision` / `model.audio` / `model.mel_frontend`,
-but they are kept so `export/pipeline.py` and `export/wrappers.py` — which
-import them at module scope — stay unmodified across both copies.
+byte-identical in `exporter_models/gemma4/` and `exporter_models/gemma4_omni/`,
+and must stay that way — `diff -r` between the two copies is the only thing
+standing between "duplicated on purpose" and "forked by accident", and it has
+already drifted once (comments only). Under `gemma4/` the text recipes never
+touch `model.vision` / `model.audio` / `model.mel_frontend`, but they are kept
+so `export/pipeline.py` and `export/wrappers.py` — which import them at module
+scope — stay identical across both copies.
 
 This is a DIFFERENT port from the `_text_decoder/` (gemma4) and `_gemma4/`
 (gemma4_omni) trees that back the MLX backend: different class hierarchy,

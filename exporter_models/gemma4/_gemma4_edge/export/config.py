@@ -2,8 +2,9 @@
 
 A `Recipe` is the complete description of one export: which backend, which
 modalities, what quantisation, what sequence bounds, which attention flags.
-`presets.py` holds four of them, matching the four PTEs that have actually been
-built and shipped. The CLI resolves a preset and applies overrides on top.
+Each `<backend>/export.py` declares one as module-level constants (the four
+that have actually been built and shipped); `presets.py` was dropped when this
+tree was vendored into the harness.
 
 Everything here is a frozen dataclass, so a Recipe can be printed, diffed and
 compared. `Recipe.overridden(...)` returns a new Recipe rather than mutating.
@@ -251,7 +252,7 @@ class Recipe:
         limit. Setting `get_max_seq_len` to the graph's prefill bound is
         deliberate here: it makes the runner chunk at exactly the bound the
         graph accepts. The cost is that prompts are capped per call at that
-        value. See docs/RECIPES.md.
+        value. See the model's RECIPES.md.
         """
         cm = {
             "enable_dynamic_shape": True,
@@ -281,7 +282,7 @@ class Recipe:
         return cm
 
     def summary(self) -> str:
-        """Human-readable one-screen description, printed by the CLI."""
+        """Human-readable one-screen description, logged by `pipeline.export`."""
         L, Q, A = self.lengths, self.quant, self.attn
         tds = L.effective_text_decoder_prefill_len
         lines = [

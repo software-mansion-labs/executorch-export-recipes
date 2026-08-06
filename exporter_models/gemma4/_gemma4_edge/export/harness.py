@@ -18,14 +18,11 @@ from __future__ import annotations
 
 import dataclasses
 import glob
-import logging
 import os
 
 from .config import Recipe
 
 __all__ = ["HarnessRecipe", "check_constants", "resolve_checkpoint"]
-
-logger = logging.getLogger(__name__)
 
 # The public Gemma 4 E2B checkpoint. Hardcoded here rather than read from the
 # model config, per the convention that vendored code owns its source id.
@@ -108,22 +105,19 @@ def _graph_bound_expectations(recipe: Recipe) -> dict:
     return expected
 
 
-def check_constants(recipe: Recipe, known_deviations=frozenset()) -> None:
+def check_constants(recipe: Recipe) -> None:
     """Raise if the config's constants contradict the baked recipe.
 
     Only keys present in BOTH are compared, so a config may legitimately omit
     any of them; it may not declare one and mean something else by it.
 
-    `known_deviations` names keys where the published config is KNOWN to
-    disagree with the recipe and the config nevertheless wins (this repo's
-    configs are verbatim copies of the published ones). Those are logged at
-    WARNING and allowed; any OTHER disagreement still raises, so accidental
-    drift is still caught. Each caller must justify every key it lists.
-
-    Note what an allowed deviation means in practice: the value goes into the
-    .pte's `constant_methods`, so the artifact's metadata will describe
-    something the graph does not do. That is a deliberate choice to mirror the
-    published contract, not a safe default -- see the model's NOTES.md.
+    There is deliberately NO deviation allowlist. Every declared value is
+    written into the .pte's `constant_methods` verbatim, so tolerating a
+    disagreement ships an artifact whose metadata lies about its own graph: a
+    `get_max_seq_len` above the traced seq bound makes a runner overrun the
+    arena, and a wrong `image_placeholder_id` makes it splice image tokens at a
+    position the tokenizer never emits. When this raises, one of the two is
+    wrong -- fix it.
     """
     declared = recipe.constant_methods()
     if not declared:
@@ -138,22 +132,6 @@ def check_constants(recipe: Recipe, known_deviations=frozenset()) -> None:
         if key in declared and declared[key] != want
     }
 
-    for key in sorted(set(mismatched) & set(known_deviations)):
-        got, want = mismatched.pop(key)
-        logger.warning(
-            "%s: config.json declares %s=%r but the graph is built for %r. "
-            "Known published-config deviation, allowed on purpose -- the .pte's "
-            "metadata will carry the config's value. See NOTES.md.",
-            recipe.name, key, got, want,
-        )
-
-    unused = sorted(set(known_deviations) - set(_graph_bound_expectations(recipe)))
-    if unused:
-        logger.warning(
-            "%s: known_deviations lists %s, which are not checked constants -- "
-            "stale entry?", recipe.name, unused,
-        )
-
     if mismatched:
         detail = "; ".join(
             f"{k}: config says {got!r}, graph is built for {want!r}"
@@ -161,7 +139,6 @@ def check_constants(recipe: Recipe, known_deviations=frozenset()) -> None:
         )
         raise ValueError(
             f"config.json constants disagree with the {recipe.name!r} recipe -- "
-            f"{detail}. Fix whichever is wrong, or add the key to this export's "
-            f"KNOWN_CONFIG_DEVIATIONS with a justification; do not silently "
-            f"export a .pte whose metadata lies about its own graph."
+            f"{detail}. Fix whichever is wrong; do not export a .pte whose "
+            f"metadata lies about its own graph."
         )

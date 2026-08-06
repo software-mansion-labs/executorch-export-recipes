@@ -83,16 +83,6 @@ VULKAN_SDPA_TRANSFORM = True
 VULKAN_ROPE_TRANSFORM = True
 RETURN_LAST_ONLY = False
 
-# --- known config-vs-recipe disagreements -----------------------------------
-# `e2b/vulkan/config.json` is a VERBATIM copy of the published contract. Its
-# CONSTANTS happen to agree with this recipe exactly (get_max_seq_len 128,
-# get_max_context_len 2048), so nothing needs excusing here.
-#
-# Its declared SHAPES do not agree, but shapes are not checked by
-# check_constants: the published `forward` omits `input_pos` entirely and caps
-# the seq dim at 2048 where this graph is bounded at 128. See NOTES.md.
-KNOWN_CONFIG_DEVIATIONS = frozenset()
-
 
 def _load_edge():
     """Path-load the vendored `_gemma4_edge` package under `_EDGE_PKG`."""
@@ -113,6 +103,8 @@ def export(config: dict, out_dir: str) -> str:
     from executorch.runtime import Runtime  # noqa: F401
     import executorch.kernels.quantized  # noqa: F401
     import executorch.extension.llm.custom_ops.custom_ops  # noqa: F401
+
+    from exporter.schema import load_and_validate_schema
 
     _load_edge()
     edge_config = importlib.import_module(f"{_EDGE_PKG}.export.config")
@@ -162,11 +154,29 @@ def export(config: dict, out_dir: str) -> str:
         ),
         constants=dict(variant.get("constants", {})),
     )
-    harness.check_constants(recipe, KNOWN_CONFIG_DEVIATIONS)
+    harness.check_constants(recipe)
+
+    # The runtime I/O spec, baked into the .pte as `get_model_schema`. The
+    # rne-rewrite runtime parses it at load to learn the dynamic-dim domains
+    # and the tokens/input_pos equality constraint; without it every dim
+    # collapses to the compiled upper bound and a decode call at S=1 is
+    # rejected. Bounds are templated because they are per-backend.
+    schema_json = load_and_validate_schema(
+        _HERE.parent / "schema.json",
+        replacements={
+            "seq_max": str(PREFILL_LEN),
+            "vocab_size": str(variant["constants"]["get_vocab_size"]),
+        },
+    )
 
     checkpoint = harness.resolve_checkpoint()
     out_path = Path(out_dir) / variant["file"]
     logger.info("Gemma4 E2B text / vulkan / int4 from %s", checkpoint)
     return str(
-        pipeline.export(recipe, checkpoint=Path(checkpoint), out_path=out_path)
+        pipeline.export(
+            recipe,
+            checkpoint=Path(checkpoint),
+            out_path=out_path,
+            schema_json=schema_json,
+        )
     )

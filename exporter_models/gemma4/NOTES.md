@@ -44,7 +44,9 @@ diff -r exporter_models/gemma4/_gemma4_edge exporter_models/gemma4_omni/_gemma4_
 ```
 
 The encoder modules are therefore dead weight in this model dir. Keep the two
-copies in sync when changing either.
+copies in sync when changing either — the `diff -r` above must stay empty, and
+it is the only thing standing between "duplicated on purpose" and "forked by
+accident" (it had already drifted once, in comments only).
 
 **Consequence for dependencies:** `wrappers.py` imports `model.mel_frontend`,
 which imports `transformers.audio_utils` at module scope. The text export
@@ -71,43 +73,62 @@ keeps its applied-set and its saved originals in module globals; two live copies
 sharing one key would let patch P3's wrapping patch nest inside itself — the
 exact failure its idempotence guard exists to prevent.
 
-## The xnnpack / vulkan configs are VERBATIM copies of the published contract
+## The xnnpack / vulkan configs are CORRECTED copies of the published contract
 
-`e2b/xnnpack/config.json` and `e2b/vulkan/config.json` are byte-identical to
+`e2b/xnnpack/config.json` and `e2b/vulkan/config.json` started as copies of
 `software-mansion/react-native-executorch-gemma-4`'s own
-`e2b/<backend>/config.json`. They are vendored rather than fetched only so the
-contract is pinned to a known state — the published file is authoritative.
-Do not "fix" them here; corrections belong upstream.
+`e2b/<backend>/config.json`, but the published files disagree with what the
+recipes actually build, so they are vendored **corrected** — which is what
+`skills/model-conventions` asks for ("vendor a local config only when ... the
+HF config is wrong"). The published files still need the same fixes upstream.
 
-They disagree with what the recipes actually build, and that is recorded rather
-than resolved:
+What was corrected, and why each one matters rather than being cosmetic:
 
-| | published config | recipe builds |
+| | published | vendored here |
 |---|---|---|
 | `forward` inputs | `tokens` only | `tokens` + `input_pos` |
 | `forward` seq dim | `{"min": 1, "max": 2048}` | 1024 (xnnpack) / 128 (vulkan) |
-| logits dtype | float32 on both | float16 (xnnpack) / float32 (vulkan) |
+| logits dtype | float32 | float32 (the graph now emits fp32 too) |
 | `get_max_seq_len` | 4048 (xnnpack) | 1024 |
-| `get_max_seq_len` | 128 (vulkan) ✓ | 128 |
-| `get_max_context_len` | 4048 / 2048 ✓ | 4048 / 2048 |
+| `get_max_context_len` | 4048 / 2048 ✓ | unchanged |
 
-- **`input_pos` is missing** from the published `forward`. `pipeline.py:864`
-  traces that method with `(input_ids, input_pos)` and `use_kv_cache` is true —
-  a KV-cache decode loop cannot run without it. Treat the published shape block
-  as incomplete rather than as a different contract.
-- **`{"min": .., "max": ..}` shape dicts** are a spec-schema form this harness's
-  `spec.py` does not model (`IOTensor.shape` is `list[int]`, and `_io()` passes
-  the dict straight through). They load, but nothing reads them meaningfully.
-  Convention elsewhere in this repo is a concrete upper bound.
-- **`get_max_seq_len` = 4048 on xnnpack** equals `get_max_context_len`, while
-  the runner reads it as the PER-CALL PREFILL CHUNK SIZE (dropped rule R8). It
-  also exceeds the same config's own 2048 shape cap. A runner that chunks
-  prefill at 4048 will overrun this graph.
+- **`input_pos` was missing** from the published `forward`, which traces as
+  `(input_ids, input_pos)` with `use_kv_cache` true — a KV-cache decode loop
+  cannot run without it.
+- **The seq dim** was capped at 2048 where the graphs are bounded at 1024 and
+  128. `validateSpec` in the runtime rejects a declared bound above the
+  compiled one, so 2048 was not merely inaccurate.
+- **`get_max_seq_len` = 4048 on xnnpack** equalled `get_max_context_len`, while
+  the runner reads it as the PER-CALL PREFILL CHUNK SIZE (rule R8). A runner
+  chunking prefill at 4048 overruns this graph. It is now the graph's own
+  prefill bound.
 
-Constants that disagree are named per export in `KNOWN_CONFIG_DEVIATIONS` with
-a justification, logged at WARNING on every run, and allowed through — the
-`.pte` will carry the config's value. Any OTHER disagreement raises before the
-export starts, so accidental drift is still caught.
+Every declared constant is written into the `.pte` verbatim by
+`HarnessRecipe.constant_methods()`, so `harness.check_constants` refuses any
+disagreement with the recipe outright. There is no deviation allowlist: a
+tolerated mismatch ships an artifact whose metadata lies about its own graph.
+
+## `get_model_schema` — the runtime I/O contract
+
+`schema.json` at the model root is the spec the react-native-executorch runtime
+actually reads. Each `<backend>/export.py` runs it through
+`exporter.schema.load_and_validate_schema` (templated with that backend's
+`{seq_max}` and the config's `{vocab_size}`, validated inline against the repo
+root `model.schema.json`) and `pipeline.export` bakes the JSON into the `.pte`
+as the `get_model_schema` constant method.
+
+It carries what `config.json` cannot express to the runtime:
+
+- **Range dims.** Without the companion, `ModelHostObject` falls back to
+  `methodSpecFromMetadata`, where every dimension is the static compiled upper
+  bound — a decode call at S=1 against an S<=1024 graph is then rejected.
+- **An equality constraint** tying `tokens` dim 1, `input_pos` dim 0 and the
+  logits' seq dim together, which the runtime checks before every execution.
+
+**Only `float32` / `int64` / `int32` / `uint8` are expressible** — the schema's
+DType enum and the runtime's `dtypeFromScalarType` agree on exactly those four,
+and `Half` throws at load. That is why `LOGITS_DTYPE` is fp32 here (see the
+note in `xnnpack/export.py`) and why gemma4_omni ships no `schema.json` yet.
 
 ## Rules the dropped validator used to enforce
 

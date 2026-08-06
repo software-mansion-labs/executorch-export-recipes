@@ -47,7 +47,18 @@ PLE_EMBEDDING_BITS = 4
 PLE_EMBEDDING_GROUP_SIZE = 32
 BASE_DTYPE = torch.float16
 FP16_RETARGET = False
-LOGITS_DTYPE = torch.float16
+# fp32, not the recipe's original fp16. The react-native-executorch runtime
+# supports exactly {uint8, int32, int64, float32}: `dtypeFromScalarType`
+# (cpp/core/dtype.cpp) throws "Unsupported ScalarType" on Half, and it runs
+# inside the ModelHostObject constructor over EVERY method, so an fp16 output
+# makes the whole .pte fail to LOAD rather than degrading anything.
+#
+# COST, not measured on device: with `RETURN_LAST_ONLY = False` the logits are
+# [1, S, 262144], so at S=1024 this takes that buffer from ~512 MB to ~1 GB of
+# arena. If it does not fit, the fix is `RETURN_LAST_ONLY = True` (logits
+# become [1, 1, 262144]) together with a runner that stops slicing the last
+# position itself — a runner-contract change, so not made here.
+LOGITS_DTYPE = torch.float32
 
 # --- sequence bounds --------------------------------------------------------
 # The activation ARENA is sized by PREFILL_LEN, not by MAX_SEQ_LEN; MAX_SEQ_LEN
@@ -74,19 +85,6 @@ INT8_KV_CACHE = True
 RING_KV_CACHE = True
 RETURN_LAST_ONLY = False
 
-# --- known config-vs-recipe disagreements -----------------------------------
-# `e2b/xnnpack/config.json` is a VERBATIM copy of the published contract, which
-# does not everywhere agree with this recipe. Keys listed here are allowed to
-# differ (logged at WARNING); anything else still raises.
-#
-#   get_max_seq_len   config 4048, recipe 1024. The published config sets it
-#                     equal to get_max_context_len, whereas the runner reads it
-#                     as the PER-CALL PREFILL CHUNK SIZE (see MODEL_INTERFACE.md
-#                     and dropped rule R8). Note the published config's own
-#                     `forward` shape caps the seq dim at 2048, so 4048 does not
-#                     agree with that either. A runner that chunks prefill at
-#                     4048 will overrun this graph.
-KNOWN_CONFIG_DEVIATIONS = frozenset({"get_max_seq_len"})
 
 
 def _load_edge():
@@ -112,6 +110,8 @@ def export(config: dict, out_dir: str) -> str:
     from executorch.runtime import Runtime  # noqa: F401
     import executorch.kernels.quantized  # noqa: F401
     import executorch.extension.llm.custom_ops.custom_ops  # noqa: F401
+
+    from exporter.schema import load_and_validate_schema
 
     _load_edge()
     edge_config = importlib.import_module(f"{_EDGE_PKG}.export.config")
@@ -160,11 +160,29 @@ def export(config: dict, out_dir: str) -> str:
         # truth; `check_constants` refuses a config that contradicts the graph.
         constants=dict(variant.get("constants", {})),
     )
-    harness.check_constants(recipe, KNOWN_CONFIG_DEVIATIONS)
+    harness.check_constants(recipe)
+
+    # The runtime I/O spec, baked into the .pte as `get_model_schema`. The
+    # rne-rewrite runtime parses it at load to learn the dynamic-dim domains
+    # and the tokens/input_pos equality constraint; without it every dim
+    # collapses to the compiled upper bound and a decode call at S=1 is
+    # rejected. Bounds are templated because they are per-backend.
+    schema_json = load_and_validate_schema(
+        _HERE.parent / "schema.json",
+        replacements={
+            "seq_max": str(PREFILL_LEN),
+            "vocab_size": str(variant["constants"]["get_vocab_size"]),
+        },
+    )
 
     checkpoint = harness.resolve_checkpoint()
     out_path = Path(out_dir) / variant["file"]
     logger.info("Gemma4 E2B text / xnnpack / int4 from %s", checkpoint)
     return str(
-        pipeline.export(recipe, checkpoint=Path(checkpoint), out_path=out_path)
+        pipeline.export(
+            recipe,
+            checkpoint=Path(checkpoint),
+            out_path=out_path,
+            schema_json=schema_json,
+        )
     )

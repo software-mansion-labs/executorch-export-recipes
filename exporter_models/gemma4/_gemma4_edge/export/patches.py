@@ -6,7 +6,7 @@ Every patch here is a narrow, Python-only workaround for something upstream
 recipes use. None of them changes model numerics — each is either an identity
 under the PTE's input contract or a pure export-plumbing fix.
 
-The source recipes ran all six unconditionally at module-import scope, so
+The source recipes ran all of them unconditionally at module-import scope, so
 merely importing an export script mutated the PyTorch/ExecuTorch/transformers
 process state. Here each one is behind a keyword flag on `apply_patches()`
 and is idempotent, so importing this module does nothing at all.
@@ -45,11 +45,16 @@ _applied: set[str] = set()
 # Saved originals, so the wrapping patches can be reasoned about (and, in
 # principle, undone). Populated on first application only.
 _orig_dim_order_from_stride: Optional[Callable[..., Any]] = None
-_orig_remove_noop_call: Optional[Callable[..., Any]] = None
 
 # Public patch names, in the order `apply_patches` evaluates them.
+#
+# P2 (`remove_noop_symint_output`) is GONE: it replaced `RemoveNoopPass.call`
+# with a copy that also gated on OUTPUT-shape staticness, and ExecuTorch 1.3.1
+# ships exactly that gate — `exir/passes/remove_noop_pass.py` checks both
+# `orig_tensor` and `output_tensor` before comparing shapes, naming the
+# `.item()` case in a comment. Keeping the patch would overwrite upstream's
+# version with a frozen copy.
 P1_ATEN_ITEM_DECOMP = "aten_item_decomp"
-P2_REMOVE_NOOP_SYMINT = "remove_noop_symint_output"
 P3_DIM_ORDER_SYMINT = "dim_order_symint"
 P4_AUDIO_BLOCKED_5D_MASK = "audio_blocked_5d_mask"
 P5_PATCH_EMBEDDER_WHERE = "patch_embedder_where"
@@ -57,14 +62,14 @@ P6_VISION_CUSTOM_SDPA = "vision_custom_sdpa"
 
 
 # ---------------------------------------------------------------------------
-# P1-P3 — unbacked-SymInt survival for `use_dynamic_kv_slice`.
+# P1 / P3 — unbacked-SymInt survival for `use_dynamic_kv_slice`.
 #
 # `Gemma4Attention.use_dynamic_kv_slice` calls `.item()` on `input_pos[-1]` so
 # the global (full-attention) layers can slice K/V and the static mask down to
 # `effective_len = input_pos[-1] + 1` before SDPA, turning an O(max_seq_len)
-# scan into O(N+1). That `.item()` introduces an *unbacked* SymInt, and three
-# edge-lowering stages were written assuming static shapes and trip guards on
-# that symbol. All three patches below are narrow, Python-only workarounds.
+# scan into O(N+1). That `.item()` introduces an *unbacked* SymInt, and the
+# edge-lowering stages below were written assuming static shapes and trip
+# guards on that symbol. Both patches are narrow, Python-only workarounds.
 #
 # They are imported lazily so that importing this module costs nothing and has
 # no side effects — `torch._decomp` and `executorch.exir` are both expensive.
@@ -86,69 +91,6 @@ def _p1_remove_aten_item_decomp() -> bool:
 
     _decomp_table.pop(torch.ops.aten.item.default, None)
     _applied.add(P1_ATEN_ITEM_DECOMP)
-    return True
-
-
-def _p2_remove_noop_symint_output() -> bool:
-    """Replace `RemoveNoopPass.call` so it also checks OUTPUT-shape staticness.
-
-    Upstream compares `orig_tensor.shape == out_val.shape` for `slice_copy`
-    after only checking that the *input* shape is static; with an unbacked
-    SymInt in the output shape the tuple-equality compare raises. The body
-    below is upstream's `call` with the extra `out_val` staticness gate added
-    to the `slice_copy.Tensor` branch.
-
-    NOTE: this is a full replacement, not a delegating wrapper — the original
-    body is copied. If ExecuTorch's `remove_noop_pass` changes upstream, this
-    copy silently goes stale and must be re-synced.
-    """
-    global _orig_remove_noop_call
-    if P2_REMOVE_NOOP_SYMINT in _applied:
-        return False
-
-    import torch
-    from executorch.exir.pass_base import PassResult as _PassResult
-    from executorch.exir.passes import remove_noop_pass as _noop_mod
-    from executorch.exir.passes.remove_noop_pass import _DEQUANT_OPS, eliminate_dq_q
-
-    def _patched_noop_call(self, graph_module):
-        dequant_nodes = []
-        for node in graph_module.graph.nodes:
-            if node.op != "call_function":
-                continue
-            if node.target not in (
-                torch.ops.aten.to.dtype,
-                torch.ops.aten.dropout.default,
-                torch.ops.aten.slice_copy.Tensor,
-            ):
-                continue
-            orig_tensor = node.args[0].meta["val"]
-            if orig_tensor is node.meta["val"]:
-                if node.args[0].target in _DEQUANT_OPS:
-                    dequant_nodes += [node.args[0]]
-                node.replace_all_uses_with(node.args[0])
-                continue
-            if node.target == torch.ops.aten.slice_copy.Tensor:
-                out_val = node.meta["val"]
-                # The added gate: upstream only guards on `orig_tensor`, so an
-                # unbacked SymInt in the OUTPUT shape reaches the `==` compare.
-                if (
-                    all(isinstance(d, int) for d in orig_tensor.size())
-                    and all(isinstance(d, int) for d in out_val.size())
-                ):
-                    if orig_tensor.shape == out_val.shape:
-                        if node.args[0].target in _DEQUANT_OPS:
-                            dequant_nodes += [node.args[0]]
-                        node.replace_all_uses_with(node.args[0])
-        graph_module.graph.eliminate_dead_code()
-        eliminate_dq_q(graph_module, dequant_nodes)
-        graph_module.graph.lint()
-        graph_module.graph.eliminate_dead_code()
-        return _PassResult(graph_module, True)
-
-    _orig_remove_noop_call = _noop_mod.RemoveNoopPass.call
-    _noop_mod.RemoveNoopPass.call = _patched_noop_call
-    _applied.add(P2_REMOVE_NOOP_SYMINT)
     return True
 
 
@@ -377,7 +319,7 @@ def apply_patches(
     value is "what changed on this call", not "what is active".
 
     Args:
-        dynamic_kv_slice: Enables P1+P2+P3, the unbacked-SymInt trio. Required
+        dynamic_kv_slice: Enables P1+P3, the unbacked-SymInt pair. Required
             whenever `Gemma4Attention.use_dynamic_kv_slice = True`; harmless
             otherwise, but leave it off so a static-shape recipe fails loudly
             instead of silently relying on patched lowering.
@@ -387,7 +329,7 @@ def apply_patches(
         patch_embedder_where: Enables P5. HuggingFace vision tower only.
 
     Ordering constraint: P5/P6 patch classes, not instances, so they may be
-    applied at any point before the vision module is traced. P1-P3 mutate the
+    applied at any point before the vision module is traced. P1/P3 mutate the
     decomposition table and edge-lowering passes, so they must be applied
     before `to_edge_transform_and_lower` — applying them at the top of an
     export script is the safe habit.
@@ -397,8 +339,6 @@ def apply_patches(
     if dynamic_kv_slice:
         if _p1_remove_aten_item_decomp():
             applied.append(P1_ATEN_ITEM_DECOMP)
-        if _p2_remove_noop_symint_output():
-            applied.append(P2_REMOVE_NOOP_SYMINT)
         if _p3_dim_order_symint():
             applied.append(P3_DIM_ORDER_SYMINT)
 

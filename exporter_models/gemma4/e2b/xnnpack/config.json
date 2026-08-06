@@ -22,7 +22,7 @@
           50
         ],
         "get_max_context_len": 4048,
-        "get_max_seq_len": 4048,
+        "get_max_seq_len": 1024,
         "get_vocab_size": 262144,
         "use_kv_cache": true,
         "forward": {
@@ -33,7 +33,17 @@
                 1,
                 {
                   "min": 1,
-                  "max": 2048
+                  "max": 1024
+                }
+              ],
+              "dtype": "int64"
+            },
+            {
+              "name": "input_pos",
+              "shape": [
+                {
+                  "min": 1,
+                  "max": 1024
                 }
               ],
               "dtype": "int64"
@@ -46,7 +56,7 @@
                 1,
                 {
                   "min": 1,
-                  "max": 2048
+                  "max": 1024
                 },
                 262144
               ],

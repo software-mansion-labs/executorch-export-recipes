@@ -45,8 +45,12 @@ NUM_KV_SHARED_LAYERS = 20
 MAX_SEQ_LEN = 2048
 # token_embedding must cover the whole multimodal id sequence.
 PREFILL_LEN = 2048
-# 128 = the shipping bound, which is BELOW the 744 audio / 280 vision
-# soft tokens the encoders emit. See the module docstring. 768 is the fix.
+# 128 is DELIBERATE, and raising it is not the fix — see NOTES.md, "The vulkan
+# backend requires a CHUNKING runner". The Vulkan text_decoder garbles whenever
+# a single execute() carries seq_len >= 129, so 128 is the largest bound that
+# never trips that cliff; the encoders' 280 / 744 soft tokens are the RUNNER's
+# problem to chunk. `wrappers.py` and `RECIPES.md` still call 768 "the fix";
+# that attribution predates the cliff finding and NOTES.md supersedes it.
 TEXT_DECODER_PREFILL_LEN = 128
 
 # --- vision -----------------------------------------------------------------
@@ -79,19 +83,6 @@ RING_KV_CACHE = False
 VULKAN_SDPA_TRANSFORM = True
 VULKAN_ROPE_TRANSFORM = True
 RETURN_LAST_ONLY = False
-
-# --- known config-vs-recipe disagreements -----------------------------------
-# `e2b/vulkan/config.json` is a VERBATIM copy of the published contract. Its
-# sequence bounds agree with this recipe (get_max_seq_len 128 == the shipping
-# text_decoder bound, get_max_context_len 2048), as do every audio_* key.
-#
-#   image_placeholder_id  config 262145, recipe 258880. 262145 is the UPSTREAM
-#                         gemma3n id; MODEL_INTERFACE.md says the local Gemma4
-#                         fork uses 258880 and "do not use those". The published
-#                         config is internally inconsistent here, since its
-#                         audio_placeholder_id (258881) IS the local fork value.
-KNOWN_CONFIG_DEVIATIONS = frozenset({"image_placeholder_id"})
-
 
 def _load_edge():
     """Path-load the vendored `_gemma4_edge` package under `_EDGE_PKG`."""
@@ -173,7 +164,7 @@ def export(config: dict, out_dir: str) -> str:
         ),
         constants=dict(variant.get("constants", {})),
     )
-    harness.check_constants(recipe, KNOWN_CONFIG_DEVIATIONS)
+    harness.check_constants(recipe)
 
     soft_tokens = max(MAX_SOFT_TOKENS, AUDIO_SOFT_TOKENS_MAX)
     if TEXT_DECODER_PREFILL_LEN < soft_tokens:

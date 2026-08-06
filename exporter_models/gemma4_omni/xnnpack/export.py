@@ -92,23 +92,6 @@ INT8_KV_CACHE = True
 RING_KV_CACHE = True
 RETURN_LAST_ONLY = True
 
-# --- known config-vs-recipe disagreements -----------------------------------
-# `e2b/xnnpack/config.json` is a VERBATIM copy of the published contract, which
-# disagrees with this recipe in two places. Both are allowed (logged at
-# WARNING); anything else still raises.
-#
-#   get_max_seq_len       config 4048, recipe 1024. The published config sets it
-#                         equal to get_max_context_len, but the runner reads it
-#                         as the PER-CALL PREFILL CHUNK SIZE. A runner chunking
-#                         at 4048 overruns this graph's 1024 text_decoder bound.
-#   image_placeholder_id  config 262145, recipe 258880. 262145 is the UPSTREAM
-#                         gemma3n id; MODEL_INTERFACE.md says the local Gemma4
-#                         fork uses 258880 and "do not use those". The published
-#                         config is internally inconsistent here, since its
-#                         audio_placeholder_id (258881) IS the local fork value.
-KNOWN_CONFIG_DEVIATIONS = frozenset({"get_max_seq_len", "image_placeholder_id"})
-
-
 def _load_edge():
     """Path-load the vendored `_gemma4_edge` package under `_EDGE_PKG`."""
     if _EDGE_PKG in sys.modules:
@@ -190,7 +173,7 @@ def export(config: dict, out_dir: str) -> str:
         ),
         constants=dict(variant.get("constants", {})),
     )
-    harness.check_constants(recipe, KNOWN_CONFIG_DEVIATIONS)
+    harness.check_constants(recipe)
 
     checkpoint = harness.resolve_checkpoint()
     out_path = Path(out_dir) / variant["file"]
