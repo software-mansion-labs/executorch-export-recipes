@@ -9,21 +9,22 @@ not optional).
 REQUIRES PATCHED VULKAN KERNELS, from:
 
     software-mansion-labs/executorch
-    branch @mkopcins/gemma4
-    commit 0b7564fac554ab5fcb15bc12d03c607c21f11679   ("gemma4 vulkan support")
+    branch @ms/separate-backends          (ET 1.3.1 -- the SAME branch mlx uses)
+    verified at 2daed17d827b7d7cc2f61d44dc20794c81d8da94
 
 They are NOT vendored here: the softmax max-subtraction fix, the gelu/tanh fp16
 clamp, `GemmaSDPA.cpp` implementing `et_vk::gemma_sdpa_with_kv_cache` and
-`et_vk::gemma_custom_sdpa`, and several `resize_fn` fixes for dynamic shapes.
-Export and runtime must come from the same tree state -- a PTE built against
-one set of shaders and run against another produces gibberish at runtime, not
-an error, and that is the first thing to check when on-device output is
-nonsense.
+`et_vk::gemma_custom_sdpa`, the `op_registry.py` entries the partitioner needs,
+and several `resize_fn` fixes for dynamic shapes. Export and runtime must come
+from the same tree state -- a PTE built against one set of shaders and run
+against another produces gibberish at runtime, not an error, and that is the
+first thing to check when on-device output is nonsense.
 
-VERSION MISMATCH, UNRESOLVED: that branch is ExecuTorch **1.2.0a0**, while this
-model's pyproject, the MLX fork branch (`@ms/separate-backends`) and the rest of
-the repo are on **1.3.1**. The Vulkan recipe therefore cannot be built from the
-same tree as its siblings today. See NOTES.md, "Backend prerequisites".
+The kernels originated on the fork's `@mkopcins/gemma4` branch (ET 1.2.0a0) and
+were ADAPTED onto 1.3.1, not copied: the tile loaders gained a `D` argument and
+the shaders now declare `Q_LAYOUT/K_LAYOUT DHSB`. The on-device validation this
+recipe claims was measured against the 1.2 shaders -- re-run the smoke test
+before trusting those numbers. See NOTES.md, "Backend prerequisites".
 
 Two settings that look like bugs and are not:
 

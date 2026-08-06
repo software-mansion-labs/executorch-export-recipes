@@ -147,22 +147,27 @@ note in `xnnpack/export.py`) and why gemma4_omni ships no `schema.json` yet.
 ## Backend prerequisites
 
 - **vulkan** depends on patched `backends/vulkan/` kernels — the softmax
-  max-subtraction fix, the gelu/tanh fp16 clamp, `GemmaSDPA.cpp` implementing
-  the two `et_vk::` ops, and several `resize_fn` fixes. They are NOT vendored
-  here; they live in the software-mansion-labs/executorch fork on branch
-  `@mkopcins/gemma4`, at `0b7564fac554ab5fcb15bc12d03c607c21f11679`
-  ("gemma4 vulkan support"). A PTE exported against one set of shaders and run
-  against another produces gibberish at runtime, not an error — check this
-  first when on-device output is nonsense.
+  max-subtraction fix, the gelu/tanh fp16 clamp (both to −10/10),
+  `GemmaSDPA.cpp` implementing the two `et_vk::` ops, the `op_registry.py`
+  entries that let the partitioner claim them, and several `resize_fn` fixes.
+  They are NOT vendored here: they live in the software-mansion-labs/executorch
+  fork on branch `@ms/separate-backends` — **the same branch mlx already uses**,
+  pinned in `pyproject.toml`. Verified present at
+  `2daed17d827b7d7cc2f61d44dc20794c81d8da94` (ET 1.3.1).
 
-  **That branch is ExecuTorch 1.2.0a0, not 1.3.1** (`version.txt`). Every other
-  backend in this repo, this model's `pyproject.toml`, and the MLX fork branch
-  `@ms/separate-backends` are all on 1.3.1. So the Vulkan recipe cannot
-  currently be built from the same tree as the others: either the kernels get
-  forward-ported onto 1.3.1, or the Vulkan export is knowingly run in a 1.2
-  environment whose torch pin does not match this pyproject. Unresolved.
-- **mlx** needs executorch built from the same fork, branch
-  `@ms/separate-backends` (ET 1.3.1).
+  A PTE exported against one set of shaders and run against another produces
+  gibberish at runtime, not an error — check this first when on-device output
+  is nonsense.
+
+  The kernels originated on the fork's `@mkopcins/gemma4` branch, which is ET
+  **1.2.0a0**, and were **adapted rather than copied** onto 1.3.1: the shaders
+  there call `load_{q_projected,k_cache}_tile_with_checks` with an extra `D`
+  argument and `#define Q_LAYOUT/K_LAYOUT DHSB`, matching 1.3.1's tile-load
+  helpers. That is a semantic change to the attention shaders, so the
+  on-device validation recorded for these recipes was done against the 1.2
+  shaders, not these — re-run the on-device smoke before trusting the numbers.
+- **mlx** needs executorch built from the same fork and the same branch,
+  `@ms/separate-backends` (ET 1.3.1), version-locked to the MLX runtime.
 
 ## Export settings are the on-device-tested invocations
 

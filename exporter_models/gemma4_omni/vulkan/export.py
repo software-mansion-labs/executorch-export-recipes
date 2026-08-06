@@ -12,15 +12,14 @@
 REQUIRES PATCHED VULKAN KERNELS, from:
 
     software-mansion-labs/executorch
-    branch @mkopcins/gemma4
-    commit 0b7564fac554ab5fcb15bc12d03c607c21f11679   ("gemma4 vulkan support")
+    branch @ms/separate-backends          (ET 1.3.1 -- the SAME branch mlx uses)
+    verified at 2daed17d827b7d7cc2f61d44dc20794c81d8da94
 
 Not vendored here. Export and runtime must come from the same tree state -- a
-mismatch gives gibberish at runtime, not an error.
-
-VERSION MISMATCH, UNRESOLVED: that branch is ExecuTorch **1.2.0a0**, while this
-model's pyproject, the MLX fork branch (`@ms/separate-backends`) and the rest of
-the repo are on **1.3.1**. See NOTES.md, "Backend prerequisites".
+mismatch gives gibberish at runtime, not an error. The kernels came from the
+fork's `@mkopcins/gemma4` branch (ET 1.2.0a0) and were adapted onto 1.3.1
+rather than copied, so re-run the on-device smoke. See NOTES.md, "Backend
+prerequisites".
 """
 import importlib
 import importlib.util
@@ -96,6 +95,7 @@ RING_KV_CACHE = False
 VULKAN_SDPA_TRANSFORM = True
 VULKAN_ROPE_TRANSFORM = True
 RETURN_LAST_ONLY = False
+
 
 def _load_edge():
     """Path-load the vendored `_gemma4_edge` package under `_EDGE_PKG`."""

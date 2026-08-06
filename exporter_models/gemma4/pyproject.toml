@@ -5,20 +5,19 @@
 #   - mlx     -> the software-mansion-labs fork, branch @ms/separate-backends,
 #                version-locked to the MLX runtime.
 #   - vulkan  -> patched backends/vulkan/ kernels (softmax max-subtraction,
-#                gelu/tanh fp16 clamp, GemmaSDPA.cpp, resize_fn fixes) from the
-#                SAME fork, branch @mkopcins/gemma4, commit
-#                0b7564fac554ab5fcb15bc12d03c607c21f11679. Not vendored here.
+#                gelu/tanh fp16 clamp, GemmaSDPA.cpp, resize_fn fixes) -- the
+#                SAME branch as mlx, which already carries them forward-ported
+#                onto 1.3.1. Not vendored here.
 #   - xnnpack -> would be wheel-installable on its own, but shares the tree.
 # Run these exports in the ET-source dev env. The published .pte ships on HF.
 # This file records the pinned intent + fork source.
 #
-# ONE SOURCE PIN CANNOT SERVE BOTH FORK BRANCHES. `[tool.uv.sources]` names
-# @ms/separate-backends (ET 1.3.1, what MLX is version-locked to), but the
-# Vulkan kernels live on @mkopcins/gemma4, which is ET **1.2.0a0**. The torch
-# pin below is the 1.3.1-matched nightly, so it does not match that branch
-# either. Building the Vulkan recipe today means checking out @mkopcins/gemma4
-# by hand with its own torch; the real fix is forward-porting those kernels
-# onto 1.3.1. See NOTES.md, "Backend prerequisites".
+# One source pin serves all three backends: @ms/separate-backends is ET 1.3.1
+# and holds the Gemma Vulkan kernels as well as the MLX runtime lock, so it
+# matches the torch nightly pinned below. The kernels originated on the fork's
+# @mkopcins/gemma4 branch (ET 1.2.0a0) and were adapted, not copied -- the tile
+# loaders there take an extra D argument and declare DHSB Q/K layout. See
+# NOTES.md, "Backend prerequisites".
 #
 # CAVEAT: the pins below are the MLX-verified stack. The xnnpack and vulkan
 # recipes were validated on a DIFFERENT one -- python

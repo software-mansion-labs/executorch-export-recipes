@@ -92,6 +92,7 @@ INT8_KV_CACHE = True
 RING_KV_CACHE = True
 RETURN_LAST_ONLY = True
 
+
 def _load_edge():
     """Path-load the vendored `_gemma4_edge` package under `_EDGE_PKG`."""
     if _EDGE_PKG in sys.modules:
