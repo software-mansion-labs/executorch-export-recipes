@@ -131,19 +131,36 @@ build, so they are vendored **corrected** — `skills/model-conventions` vendors
 local config precisely when the HF one is wrong. The same fixes are still owed
 upstream.
 
-- **All four methods now declare their I/O.** The published configs carry
-  `{"inputs": [], "outputs": []}` for `token_embedding`, `text_decoder`,
-  `vision_encoder` and `audio_encoder` — an explicit upstream TODO that left the
-  harness with no contract to verify a `.pte` against. The blocks here are
-  derived from the `torch.export` calls in `export/pipeline.py` and the wrapper
-  docstrings in `export/wrappers.py`, NOT read off a built `.pte`; re-check them
-  against `method_meta` on the next real export.
+- **All four methods now declare their I/O**, verified against the published
+  `.pte`s. The published configs carry `{"inputs": [], "outputs": []}` for
+  `token_embedding`, `text_decoder`, `vision_encoder` and `audio_encoder` — an
+  explicit upstream TODO that left the harness with no contract to check a
+  `.pte` against.
+
+  The blocks here were first derived from the `torch.export` calls in
+  `export/pipeline.py`, then checked against the real artifacts on HF by
+  parsing their flatbuffer program directly. Only the first ~1.5 MB of a `.pte`
+  is the program; the GBs after it are weight segments, so a ranged fetch is
+  enough — no full download, no ExecuTorch runtime, no checkpoint. The vulkan
+  config now matches its artifact on every method and every constant. That pass
+  also caught a real error in the derivation: `vision_encoder`'s second output
+  `ple_tokens` is **float16**, not float32 like the `embeds` beside it.
+
+  The xnnpack artifact currently on HF is an **older k_max=63 build** — its
+  `audio_encoder` is `[1, 483840] -> [1, 756, 1536]` (7680·63, 12·63), with the
+  pre-rename audio keys. Both recipes here say `AUDIO_K_MAX = 62`, so the config
+  describes what a fresh export produces (`[1, 476160] -> [1, 744, …]`), not
+  what is published today. Re-exporting resolves the difference.
 - **`image_placeholder_id`** was `262145`, the UPSTREAM `gemma3n` id that
   `MODEL_INTERFACE.md` says explicitly not to use; the local Gemma4 fork uses
   **258880**. The published config mixed lineages — its `audio_placeholder_id`
-  (258881) was already the local-fork value. Since the config's constants are
-  what `HarnessRecipe` bakes into the `.pte`, this shipped a model that told the
-  runner to splice image tokens at a position the tokenizer never emits.
+  (258881) was already the local-fork value. Both published `.pte`s in fact
+  carry `image_placeholder_id = 258880` — the **artifact was right and the
+  config was wrong**. And 262145 is not merely the wrong lineage: the shipped
+  `e2b/tokenizer.json` has exactly 262144 entries, so that id is outside the
+  vocabulary altogether and matches no token at all. (258880/258881 are
+  `<|image|>` / `<|audio|>`; `get_bos_id: 2` and `get_eos_ids: [1, 106, 50]`
+  check out against the same tokenizer.)
 - **`get_max_seq_len`** was `4048` on xnnpack (equal to `get_max_context_len`)
   where the recipe's `text_decoder` bound is 1024, and the runner reads the key
   as the per-call prefill chunk size. Now 1024 / 768 respectively.

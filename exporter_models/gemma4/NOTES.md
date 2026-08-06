@@ -103,6 +103,16 @@ What was corrected, and why each one matters rather than being cosmetic:
   chunking prefill at 4048 overruns this graph. It is now the graph's own
   prefill bound.
 
+All of the above was **checked against the published `.pte`s** by parsing their
+flatbuffer program — a ranged fetch of the first few MB, since the program is
+~1.4 MB and the GBs after it are weight segments. The shipped xnnpack artifact
+really is `forward(int64[1,1024], int64[1024]) -> float16[1,1024,262144]`
+carrying `get_max_seq_len = 4048`: `input_pos` was missing from the published
+config, the 2048 seq cap was wrong, and the artifact's own metadata contradicts
+its graph. The vulkan config matches its artifact exactly. The one intended
+divergence is the xnnpack logits dtype — fp32 here, fp16 in the artifact
+published before this change.
+
 Every declared constant is written into the `.pte` verbatim by
 `HarnessRecipe.constant_methods()`, so `harness.check_constants` refuses any
 disagreement with the recipe outright. There is no deviation allowlist: a
