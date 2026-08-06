@@ -1,5 +1,5 @@
 {
-  "hf": "https://huggingface.co/software-mansion/react-native-executorch-paddleocr-doc-helpers",
+  "hf": "https://huggingface.co/software-mansion/react-native-executorch-paddle-helpers",
   "license": "apache-2.0",
   "config": "{backend}/config.json",
   "extras": [

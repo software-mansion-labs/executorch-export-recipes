@@ -61,30 +61,6 @@
               "dtype": "float32"
             }
           ]
-        },
-        "get_dynamic_dims_detect": {
-          "inputs": [],
-          "outputs": [
-            {
-              "shape": [
-                4,
-                3
-              ],
-              "dtype": "int32"
-            }
-          ]
-        },
-        "get_dynamic_dims_recognize": {
-          "inputs": [],
-          "outputs": [
-            {
-              "shape": [
-                4,
-                3
-              ],
-              "dtype": "int32"
-            }
-          ]
         }
       }
     }

@@ -61,30 +61,6 @@
               "dtype": "float32"
             }
           ]
-        },
-        "detect_enum_shapes": {
-          "inputs": [],
-          "outputs": [
-            {
-              "shape": [
-                4,
-                4
-              ],
-              "dtype": "int32"
-            }
-          ]
-        },
-        "recognize_enum_shapes": {
-          "inputs": [],
-          "outputs": [
-            {
-              "shape": [
-                5,
-                4
-              ],
-              "dtype": "int32"
-            }
-          ]
         }
       }
     }

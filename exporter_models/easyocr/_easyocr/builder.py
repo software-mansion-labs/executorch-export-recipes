@@ -1,25 +1,28 @@
 """EasyOCR (CRAFT detector + per-language CRNN recognizer) — fused DYNAMIC exporter.
 
-Builds ONE fused .pte per backend + language: a true-dynamic `detect` (CRAFT) with a
-`get_dynamic_dims_detect` companion (no-arg method returning one int32 [rank, 3]
-tensor per tensor input, rows [min, max, step]; static dims [n, n, 1]) plus a
-fixed-width `recognize` (CRNN) declared via a `recognize_enum_shapes` constant —
-the CRNN's BiLSTM cannot be dynamic on CPU/ANE (symbolic T -> torch.scan -> portable
+Builds ONE fused .pte per backend + language: `detect` (CRAFT) + fixed-width
+`recognize` (CRNN), plus the model-wide `get_model_schema` constant method — a
+no-arg method returning ONE JSON ModelSpec string (see model.schema.json). Only
+`detect` appears in the JSON; the all-static `recognize` falls back to MethodMeta.
+The CRNN's BiLSTM cannot be dynamic on CPU/ANE (symbolic T -> torch.scan -> portable
 ~15s; concrete T -> nn.LSTM unrolls into matmuls that fully delegate), so the C++
 snaps every crop to the baked width.
 
-  CRAFT (detect)  [1,3,H,W] f32 [0,1] RGB -> ([1,H/2,W/2,2] score, [1,32,H/2,W/2] feat)
-                  H,W dynamic, step 32 — per-backend band (see companion):
-                  xnnpack [320, 800] both dims; vulkan H [800, 1280], W [320, 1280]
-                  (ImageNet norm BAKED -> runtime feeds raw [0,1] RGB; unifies w/ DBNet)
-  CRNN  (recognize) [1,3,64,512] f32 RGB  -> [1, 127, V] probs, ONE fixed width
+  CRAFT (detect)  [1,3,H,W] f32, ImageNet-NORMALIZED RGB (client computes
+                  (x/255 - mean)/std; NOTHING baked)
+                  -> [1,H/2,W/2,2] score NHWC (heatmap ONLY; RefineNet feat dropped)
+                  H,W dynamic, step 32 — per-backend band (see get_model_schema):
+                  xnnpack [320, 1280] both dims (accurate <=800, best-effort above);
+                  vulkan H [800, 1280], W [320, 1280]; coreml enumerated sparse set
+  CRNN  (recognize) [1,3,64,512] f32 RGB, client norm (x/255 - 0.5)/0.5 as always
+                  -> [1, 127, V] probs, ONE fixed width
                   (RGB->gray 1x1 conv + softmax BAKED -> same contract as SVTR)
 
 Per-backend precision + delegate (fixed; no knob):
-  xnnpack : detect NARROW-BAND static-act int8 dynamic [320,800] (qs8 chains =
-            bucketed-class speed; norm folded into conv1) + recognize int8 @512.
-  coreml  : ENUMERATED detect (weight-only int8, fp16 ANE) + recognize static @512;
-            enum_shapes constants, no companions (no RangeDim on CoreML).
+  xnnpack : detect static-act int8 dynamic [320,1280], calib <=800 (qs8 chains =
+            bucketed-class speed) + recognize int8 @512.
+  coreml  : ENUMERATED GRID detect (weight-only int8, fp16 ANE) + recognize @512
+            static (no RangeDim on CoreML; per-dim enum == grid).
   vulkan  : MIXED — detect Vulkan fp16 dynamic via resize (fp32 graph + force_fp16;
             int8 q8ta cannot resize) + recognize int8 on XNNPACK @512.
 
@@ -54,7 +57,9 @@ DET_W_MIN, DET_W_MAX = 320, 1280
 # class speed (S24 811ms@800² vs bucketed 731ms; qd8 alt: correct@1280 but 1296ms).
 DET_XNN_MIN, DET_XNN_MAX = 320, 1280
 DET_XNN_BAND = [(640, 640), (736, 736), (800, 800), (800, 320), (320, 800)]  # calib
-CRAFT_SHAPES = [(800, 800), (1280, 1280), (1280, 320)]   # (H, W) CoreML enumerated set
+# CoreML enumerated det = the full DET_CML_SIZES x DET_CML_SIZES grid (per-dim enum
+# in get_model_schema implies dim independence).
+DET_CML_SIZES = [320, 800, 1280]
 CRNN_H = 64
 CRNN_FIXED_W = 512   # recognize width, all backends (max bucket = no truncation)
 CRAFT_DIV, CRNN_DIV = 32, 4                               # spatial divisors
@@ -76,47 +81,27 @@ def load_crnn(lang):
     return m.eval()
 
 
-# ── unified-contract bakes ──
+# ── recognizer bakes (detector norm is CLIENT-SIDE — nothing baked in `detect`) ──
 IMAGENET_MEAN = [0.485, 0.456, 0.406]
 IMAGENET_STD = [0.229, 0.224, 0.225]
+# `detect` expects an ALREADY-NORMALIZED float32 [1,3,H,W] RGB input: the client
+# computes (x/255 - mean)/std per channel (standard ImageNet stats above). No norm
+# wrapper or weight-fold is baked. (Historical note: an in-graph broadcast sub/div
+# norm in front of a quantize convert trips an ET XNNPACK delegate bug —
+# xnn_reshape_runtime xnn_status_invalid_parameter — which is why the previous
+# baked-norm contract needed a conv1 weight-fold; client-side norm avoids it all.)
 
 
-class DetNorm(nn.Module):
-    """Bake CRAFT's ImageNet norm INTO the graph so the runtime feeds raw [0,1] RGB
-    (no client norm) — converges the detector input contract with PaddleOCR's DBNet."""
-    def __init__(self, m, mean=IMAGENET_MEAN, std=IMAGENET_STD):
+class DetectY(nn.Module):
+    """CRAFT's forward returns (y, feature); the [1,32,H/2,W/2] RefineNet feature
+    map is consumed by nothing on-device — export ONLY the detection heatmap
+    y [1,H/2,W/2,2] (region + affinity, NHWC)."""
+    def __init__(self, m):
         super().__init__()
         self.m = m
-        self.register_buffer("mean", torch.tensor(mean).view(1, -1, 1, 1))
-        self.register_buffer("std", torch.tensor(std).view(1, -1, 1, 1))
 
     def forward(self, x):
-        return self.m((x - self.mean) / self.std)
-
-
-def fold_detnorm_into_conv1(craft, mean=IMAGENET_MEAN, std=IMAGENET_STD):
-    """Fold (x-mean)/std into CRAFT's first conv IN PLACE — exact algebra, same [0,1]
-    RGB runtime contract as DetNorm, but no sub/div ops in the graph.
-
-    Required for the XNNPACK qd8 path: a qd8 dynamic-quantize convert whose input is
-    produced INSIDE the delegate blob (here the broadcast sub/div) fails
-    xnn_reshape_runtime with xnn_status_invalid_parameter on every execute; feeding
-    the convert straight from the graph input sidesteps it (ET delegate bug).
-
-      W'[o,c,:,:] = W[o,c,:,:] / std_c
-      b'[o]       = b[o] - sum_c,kh,kw W[o,c,kh,kw] * mean_c / std_c
-    """
-    conv = craft.basenet.slice1[0]
-    assert isinstance(conv, nn.Conv2d) and conv.in_channels == 3, conv
-    m = torch.tensor(mean).view(1, 3, 1, 1)
-    s = torch.tensor(std).view(1, 3, 1, 1)
-    with torch.no_grad():
-        w = conv.weight.data
-        boff = (w * (m / s)).sum(dim=(1, 2, 3))
-        conv.weight.data = w / s
-        conv.bias = (nn.Parameter(-boff) if conv.bias is None
-                     else nn.Parameter(conv.bias.data - boff))
-    return craft
+        return self.m(x)[0]
 
 
 class UnifiedCRNN(nn.Module):
@@ -159,7 +144,12 @@ def crnn_calib(widths):
 
 
 def craft_calib(shapes):
+    """Real-page calibration in the detector's input domain: ImageNet-normalized
+    RGB — the client applies (x/255 - mean)/std, nothing is baked in the graph."""
     import cv2
+    import numpy as np
+    mean = np.array(IMAGENET_MEAN, np.float32).reshape(1, 1, 3)
+    std = np.array(IMAGENET_STD, np.float32).reshape(1, 1, 3)
     out = {}
     for (h, w) in shapes:
         xs = []
@@ -169,12 +159,13 @@ def craft_calib(shapes):
             if img is None:
                 continue
             r = cv2.cvtColor(cv2.resize(img, (w, h)), cv2.COLOR_BGR2RGB).astype("float32") / 255.0
-            xs.append(torch.from_numpy(r.transpose(2, 0, 1)[None].copy()))   # [0,1] — ImageNet norm baked
-        out[(h, w)] = xs or [torch.rand(1, 3, h, w) for _ in range(8)]
+            r = (r - mean) / std
+            xs.append(torch.from_numpy(r.transpose(2, 0, 1)[None].copy()))
+        out[(h, w)] = xs or [torch.randn(1, 3, h, w) for _ in range(8)]
     return out
 
 
-# ── dynamic dims + companion ──
+# ── dynamic dims + schema ──
 def _det_dyn():
     """(dynamic_shapes dict, example (H,W)) for the symbolic CRAFT export."""
     h = Dim("det_h", min=DET_H_MIN // CRAFT_DIV, max=DET_H_MAX // CRAFT_DIV)
@@ -182,29 +173,54 @@ def _det_dyn():
     return {2: CRAFT_DIV * h, 3: CRAFT_DIV * w}, (DET_H_MAX, DET_W_MAX)
 
 
-def det_companion(h_bounds=(DET_H_MIN, DET_H_MAX), w_bounds=(DET_W_MIN, DET_W_MAX)):
-    """get_dynamic_dims_detect: int32 [4,3] rows [min,max,step] for the CRAFT input.
-    Bounds are per-backend: XNNPACK ships the narrow [320,800] band, Vulkan the full
-    [800..1280 x 320..1280] range."""
-    from exporter.dynamic_dims import build_dynamic_dims_program
-    rows = [[1, 1, 1], [3, 3, 1],
-            [h_bounds[0], h_bounds[1], CRAFT_DIV], [w_bounds[0], w_bounds[1], CRAFT_DIV]]
-    return {"get_dynamic_dims_detect": build_dynamic_dims_program([rows])}
+def _C(v): return {"kind": "constant", "value": v}
+def _R(lo, hi, step): return {"kind": "range", "range": {"min": lo, "max": hi, "step": step}}
+def _E(choices): return {"kind": "enum", "choices": list(choices)}
+def _T(dims): return {"kind": "Tensor", "dtype": "float32", "shape": dims}
+
+
+def _validate(spec):
+    """Inline validation against the repo root model.schema.json (same check as
+    exporter.schema.load_and_validate_schema, for programmatic specs)."""
+    import jsonschema
+    from exporter.schema import _ROOT_SCHEMA_PATH
+    jsonschema.validate(spec, json.loads(_ROOT_SCHEMA_PATH.read_text()))
+
+
+def model_schema(backend):
+    """JSON ModelSpec baked as the `get_model_schema` constant method. Only `detect`
+    appears: `recognize` is all-static [1,3,64,512] and falls back to MethodMeta.
+    Per-dim enum implies dim independence -> the CoreML det set is the full grid."""
+    if backend == "coreml":
+        hw = _E(DET_CML_SIZES)
+        out_hw = _E(sorted(v // 2 for v in DET_CML_SIZES))
+        h, w, oh, ow = hw, hw, out_hw, out_hw
+    else:
+        h_lo = DET_XNN_MIN if backend == "xnnpack" else DET_H_MIN
+        h = _R(h_lo, 1280, CRAFT_DIV)
+        w = _R(DET_W_MIN if backend == "vulkan" else DET_XNN_MIN, 1280, CRAFT_DIV)
+        oh = _R(h["range"]["min"] // 2, 640, CRAFT_DIV // 2)
+        ow = _R(w["range"]["min"] // 2, 640, CRAFT_DIV // 2)
+    spec = {
+        "detect": {"inputs": [_T([_C(1), _C(3), h, w])],
+                   "outputs": [_T([_C(1), oh, ow, _C(2)])],
+                   "runtimeConstraints": []},
+    }
+    _validate(spec)
+    return json.dumps(spec)
 
 
 # ── per-stage export-program builders ──
 def build_detect_dynamic(precision):
-    """ONE symbolic-dim `detect` ep.
+    """ONE symbolic-dim `detect` ep over RAW CRAFT (input is client-normalized).
 
-    int8 (XNNPACK) = NARROW-BAND static-act int8: dims in [320, 800], calibrated on
-    real pages at DET_XNN_BAND sizes, norm FOLDED into conv1 (a qd8/quantize convert
-    fed by in-blob sub/div fails xnn_reshape_runtime; the fold also serves qs8 by
-    keeping the input observer on the raw [0,1] image). qs8 int8-int8 chains run at
-    bucketed-class speed — vs qd8 (1.6x slower) or fp32 (5x, and fp16 is fake on
-    XNNPACK: fp32-sized AND fp32-speed).
+    int8 (XNNPACK) = static-act int8 over [320, 1280], calibrated on real pages
+    (ImageNet-normalized domain) at DET_XNN_BAND sizes — accurate <=800, best-effort
+    above. qs8 int8-int8 chains run at bucketed-class speed — vs qd8 (1.6x slower)
+    or fp32 (5x, and fp16 is fake on XNNPACK: fp32-sized AND fp32-speed).
 
-    fp32 (Vulkan) = plain graph with DetNorm baked over the full [800..1280 x
-    320..1280] range (fp16 via force_fp16 resizes losslessly; never .half())."""
+    fp32 (Vulkan) = plain graph over the full [800..1280 x 320..1280] range
+    (fp16 via force_fp16 resizes losslessly; never .half())."""
     if precision == "int8":
         h = Dim("det_h", min=DET_XNN_MIN // CRAFT_DIV, max=DET_XNN_MAX // CRAFT_DIV)
         w = Dim("det_w", min=DET_XNN_MIN // CRAFT_DIV, max=DET_XNN_MAX // CRAFT_DIV)
@@ -212,20 +228,24 @@ def build_detect_dynamic(precision):
         cmap = craft_calib(DET_XNN_BAND)
         cal = [x for s in DET_XNN_BAND for x in cmap[s][:4]]
         return xnnpack.pt2e_int8(
-            fold_detnorm_into_conv1(load_craft(dynamic=True)).eval(),
+            DetectY(load_craft(dynamic=True)).eval(),
             (torch.randn(1, 3, DET_XNN_MAX, DET_XNN_MAX),), cal,
             is_per_channel=True, dynamic_shapes=dims)
     dims, example = _det_dyn()
-    return te(DetNorm(load_craft(dynamic=True)), (torch.randn(1, 3, *example),),
+    return te(DetectY(load_craft(dynamic=True)), (torch.randn(1, 3, *example),),
               dynamic_shapes=({**dims},), strict=False)
 
 
 def build_detect_enumerated():
-    """(ep, enum shape list) for CoreML: symbolic CRAFT + concrete enumerated shapes."""
-    dims, example = _det_dyn()
-    ep = te(DetNorm(load_craft(dynamic=True)), (torch.randn(1, 3, *example),),
+    """(ep, enum shape list) for CoreML: symbolic RAW CRAFT over [320,1280]² + the
+    full grid of concrete shapes."""
+    lo, hi = DET_CML_SIZES[0], DET_CML_SIZES[-1]
+    h = Dim("det_h", min=lo // CRAFT_DIV, max=hi // CRAFT_DIV)
+    w = Dim("det_w", min=lo // CRAFT_DIV, max=hi // CRAFT_DIV)
+    dims = {2: CRAFT_DIV * h, 3: CRAFT_DIV * w}
+    ep = te(DetectY(load_craft(dynamic=True)), (torch.randn(1, 3, hi, hi),),
             dynamic_shapes=({**dims},), strict=False)
-    return ep, [[1, 3, h, w] for (h, w) in CRAFT_SHAPES]
+    return ep, [[1, 3, h_, w_] for h_ in DET_CML_SIZES for w_ in DET_CML_SIZES]
 
 
 def build_recognize_fixed(lang, w, *, int8):
@@ -235,11 +255,6 @@ def build_recognize_fixed(lang, w, *, int8):
             lambda: UnifiedCRNN(load_crnn(lang)),
             (torch.randn(1, 3, CRNN_H, w),), crnn_calib([w])[w], is_per_channel=True)
     return te(UnifiedCRNN(load_crnn(lang)), (torch.randn(1, 3, CRNN_H, w),), strict=False)
-
-
-def _rec_enum(ep, w):
-    """enum_map entry declaring the baked recognize width for the runtime snap."""
-    return {ep.graph_signature.user_inputs[0]: [[1, 3, CRNN_H, w]]}
 
 
 def emit_charset(lang, out_path):
@@ -268,27 +283,27 @@ def build_and_lower(backend, lang, out_path):
     if backend == "xnnpack":
         # detect narrow-band int8 dynamic + recognize static int8 per-channel @512.
         rec = build_recognize_fixed(lang, CRNN_FIXED_W, int8=True)
-        eps = {"detect": build_detect_dynamic("int8"), "recognize": rec,
-               **det_companion(h_bounds=(DET_XNN_MIN, DET_XNN_MAX),
-                               w_bounds=(DET_XNN_MIN, DET_XNN_MAX))}
+        eps = {"detect": build_detect_dynamic("int8"), "recognize": rec}
         path = lower_save(eps, [xnnpack.partitioner()], out_path,
                           transform_passes=[xnnpack.InsertContig()],
-                          enum_map={"recognize": _rec_enum(rec, CRNN_FIXED_W)}, width=24)
+                          extra_constants={"get_model_schema": model_schema(backend)},
+                          width=24)
 
     elif backend == "coreml":
-        # ENUMERATED detect (weight-only int8, fp16 ANE, full-graph) + static
-        # recognize @512; enum_shapes constants drive the runtime snap for both.
+        # ENUMERATED-GRID detect (weight-only int8, fp16 ANE, full-graph) + static
+        # recognize @512; discovery via the get_model_schema JSON constant.
         det_ep, det_shapes = build_detect_enumerated()
         rec_ep = build_recognize_fixed(lang, CRNN_FIXED_W, int8=False)
         eps = {"detect": det_ep, "recognize": rec_ep}
-        enum_map = {"detect": {det_ep.graph_signature.user_inputs[0]: det_shapes},
-                    "recognize": _rec_enum(rec_ep, CRNN_FIXED_W)}
+        spec_map = {det_ep.graph_signature.user_inputs[0]: det_shapes}
         parts = {"detect": [coreml.partitioner(
                      "fp16", quantize="int8", lower_full_graph=True,
-                     extra_specs=[coreml.enumerated_spec(det_ep, enum_map["detect"])])],
+                     extra_specs=[coreml.enumerated_spec(det_ep, spec_map)])],
                  "recognize": [coreml.partitioner("fp16", quantize="int8",
                                                   lower_full_graph=False)]}
-        path = lower_save(eps, parts, out_path, enum_map=enum_map, width=24)
+        path = lower_save(eps, parts, out_path,
+                          extra_constants={"get_model_schema": model_schema(backend)},
+                          width=24)
 
     elif backend == "vulkan":
         # MIXED-delegate: detect Vulkan fp16 dynamic via resize (int8 q8ta cannot
@@ -298,13 +313,13 @@ def build_and_lower(backend, lang, out_path):
         # portable upsample splits detect into ~4 blobs of GPU<->CPU round-trips.
         vulkan.patch_upsample_resize()
         rec = build_recognize_fixed(lang, CRNN_FIXED_W, int8=True)
-        eps = {"detect": build_detect_dynamic("fp32"), "recognize": rec,
-               **det_companion()}
-        parts = {"detect": [vulkan.partitioner(True)]}
-        parts.update({n: [xnnpack.partitioner()] for n in eps if n != "detect"})
+        eps = {"detect": build_detect_dynamic("fp32"), "recognize": rec}
+        parts = {"detect": [vulkan.partitioner(True)],
+                 "recognize": [xnnpack.partitioner()]}
         path = lower_save(eps, parts, out_path,
                           transform_passes=[xnnpack.InsertContig()],
-                          enum_map={"recognize": _rec_enum(rec, CRNN_FIXED_W)}, width=24)
+                          extra_constants={"get_model_schema": model_schema(backend)},
+                          width=24)
 
     else:
         raise ValueError(f"unknown backend '{backend}'")

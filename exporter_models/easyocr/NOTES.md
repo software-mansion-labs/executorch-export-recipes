@@ -2,14 +2,22 @@
 
 Fused **CRAFT detector + CRNN recognizer** OCR. ONE PTE per (language, backend):
 
-- `detect [1,3,H,W]` — **true-dynamic**: H in `[800, 1280]`, W in `[320, 1280]`,
-  step 32 (CRAFT /32), with a `get_dynamic_dims_detect` companion (no-arg method
-  returning `int32 [4, 3]` rows `[min, max, step]`; static dims `[n, n, 1]`).
-  CoreML has no RangeDim → enumerated (800²/1280²/1280×320) + a
-  `detect_enum_shapes` constant (`int32 [3, 4]` NCHW) instead of the companion.
+- `detect [1,3,H,W]` — **dynamic** on XNNPACK/Vulkan, step 32, with a
+  `get_dynamic_dims_detect` companion (no-arg, `int32 [4, 3]` rows
+  `[min, max, step]`; static dims `[n, n, 1]`). Per-backend bands: XNNPACK H,W
+  `[320, 1280]` (accurate ≤800, best-effort above — see table), Vulkan H
+  `[800, 1280]`, W `[320, 1280]`. CoreML has no RangeDim → **enumerated** over
+  the curated set (800², 1280², 1280×320) with the MIRROR companion
+  `get_enum_shapes_detect` (`int32 [3, 4]`, full shape rows — cross-dim coupling
+  preserved: 1280×320 legal, 320×1280 not).
 - `recognize [1,3,64,512]` — ONE **fixed width** (512 on all backends), declared
-  via a `recognize_enum_shapes` constant (`int32 [1, 4]`); the C++ snaps every
-  crop to it. The CRNN's BiLSTM cannot be dynamic on CPU/ANE (see below).
+  via `get_enum_shapes_recognize` (`int32 [1, 4]` = `[[1,3,64,512]]`) on every
+  backend; the C++ snaps every crop to 512. The CRNN's BiLSTM cannot be dynamic
+  on CPU/ANE (see below).
+  Discovery protocol (exclusive-or per method): probe `get_dynamic_dims_<m>`,
+  else `get_enum_shapes_<m>`. Legacy `*_enum_shapes` constants are GONE.
+  CoreML: ANE steady-state detect ~83ms, recognize ~27ms (Mac M-ANE); first-ever
+  device load pays one-time per-shape specialization — warm once after install.
 
 This **supersedes** the old split `easyocr/craft` + `easyocr/crnn` stubs — the
 fused, per-language model is canonical. EasyOCR is the *fast fallback*
@@ -54,17 +62,20 @@ list) beside the PTE, sourced from the installed `easyocr` package
 best-effort — V (above) is hardcoded in `_easyocr/weights.py`, so the PTE never
 depends on the `easyocr` package.
 
-## Baked unified runtime contract
+## Runtime input/output contract
 
-- **Detector** — CRAFT's ImageNet norm (`mean=[0.485,0.456,0.406]`,
-  `std=[0.229,0.224,0.225]`) is BAKED (`DetNorm`), so the runtime feeds raw
-  `[0,1]` RGB — same input contract as PaddleOCR's DBNet. Output is a tuple:
-  score `[1,H/2,W/2,2]` (region+affinity) and feature `[1,32,H/2,W/2]`.
-  NOTE: the original `export_easyocr.py` omitted `DetNorm` on the *vulkan*
-  CRAFT branch; here it is baked on all three backends for contract consistency.
-- **Recognizer** — a fixed RGB→gray 1×1 conv (cv2 weights `0.299/0.587/0.114`) +
-  output softmax are BAKED (`UnifiedCRNN`), so the CRNN takes `[1,3,64,W]` RGB and
-  emits `[1,T,V]` **probs** — same contract as SVTR. Lossless (gray weights sum to
+- **Detector input norm is CLIENT-SIDE**: `detect` expects an ALREADY-NORMALIZED
+  float32 `[1,3,H,W]` RGB input — the client computes `(x/255 − mean)/std` with
+  standard ImageNet stats (`mean=[0.485,0.456,0.406]`, `std=[0.229,0.224,0.225]`;
+  same client preproc as PaddleOCR's DBNet). Nothing is baked in the graph.
+  Output is a tuple: score `[1,H/2,W/2,2]` NHWC (region+affinity) and feature
+  `[1,32,H/2,W/2]`. (Historical: an in-graph broadcast norm in front of a
+  quantize convert trips an ET XNNPACK delegate bug — that era needed a conv1
+  weight-fold; client-side norm sidesteps the whole class.)
+- **Recognizer (unchanged)** — a fixed RGB→gray 1×1 conv (cv2 weights
+  `0.299/0.587/0.114`) + output softmax are BAKED (`UnifiedCRNN`), so the CRNN
+  takes `[1,3,64,W]` RGB and emits `[1,T,V]` **probs** — same contract as SVTR.
+  Client applies `(x/255 − 0.5)/0.5`, as always. Lossless (gray weights sum to
   1, commute with the `(x-0.5)/0.5` norm, reproduce cv2 grayscale to ~3e-9).
 
 ## CRNN time dim / unrolling / scan
@@ -79,7 +90,7 @@ delegate op), but the shipped fixed-width recognizer does not use it.
 
 | backend | CRAFT detect | CRNN recognize @512 | notes |
 |---|---|---|---|
-| xnnpack | **static-act int8** dynamic, H,W ∈ [320, 1280], calibrated at ≤800 only (norm folded into conv1) | int8 static (per-channel, real-img calib) | all XNNPACK CPU. Static int8 scales hold in the ≤800 band (corr 0.970–0.9997, 4 imgs × 5 shapes) — **above ~800 is BEST-EFFORT by deliberate decision** (~0.55–0.97 content-dependent at 1280²; no calibration fixes it, and both the OG dynamic AND the old bucketed detect_1280 were equally broken there, measured on the shipped artifacts). qs8 chains = bucketed-class speed: S24 detect warm **811ms@800² / 513@640² / 336@320×800 / ~2100@1280²** (bucketed 731ms; qd8 alt — correct@1280 — was 1296ms; fp16/fp32 are 2106/4214ms, fp16 is fake on XNNPACK). Norm fold dodges an ET delegate bug (quantize convert fed by in-blob sub/div fails xnn_reshape_runtime). The qd8 machinery (is_relu_node annotate patch, exclude_modules) stays in backends/xnnpack.py — flip to qd8 if correct 1280 CPU detect ever matters more than 485ms. |
+| xnnpack | **static-act int8** dynamic, H,W ∈ [320, 1280], calibrated at ≤800 only (raw CRAFT — norm is client-side) | int8 static (per-channel, real-img calib) | all XNNPACK CPU. Static int8 scales hold in the ≤800 band (corr 0.92–0.9997, 4 imgs × 4 shapes in the client-norm domain; min = one extreme 800×320 landscape strip — the ImageNet-normalized input range quantizes the input observer coarser than the old baked-norm [0,1] domain; squares/portraits ≥0.97) — **above ~800 is BEST-EFFORT by deliberate decision** (~0.55–0.97 content-dependent at 1280²; no calibration fixes it, and both the OG dynamic AND the old bucketed detect_1280 were equally broken there, measured on the shipped artifacts). qs8 chains = bucketed-class speed: S24 detect warm **811ms@800² / 513@640² / 336@320×800 / ~2100@1280²** (bucketed 731ms; qd8 alt — correct@1280 — was 1296ms; fp16/fp32 are 2106/4214ms, fp16 is fake on XNNPACK). Client-side norm keeps the graph free of the in-blob sub/div that trips an ET delegate bug (quantize convert fed by broadcast ops fails xnn_reshape_runtime). The qd8 machinery (is_relu_node annotate patch, exclude_modules) stays in backends/xnnpack.py — flip to qd8 if correct 1280 CPU detect ever matters more than 485ms. |
 | coreml  | weight-only int8, enumerated | weight-only int8, static | fp16 compute (ANE); detect full-graph (enumerated requires it). |
 | vulkan  | fp16 dynamic via resize (**Vulkan** GPU) | int8 (**XNNPACK** CPU) | MIXED-delegate. int8 q8ta cannot resize → the dynamic contract forces fp16 (fp32 graph + `force_fp16`; the old static q8ta int8 was smaller+faster but rigid). CRNN BiLSTM won't delegate to Vulkan → XNNPACK. `texture_limits=(2048,2048,2048)` (Xclipse 3D-texture cap). |
 

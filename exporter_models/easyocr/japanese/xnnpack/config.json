@@ -36,15 +36,6 @@
                 2
               ],
               "dtype": "float32"
-            },
-            {
-              "shape": [
-                1,
-                32,
-                640,
-                640
-              ],
-              "dtype": "float32"
             }
           ]
         },
@@ -68,30 +59,6 @@
                 2215
               ],
               "dtype": "float32"
-            }
-          ]
-        },
-        "recognize_enum_shapes": {
-          "inputs": [],
-          "outputs": [
-            {
-              "shape": [
-                1,
-                4
-              ],
-              "dtype": "int32"
-            }
-          ]
-        },
-        "get_dynamic_dims_detect": {
-          "inputs": [],
-          "outputs": [
-            {
-              "shape": [
-                4,
-                3
-              ],
-              "dtype": "int32"
             }
           ]
         }

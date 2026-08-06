@@ -32,7 +32,8 @@ measured **on-device** via `runner_dump_arm64`; XNNPACK measured locally (same P
 |---|---|---|---|
 | bucketed static int8 (rigid) | 731ms | ~21MB | broken @1280 bucket |
 | full-qd8 dynamic | 943ms | 20.8MB | broken @1280² (0.70) |
-| **qd8, conv1_1/1_2+cls fp32 (ships)** | **1296ms** | 21MB | ≥0.982 everywhere |
+| qd8, conv1_1/1_2+cls fp32 (in-tree alt) | 1296ms | 21MB | ≥0.982 everywhere |
+| **wide static int8, calib ≤800 (ships)** | **811ms** | 21MB | ≥0.97 ≤800; best-effort above |
 | fp16 dynamic | 2106ms | 83MB | ~1.0 |
 | fp32 dynamic | 4214ms | 83MB | 1.0 |
 
@@ -59,3 +60,22 @@ slower. fp16 is fake on XNNPACK (fp32-sized blob, fp32 speed).
 
 Caveat: accuracy = prob-map parity on 2 images; the definitive word would be a box-level
 end-to-end eval, but 0.57–0.71-corr maps do not produce usable boxes under any postproc.
+
+## Addendum: get_enum_shapes companions + curated CoreML sets (2026-07-13, later)
+
+Discovery contract is now EXCLUSIVE-OR per method:
+
+- dynamic method -> `get_dynamic_dims_<m>`: no-arg, one int32 [rank, 3] tensor per
+  tensor input, rows [min, max, step] (static dims [n, n, 1]).
+- enumerated/static method -> `get_enum_shapes_<m>`: no-arg, one int32 [N, rank]
+  tensor per tensor input, each row a FULL legal shape — cross-dim coupling is
+  preserved ({640x640, 1280x640} does not admit 640x1280), which min/max/step
+  cannot express. The legacy `<m>_enum_shapes` / `enum_shapes` constants are gone.
+
+Placement: PP xnn/vulkan detect+recognize -> dynamic companions; PP coreml ->
+enum companions over the curated sets (det 640/960/1280 sq + 1280x640, rec widths
+160/320/480/640/1280); easyocr detect -> dynamic on xnn/vulkan, enum (800^2,
+1280^2, 1280x320) on coreml; easyocr recognize -> enum [[1,3,64,512]] everywhere.
+Sparse sets keep the once-per-device ANE first-load specialization at the old
+(pre-grid) cost. Mac-ANE steady state measured unchanged vs the original sparse
+builds (PP det 12-15ms / rec ~2ms; easy det ~83ms / rec ~27ms; loads unchanged).

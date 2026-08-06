@@ -9,10 +9,18 @@ Fused detect + recognize OCR. One PTE per backend with **true-dynamic** methods:
   rows `[min, max, step]` (static dims `[n, n, 1]`) — the runtime validation
   contract (`exporter.dynamic_dims.build_dynamic_dims_program`).
 
-CoreML has no RangeDim, so it ships the same two methods **enumerated** (detect:
-640/960/1280 square + 1280×640 portrait; recognize: widths 160–1280) with
-`detect_enum_shapes` / `recognize_enum_shapes` constants (`int32 [N, 4]` NCHW)
-instead of companions — the C++ snaps to the nearest enumerated shape.
+CoreML has no RangeDim, so it ships the same two methods **enumerated** over the
+curated sparse sets (detect: 640/960/1280 square + 1280×640 portrait; recognize:
+widths 160/320/480/640/1280) and exposes the MIRROR companion
+**`get_enum_shapes_<method>`** — no-arg, one `int32 [N, rank]` tensor per tensor
+input, each row a FULL legal shape. Full rows preserve cross-dim coupling
+(1280×640 legal ≠ 640×1280 legal), which `[min,max,step]` cannot express.
+Discovery protocol (exclusive-or per method): `get_dynamic_dims_<m>` present →
+dynamic, validate bounds; else `get_enum_shapes_<m>` present → snap to the
+nearest legal row. The legacy `<method>_enum_shapes`/`enum_shapes` constants are
+GONE. ANE: detect 12–15ms, recognize ~2ms warm (Mac M-ANE); first-ever device
+load pays a one-time per-shape ANE specialization (OS-cached) — warm once after
+install.
 
 ## Prerequisites
 
@@ -24,12 +32,15 @@ instead of companions — the C++ snaps to the nearest enumerated shape.
 - `extras`: `quant` (torchao PT2E for the XNNPACK detector int8), `coreml`
   (coremltools).
 
-## Baked into the graph (the unified runtime contract)
+## Runtime input/output contract
 
-- **Detector input norm** — standard ImageNet on RGB (`mean=[0.485,0.456,0.406]`,
-  `std=[0.229,0.224,0.225]`), baked. Runtime feeds raw `[0,1]` RGB. (This is the
-  same norm as CRAFT, so the detector input unifies across PaddleOCR + EasyOCR.
-  The old `(x-0.5)/0.5` was the *recognizer's* norm — wrong for detect.)
+- **Detector input norm is CLIENT-SIDE**: `detect` expects an ALREADY-NORMALIZED
+  float32 `[1,3,H,W]` RGB input — the client computes `(x/255 − mean)/std` per
+  channel with standard ImageNet stats (`mean=[0.485,0.456,0.406]`,
+  `std=[0.229,0.224,0.225]`; same stats as CRAFT, so client preproc unifies
+  across PaddleOCR + EasyOCR). Nothing is baked in the graph. Beware: the
+  `(x-0.5)/0.5` norm is the *recognizer's* — wrong for detect.
+- **Recognizer input** — client applies `(x/255 − 0.5)/0.5`, as always.
 - **DBNet** emits probabilities (sigmoid already in the head); **SVTR** emits
   probs `[1,T,V]` (softmax in the head). `charset[i]` → logit `i+1`, blank = 0.
 

@@ -1,5 +1,5 @@
 {
-  "hf": "https://huggingface.co/software-mansion/react-native-executorch-easyocr",
+  "hf": "https://huggingface.co/software-mansion/react-native-executorch-easy-ocr",
   "license": "apache-2.0",
   "config": "{size}/{backend}/config.json",
   "sizes": [
