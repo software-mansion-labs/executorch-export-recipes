@@ -314,7 +314,10 @@ def build_and_lower(backend, out_path):
 
     parts = partitioner if isinstance(partitioner, list) else [partitioner]
     print("[3/3] lower + serialize...")
+    # get_model_schema: single fixed-shape forward -> empty ModelSpec (MethodMeta
+    # fallback covers it).
     out = _lower_save({"forward": ep}, parts, out_path, transform_passes=passes,
                       compile_config=cc,
+                      extra_constants={"get_model_schema": "{}"},
                       memory_planning=MemoryPlanningPass(alloc_graph_input=False), width=10)
     return out

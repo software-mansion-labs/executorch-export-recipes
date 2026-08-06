@@ -78,4 +78,7 @@ def build_and_lower(backend, out_path):
     precision = DEFAULT_PRECISION[backend]
     print(f"[build] fused helpers ({backend}/{precision}): {'+'.join(helpers.METHODS)}", flush=True)
     programs = build_programs(backend, precision)
-    return _lower_save(programs, partitioners(backend, precision, programs), out_path, width=18)
+    # get_model_schema: all methods are fixed-shape -> empty ModelSpec, every
+    # method falls back to ExecuTorch MethodMeta (all dims constant).
+    return _lower_save(programs, partitioners(backend, precision, programs), out_path,
+                       extra_constants={"get_model_schema": "{}"}, width=18)
