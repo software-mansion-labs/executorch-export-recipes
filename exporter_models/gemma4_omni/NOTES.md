@@ -254,9 +254,12 @@ MLX path — dead code, left verbatim rather than editing vendored model logic.
 
 ## Backend prerequisites
 
-- **vulkan** needs patched `backends/vulkan/` kernels from a separate
-  repository (not vendored). Export and runtime must come from the same tree
-  state; a mismatch gives gibberish, not an error.
+- **vulkan** needs patched `backends/vulkan/` kernels, not vendored here: the
+  software-mansion-labs/executorch fork, branch `@mkopcins/gemma4`, at
+  `0b7564fac554ab5fcb15bc12d03c607c21f11679`. Export and runtime must come
+  from the same tree state; a mismatch gives gibberish, not an error.
+  **That branch is ET 1.2.0a0, not the 1.3.1 the rest of this repo targets** —
+  see gemma4/NOTES.md for why that is unresolved.
 - **mlx** needs executorch built from the software-mansion-labs fork
   (`@ms/separate-backends`).
 

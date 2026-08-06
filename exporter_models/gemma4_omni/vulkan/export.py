@@ -8,6 +8,19 @@
   ~3.5 GB of the 4.37 GB PTE and the single largest open size lever.
 - **PLE int2** saves ~580 MB but was measured to flip the multimodal first-token
   argmax (eager PLE int2 cos 0.895).
+
+REQUIRES PATCHED VULKAN KERNELS, from:
+
+    software-mansion-labs/executorch
+    branch @mkopcins/gemma4
+    commit 0b7564fac554ab5fcb15bc12d03c607c21f11679   ("gemma4 vulkan support")
+
+Not vendored here. Export and runtime must come from the same tree state -- a
+mismatch gives gibberish at runtime, not an error.
+
+VERSION MISMATCH, UNRESOLVED: that branch is ExecuTorch **1.2.0a0**, while this
+model's pyproject, the MLX fork branch (`@ms/separate-backends`) and the rest of
+the repo are on **1.3.1**. See NOTES.md, "Backend prerequisites".
 """
 import importlib
 import importlib.util

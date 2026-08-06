@@ -148,11 +148,21 @@ note in `xnnpack/export.py`) and why gemma4_omni ships no `schema.json` yet.
 
 - **vulkan** depends on patched `backends/vulkan/` kernels — the softmax
   max-subtraction fix, the gelu/tanh fp16 clamp, `GemmaSDPA.cpp` implementing
-  the two `et_vk::` ops, and several `resize_fn` fixes. They live in a
-  **separate repository** and are not vendored. A PTE exported against one set
-  of shaders and run against another produces gibberish at runtime, not an
-  error — check this first when on-device output is nonsense.
-- **mlx** needs executorch built from the software-mansion-labs fork.
+  the two `et_vk::` ops, and several `resize_fn` fixes. They are NOT vendored
+  here; they live in the software-mansion-labs/executorch fork on branch
+  `@mkopcins/gemma4`, at `0b7564fac554ab5fcb15bc12d03c607c21f11679`
+  ("gemma4 vulkan support"). A PTE exported against one set of shaders and run
+  against another produces gibberish at runtime, not an error — check this
+  first when on-device output is nonsense.
+
+  **That branch is ExecuTorch 1.2.0a0, not 1.3.1** (`version.txt`). Every other
+  backend in this repo, this model's `pyproject.toml`, and the MLX fork branch
+  `@ms/separate-backends` are all on 1.3.1. So the Vulkan recipe cannot
+  currently be built from the same tree as the others: either the kernels get
+  forward-ported onto 1.3.1, or the Vulkan export is knowingly run in a 1.2
+  environment whose torch pin does not match this pyproject. Unresolved.
+- **mlx** needs executorch built from the same fork, branch
+  `@ms/separate-backends` (ET 1.3.1).
 
 ## Export settings are the on-device-tested invocations
 
