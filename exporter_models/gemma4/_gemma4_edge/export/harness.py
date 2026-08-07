@@ -26,22 +26,79 @@ __all__ = ["HarnessRecipe", "check_constants", "resolve_checkpoint"]
 
 # The public Gemma 4 E2B checkpoint. Hardcoded here rather than read from the
 # model config, per the convention that vendored code owns its source id.
+_HF_REPO_ID = "google/gemma-4-E2B-it"
+
+# Where `snapshot_download` parks that repo. Derived from the repo id so the
+# two cannot drift: HF maps "org/name" to "models--org--name" in the cache.
+# Matches ANY *.safetensors, not just `model.safetensors`, because a sharded
+# checkpoint is legal -- `pipeline._resolve_checkpoint` accepts either.
 _HF_CACHE_GLOB = (
-    "~/.cache/huggingface/hub/models--google--gemma-4-E2B-it/"
-    "snapshots/*/model.safetensors"
+    "~/.cache/huggingface/hub/models--"
+    + _HF_REPO_ID.replace("/", "--")
+    + "/snapshots/*/*.safetensors"
 )
+
+# What the export actually needs: weights + config, plus the tokenizer files a
+# runner will want beside them. Skips any .pte / .gguf mirrors the repo also
+# publishes, which would otherwise double the download.
+_DOWNLOAD_PATTERNS = ["*.safetensors", "*.json", "*.model"]
+
+
+def _download_checkpoint() -> str:
+    """Fetch `_HF_REPO_ID` into the HF cache and return its snapshot directory.
+
+    Only called when nothing was found locally. Set `$HF_HUB_OFFLINE=1` to make
+    this fail fast instead of downloading.
+    """
+    try:
+        from huggingface_hub import snapshot_download
+    except ImportError as e:
+        raise SystemExit(
+            "no Gemma 4 checkpoint found locally, and auto-download needs "
+            "`huggingface_hub`, which is not installed. Install it, or set "
+            "$GEMMA4_CHECKPOINT to an existing checkpoint directory."
+        ) from e
+
+    logger.warning(
+        "no Gemma 4 checkpoint found locally; downloading %r from HuggingFace "
+        "(several GB, one time). Set $GEMMA4_CHECKPOINT to use a local "
+        "checkpoint instead, or $HF_HUB_OFFLINE=1 to refuse the download.",
+        _HF_REPO_ID,
+    )
+    try:
+        path = snapshot_download(_HF_REPO_ID, allow_patterns=_DOWNLOAD_PATTERNS)
+    except Exception as e:  # noqa: BLE001 -- surfaced verbatim below
+        raise SystemExit(
+            f"could not download {_HF_REPO_ID!r} from HuggingFace: {e}\n"
+            "If the repo is gated, accept its licence on the model page and "
+            "authenticate (`hf auth login`, or `huggingface-cli login` on older "
+            "huggingface_hub). Otherwise set $GEMMA4_CHECKPOINT to a local "
+            "checkpoint directory containing *.safetensors and config.json."
+        ) from e
+
+    if not glob.glob(os.path.join(path, "*.safetensors")):
+        raise SystemExit(
+            f"downloaded {_HF_REPO_ID!r} to {path}, but it contains no "
+            "*.safetensors. Set $GEMMA4_CHECKPOINT to a checkpoint directory "
+            "that does."
+        )
+    logger.info("checkpoint ready at %s", path)
+    return path
 
 
 def resolve_checkpoint() -> str:
-    """Return the HF model directory holding `model.safetensors` + `config.json`.
+    """Return the HF model directory holding `*.safetensors` + `config.json`.
 
-    `$GEMMA4_CHECKPOINT` wins, then the HF cache. The harness `export()` entry
-    point takes no arguments, so there is no `--checkpoint` flag to fall back on.
+    `$GEMMA4_CHECKPOINT` wins, then the HF cache, then a download from the Hub.
+    The harness `export()` entry point takes no arguments, so there is no
+    `--checkpoint` flag to fall back on.
 
     NOTE the tokenizer in this directory must be the LOCAL Gemma4 fork, not
     upstream `gemma3n` -- the placeholder ids differ (image 258880 / audio
     258881 here vs 262145 / 262273 upstream). Export does not read the
-    tokenizer, but a runner driving the resulting .pte does.
+    tokenizer, but a runner driving the resulting .pte does. If the auto-
+    downloaded repo turns out to be the upstream lineage, point
+    $GEMMA4_CHECKPOINT at the fork instead.
     """
     env = os.environ.get("GEMMA4_CHECKPOINT")
     if env:
@@ -50,12 +107,9 @@ def resolve_checkpoint() -> str:
             raise SystemExit(f"GEMMA4_CHECKPOINT is set but does not exist: {path}")
         return path
     hits = glob.glob(os.path.expanduser(_HF_CACHE_GLOB))
-    if not hits:
-        raise SystemExit(
-            "Gemma 4 needs a checkpoint directory containing model.safetensors "
-            "and config.json. None found in the HF cache; set $GEMMA4_CHECKPOINT."
-        )
-    return os.path.dirname(hits[0])
+    if hits:
+        return os.path.dirname(hits[0])
+    return _download_checkpoint()
 
 
 @dataclasses.dataclass(frozen=True)
