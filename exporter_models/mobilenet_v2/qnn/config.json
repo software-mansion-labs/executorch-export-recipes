@@ -1,0 +1,34 @@
+{
+  "$schema": "https://huggingface.co/software-mansion/react-native-executorch-spec/resolve/main/config.schema.json",
+  "model": "mobilenet_v2",
+  "family": "mobilenet",
+  "capabilities": ["classification"],
+  "backend": "qnn",
+  "license": "bsd-3-clause",
+  "variants": [
+    {
+      "file": "mobilenet_v2_qnn_fp16.pte",
+      "precision": "fp16",
+      "quantized": false,
+      "default": true,
+      "methods": {
+        "forward": {
+          "inputs": [{ "shape": [1, 3, 224, 224], "dtype": "float32" }],
+          "outputs": [{ "shape": [1, 1000], "dtype": "float32" }]
+        }
+      }
+    },
+    {
+      "file": "mobilenet_v2_qnn_int8.pte",
+      "precision": "int8",
+      "quantized": true,
+      "default": true,
+      "methods": {
+        "forward": {
+          "inputs": [{ "shape": [1, 3, 224, 224], "dtype": "float32" }],
+          "outputs": [{ "shape": [1, 1000], "dtype": "float32" }]
+        }
+      }
+    }
+  ]
+}

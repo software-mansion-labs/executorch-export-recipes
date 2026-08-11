@@ -1,0 +1,40 @@
+# Per-model export environment for mobilenet_v2 (QNN backend).
+#
+# REQUIRES an x86_64 Linux host (Ubuntu 22.04 or WSL) with the Qualcomm AI
+# Engine Direct SDK and executorch built FROM SOURCE with the Qualcomm backend
+# enabled -- the pip `executorch` wheel ships no QNN AOT libraries, and the QNN
+# SDK has no macOS host library at all. That is a native source build
+# (./install_executorch.sh + backends/qualcomm/scripts/build.sh) which `uv sync`
+# cannot produce, so this file records the pinned intent only and no uv.lock is
+# generated. Run the export inside the ET-source env:
+#
+#   PYTHONPATH=src python -m exporter.cli export mobilenet_v2 --backend qnn \
+#     --all-variants --output-dir out/SM8650
+#
+# See NOTES.md and skills/backends/qnn for the full setup.
+[project]
+name = "exporter-model-mobilenet-v2"
+version = "0"
+requires-python = "==3.10.*"
+dependencies = [
+    "exporter",
+    "torch==2.14.0.dev20260702",
+    "torchvision==0.29.0.dev20260702",
+    "executorch==1.3.1",
+    "pillow",
+]
+
+[tool.uv]
+# Unlike every other model here, this export runs on the Linux export box, not
+# on the macOS host -- the QNN AOT compiler is x86_64-linux only.
+environments = ["sys_platform == 'linux' and platform_machine == 'x86_64'"]
+
+[tool.uv.sources]
+exporter = { path = "../..", editable = true }
+torch = { index = "pytorch-nightly" }
+torchvision = { index = "pytorch-nightly" }
+
+[[tool.uv.index]]
+name = "pytorch-nightly"
+url = "https://download.pytorch.org/whl/nightly/cpu"
+explicit = true

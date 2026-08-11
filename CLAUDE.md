@@ -53,7 +53,7 @@ harness imports `export.py` to discover it without a full backend env).
   backend/size to an existing one. Start here.
 - **`skills/model-conventions`** — `model.json`, the `{size}`/`{backend}` axes,
   fetched-vs-local config, vendored code, nested models, extras, LLM constants.
-- **`skills/backends/{xnnpack,coreml,mlx}`** — per-backend lowering recipes,
+- **`skills/backends/{xnnpack,coreml,mlx,qnn}`** — per-backend lowering recipes,
   quantization, gotchas, and how to **profile / verify delegation** of a
   produced `.pte` with the executorch-profiler.
 
