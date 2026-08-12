@@ -19,3 +19,5 @@ tests/
 datasets/
 logs/
 *.pte
+# Local export output (artifacts are published to HF, never committed).
+exports/

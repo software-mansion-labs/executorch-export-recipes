@@ -1,7 +1,8 @@
 {
   "$schema": "https://huggingface.co/software-mansion/react-native-executorch-spec/resolve/main/config.schema.json",
-  "model": "easyocr",
+  "model": "easy_ocr",
   "family": "easyocr",
+  "size": "japanese",
   "capabilities": [
     "text-detection",
     "text-recognition"
@@ -10,10 +11,11 @@
   "license": "apache-2.0",
   "variants": [
     {
-      "file": "EasyOCR_japanese_xnnpack.pte",
+      "file": "easy_ocr_japanese_xnnpack_int8.pte",
       "precision": "int8",
       "quantized": true,
       "default": true,
+      "size_bytes": 33308828,
       "methods": {
         "detect": {
           "inputs": [
@@ -21,8 +23,8 @@
               "shape": [
                 1,
                 3,
-                1280,
-                1280
+                -1,
+                -1
               ],
               "dtype": "float32"
             }
@@ -31,8 +33,8 @@
             {
               "shape": [
                 1,
-                640,
-                640,
+                -1,
+                -1,
                 2
               ],
               "dtype": "float32"

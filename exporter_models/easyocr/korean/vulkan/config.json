@@ -1,7 +1,8 @@
 {
   "$schema": "https://huggingface.co/software-mansion/react-native-executorch-spec/resolve/main/config.schema.json",
-  "model": "easyocr",
+  "model": "easy_ocr",
   "family": "easyocr",
+  "size": "korean",
   "capabilities": [
     "text-detection",
     "text-recognition"
@@ -10,10 +11,11 @@
   "license": "apache-2.0",
   "variants": [
     {
-      "file": "EasyOCR_korean_vulkan.pte",
+      "file": "easy_ocr_korean_vulkan_fp16.pte",
       "precision": "fp16",
-      "quantized": true,
+      "quantized": false,
       "default": true,
+      "size_bytes": 53651396,
       "methods": {
         "detect": {
           "inputs": [
@@ -21,8 +23,8 @@
               "shape": [
                 1,
                 3,
-                1280,
-                1280
+                -1,
+                -1
               ],
               "dtype": "float32"
             }
@@ -31,8 +33,8 @@
             {
               "shape": [
                 1,
-                640,
-                640,
+                -1,
+                -1,
                 2
               ],
               "dtype": "float32"

@@ -122,6 +122,11 @@ def _C(v): return {"kind": "constant", "value": v}
 def _R(lo, hi, step): return {"kind": "range", "range": {"min": lo, "max": hi, "step": step}}
 def _E(choices): return {"kind": "enum", "choices": list(choices)}
 def _T(dims): return {"kind": "Tensor", "dtype": "float32", "shape": dims}
+def _in(t, d): return {"paramSide": "input", "tensorIdx": t, "dimIdx": d}
+def _out(t, d): return {"paramSide": "output", "tensorIdx": t, "dimIdx": d}
+def _lin(lhs, rhs, a, b):
+    """Runtime constraint `lhs = a * rhs + b` over two tensor dims."""
+    return {"kind": "linear", "dimLhs": lhs, "dimRhs": rhs, "coefficients": [a, b]}
 
 
 def _validate(spec):
@@ -146,9 +151,12 @@ def model_schema(backend):
         "detect": {"inputs": [_T([_C(1), _C(3), det_hw, det_hw])],
                    "outputs": [_T([_C(1), _C(1), det_hw, det_hw])],
                    "runtimeConstraints": []},
+        # SVTR reduces the input width onto the CTC time axis by REC_DIV, with no
+        # trailing crop: W = REC_DIV*T. Declared so the client can pre-size the
+        # probs output for whatever width it picks, instead of inferring a ratio.
         "recognize": {"inputs": [_T([_C(1), _C(3), _C(REC_H), rec_w])],
                       "outputs": [_T([_C(1), rec_t, _C(18710)])],
-                      "runtimeConstraints": []},
+                      "runtimeConstraints": [_lin(_in(0, 3), _out(0, 1), REC_DIV, 0)]},
     }
     _validate(spec)
     return json.dumps(spec)

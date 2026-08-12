@@ -2,8 +2,9 @@
 
 Builds ONE fused .pte per backend + language: `detect` (CRAFT) + fixed-width
 `recognize` (CRNN), plus the model-wide `get_model_schema` constant method — a
-no-arg method returning ONE JSON ModelSpec string (see model.schema.json). Only
-`detect` appears in the JSON; the all-static `recognize` falls back to MethodMeta.
+no-arg method returning ONE JSON ModelSpec string (see model.schema.json). `detect`
+carries the dynamic/enumerated H,W domains; the all-static `recognize` is spelled
+out only to declare its width/timestep runtime constraint (W = 4*T + 4).
 The CRNN's BiLSTM cannot be dynamic on CPU/ANE (symbolic T -> torch.scan -> portable
 ~15s; concrete T -> nn.LSTM unrolls into matmuls that fully delegate), so the C++
 snaps every crop to the baked width.
@@ -177,6 +178,11 @@ def _C(v): return {"kind": "constant", "value": v}
 def _R(lo, hi, step): return {"kind": "range", "range": {"min": lo, "max": hi, "step": step}}
 def _E(choices): return {"kind": "enum", "choices": list(choices)}
 def _T(dims): return {"kind": "Tensor", "dtype": "float32", "shape": dims}
+def _in(t, d): return {"paramSide": "input", "tensorIdx": t, "dimIdx": d}
+def _out(t, d): return {"paramSide": "output", "tensorIdx": t, "dimIdx": d}
+def _lin(lhs, rhs, a, b):
+    """Runtime constraint `lhs = a * rhs + b` over two tensor dims."""
+    return {"kind": "linear", "dimLhs": lhs, "dimRhs": rhs, "coefficients": [a, b]}
 
 
 def _validate(spec):
@@ -187,9 +193,15 @@ def _validate(spec):
     jsonschema.validate(spec, json.loads(_ROOT_SCHEMA_PATH.read_text()))
 
 
-def model_schema(backend):
-    """JSON ModelSpec baked as the `get_model_schema` constant method. Only `detect`
-    appears: `recognize` is all-static [1,3,64,512] and falls back to MethodMeta.
+def model_schema(backend, lang):
+    """JSON ModelSpec baked as the `get_model_schema` constant method.
+
+    `detect` carries the per-backend dynamic/enumerated H,W domains. `recognize` is
+    all-static ([1,3,64,512] -> [1,127,V]) and would fall back to MethodMeta, but it
+    is spelled out anyway to carry its ONE runtime constraint: the CRNN crops a
+    trailing timestep, so W = 4*T + 4 (NOT a plain W/T ratio like SVTR's). Declared
+    so the client can pre-size the probs output from the width it picks instead of
+    inferring a ratio that does not exist here.
     Per-dim enum implies dim independence -> the CoreML det set is the full grid."""
     if backend == "coreml":
         hw = _E(DET_CML_SIZES)
@@ -201,10 +213,14 @@ def model_schema(backend):
         w = _R(DET_W_MIN if backend == "vulkan" else DET_XNN_MIN, 1280, CRAFT_DIV)
         oh = _R(h["range"]["min"] // 2, 640, CRAFT_DIV // 2)
         ow = _R(w["range"]["min"] // 2, 640, CRAFT_DIV // 2)
+    timesteps = CRNN_FIXED_W // CRNN_DIV - 1
     spec = {
         "detect": {"inputs": [_T([_C(1), _C(3), h, w])],
                    "outputs": [_T([_C(1), oh, ow, _C(2)])],
                    "runtimeConstraints": []},
+        "recognize": {"inputs": [_T([_C(1), _C(3), _C(CRNN_H), _C(CRNN_FIXED_W)])],
+                      "outputs": [_T([_C(1), _C(timesteps), _C(weights.num_class(lang))])],
+                      "runtimeConstraints": [_lin(_in(0, 3), _out(0, 1), CRNN_DIV, CRNN_DIV)]},
     }
     _validate(spec)
     return json.dumps(spec)
@@ -286,7 +302,7 @@ def build_and_lower(backend, lang, out_path):
         eps = {"detect": build_detect_dynamic("int8"), "recognize": rec}
         path = lower_save(eps, [xnnpack.partitioner()], out_path,
                           transform_passes=[xnnpack.InsertContig()],
-                          extra_constants={"get_model_schema": model_schema(backend)},
+                          extra_constants={"get_model_schema": model_schema(backend, lang)},
                           width=24)
 
     elif backend == "coreml":
@@ -302,7 +318,7 @@ def build_and_lower(backend, lang, out_path):
                  "recognize": [coreml.partitioner("fp16", quantize="int8",
                                                   lower_full_graph=False)]}
         path = lower_save(eps, parts, out_path,
-                          extra_constants={"get_model_schema": model_schema(backend)},
+                          extra_constants={"get_model_schema": model_schema(backend, lang)},
                           width=24)
 
     elif backend == "vulkan":
@@ -318,7 +334,7 @@ def build_and_lower(backend, lang, out_path):
                  "recognize": [xnnpack.partitioner()]}
         path = lower_save(eps, parts, out_path,
                           transform_passes=[xnnpack.InsertContig()],
-                          extra_constants={"get_model_schema": model_schema(backend)},
+                          extra_constants={"get_model_schema": model_schema(backend, lang)},
                           width=24)
 
     else:
