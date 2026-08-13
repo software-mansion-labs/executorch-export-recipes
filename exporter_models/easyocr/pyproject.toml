@@ -4,7 +4,7 @@
 #
 # torchvision backs CRAFT's VGG16-bn backbone; opencv + numpy back the int8
 # calibration loaders. The `easyocr` package itself is needed only to emit
-# `EasyOCR_<lang>.charset.txt` beside the PTE — the vocab size V is hardcoded in
+# `EasyOCR_<lang>.charset.json` beside the PTE — the vocab size V is hardcoded in
 # `_easyocr/weights.py`, so the PTE never depends on it (emission is best-effort).
 # easyocr under-constrains torch, hence the override below.
 [project]

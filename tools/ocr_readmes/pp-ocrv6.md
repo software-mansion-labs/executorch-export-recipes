@@ -24,7 +24,7 @@ driven by `config.json`. One model covers **all languages** (18 709-entry multil
 ```
 <backend>/config.json                    # per-backend spec (see the schema link inside)
 <backend>/pp_ocrv6_<backend>_<precision>.pte
-charset.txt                              # 18 709 entries; charset[i] -> logit i+1, blank = 0
+charset.json                              # 18 709 entries; charset[i] -> logit i+1, blank = 0
 ```
 
 ## Methods & I/O contract

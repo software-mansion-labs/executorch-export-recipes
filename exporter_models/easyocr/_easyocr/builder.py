@@ -283,7 +283,7 @@ def build_recognize_fixed(lang, w, *, int8):
 
 
 def emit_charset(lang, out_path):
-    """Write `EasyOCR_<lang>.charset.txt` (JSON list) beside the PTE. charset[i] -> logit
+    """Write `EasyOCR_<lang>.charset.json` (JSON list) beside the PTE. charset[i] -> logit
     i+1, logit 0 = CTC blank. Sourced from the installed `easyocr` package; best-effort."""
     try:
         import easyocr.config as EC
@@ -291,7 +291,7 @@ def emit_charset(lang, out_path):
         print("    [note] easyocr package absent -> skipping charset emission", flush=True)
         return None
     charset = list(EC.recognition_models["gen2"][weights.EC_KEY[lang]]["characters"])
-    p = os.path.join(os.path.dirname(out_path), f"EasyOCR_{lang}.charset.txt")
+    p = os.path.join(os.path.dirname(out_path), f"EasyOCR_{lang}.charset.json")
     with open(p, "w") as f:
         json.dump(charset, f, ensure_ascii=False)
     print(f"    wrote {os.path.basename(p)} ({len(charset)} chars, V={len(charset)+1})", flush=True)
@@ -300,7 +300,7 @@ def emit_charset(lang, out_path):
 
 def build_and_lower(backend, lang, out_path):
     """Build the fused dynamic PTE for `backend` + `lang` and write it to absolute
-    `out_path`. Emits `EasyOCR_<lang>.charset.txt` alongside. Returns the .pte path."""
+    `out_path`. Emits `EasyOCR_<lang>.charset.json` alongside. Returns the .pte path."""
     assert os.path.isabs(out_path), "out_path must be absolute"
     if lang not in weights.CRNN:
         raise ValueError(f"unknown lang '{lang}' (have {list(weights.CRNN)})")

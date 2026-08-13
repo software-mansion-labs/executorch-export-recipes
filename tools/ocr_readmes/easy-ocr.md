@@ -24,7 +24,7 @@ and is driven by `config.json`. EasyOCR is the *fallback* pipeline —
 ```
 <language>/<backend>/config.json                 # per-backend spec
 <language>/<backend>/easy_ocr_<language>_<backend>_<precision>.pte
-<language>/charset.txt                           # charset[i] -> logit i+1, blank = 0
+<language>/charset.json                           # charset[i] -> logit i+1, blank = 0
 ```
 
 ## Languages

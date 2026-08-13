@@ -57,7 +57,7 @@ Fetched at export time from the JaidedAI EasyOCR GitHub releases (same as
 | kannada | 167 | 168 |
 | cyrillic | 207 | 208 |
 
-The charset itself is emitted at export time as `EasyOCR_<lang>.charset.txt` (JSON
+The charset itself is emitted at export time as `EasyOCR_<lang>.charset.json` (JSON
 list) beside the PTE, sourced from the installed `easyocr` package
 (`easyocr.config.recognition_models["gen2"][<key>]["characters"]`). Emission is
 best-effort — V (above) is hardcoded in `_easyocr/weights.py`, so the PTE never

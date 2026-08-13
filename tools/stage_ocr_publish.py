@@ -166,9 +166,9 @@ def stage(exports_dir: Path, out_dir: Path):
 
             # EasyOCR's CTC charset, one per language, beside that language's backends.
             if size:
-                charset = exports_dir / f"easyocr/{size}/EasyOCR_{size}.charset.txt"
+                charset = exports_dir / f"easyocr/{size}/EasyOCR_{size}.charset.json"
                 if charset.exists():
-                    shutil.copy2(charset, repo_dir / size / "charset.txt")
+                    shutil.copy2(charset, repo_dir / size / "charset.json")
 
     # PP-DocLayoutV3's class names, index = the model's `classes` output value.
     labels = _MODELS_DIR / "paddleocr_layout/labels.json"
@@ -177,8 +177,9 @@ def stage(exports_dir: Path, out_dir: Path):
 
     # PP-OCRv6's multilingual charset is fixed by the recognizer checkpoint and is
     # unchanged by a re-export, so carry the published copy forward rather than
-    # regenerating it (the client ships its own copy in constants.ts either way).
-    _carry_over(MODELS["paddleocr"]["repo"], "charset.txt", out_dir)
+    # regenerating it. Named .json, not .txt: it is a JSON array of strings and
+    # the client parses it as one.
+    _carry_over(MODELS["paddleocr"]["repo"], "charset.json", out_dir)
 
     readmes = Path(__file__).resolve().parent / "ocr_readmes"
     for meta in MODELS.values():
