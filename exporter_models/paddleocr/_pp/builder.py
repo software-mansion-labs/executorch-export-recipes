@@ -13,9 +13,8 @@ dim independence, so the CoreML enumerated det set is the full 3x3 GRID.
                -> [1,W/8,18710] f32 probs; W dynamic in [160, 1280] step 8
 
 Backend fixes precision + delegate:
-  xnnpack : det + rec fp32 dynamic. int8 is OFF THE TABLE under dynamic shapes:
-            static-activation quant params don't transfer across scales (det IoU~0
-            even at the calib shape) and int8 rec wrecks the attention SVTR anyway.
+  xnnpack : det static int8 dynamic (real-page calibrated at DET_MAX) + rec fp32.
+            int8 rec wrecks the attention SVTR, so recognition stays fp32.
   coreml  : ENUMERATED GRID — weight-only int8, fp16 compute (ANE).
   vulkan  : MIXED — det Vulkan fp16 dynamic via resize + rec XNNPACK fp32 dynamic
             (SVTR crashes the Vulkan vocab head on device: make_ivec2).
@@ -205,12 +204,19 @@ def build_and_lower(backend, out_path):
     assert os.path.isabs(out_path), "out_path must be absolute"
 
     if backend == "xnnpack":
-        # BOTH stages fp32: static-activation int8 quant params do not transfer across
-        # dynamic scales (det corr 0.59-0.88 / IoU~0 even at the calibration shape;
-        # multi-size calib stays unstable) — fp32 dynamic is bit-exact at every shape.
-        # fp16 is no lever here: the XNNPACK delegate blob stays fp32-sized (measured
-        # 9.94 vs 9.90 MB) with worse delegation. int8 rec additionally wrecks SVTR.
-        eps = {"detect": build_stage_dynamic("det", "fp32"),
+        # det int8, rec fp32. The int8 detect was previously ruled out on a recorded
+        # `corr 0.59-0.88 / IoU~0 even at the calibration shape`; that no longer
+        # reproduces. Re-measured 2026-08-13 against eager fp32 on the converted
+        # graph: corr 0.956/0.975/0.981/0.994 at 640/800/960/1280 square (1280 is
+        # the calibration shape and the BEST case, not the worst), and confirmed on
+        # a Galaxy S26 Ultra where the lowered artifact returns the same detections
+        # as fp32 at ~580ms vs ~680ms end to end, 23.9MB vs 31.1MB. Landscape
+        # (1280x640) is the weak shape at corr ~0.88, still far above the recorded
+        # figure. Calibration stays at DET_MAX; a narrow low-size band (the fix that
+        # rescued EasyOCR) was tried and is no better.
+        # rec stays fp32: int8 wrecks the attention SVTR. fp16 is no lever either,
+        # the XNNPACK blob stays fp32-sized (measured 9.94 vs 9.90 MB).
+        eps = {"detect": build_stage_dynamic("det", "int8"),
                "recognize": build_stage_dynamic("rec", "fp32")}
         return _lower_save(eps, [xnnpack.partitioner()], out_path,
                            transform_passes=[xnnpack.InsertContig()],
@@ -223,7 +229,10 @@ def build_and_lower(backend, out_path):
         # splits detect into 4 blobs -> GPU<->CPU round-trips; scale_factor path only,
         # safe on Xclipse). fp16 = fp32 graph + force_fp16 (never a .half() graph).
         vulkan.patch_upsample_resize()
-        eps = {"detect": build_stage_dynamic("det", "fp32"),
+        # EXPERIMENT (PP_DET_INT8=1): is the recorded int8 failure a quantization
+        # problem or an XNNPACK-delegate one? Revert once answered.
+        _det_prec = "int8" if os.environ.get("PP_DET_INT8") == "1" else "fp32"
+        eps = {"detect": build_stage_dynamic("det", _det_prec),
                "recognize": build_stage_dynamic("rec", "fp32")}
         parts = {"detect": [vulkan.partitioner(dynamic=True,
                                                texture_limits=(2048, 2048, 2048))],

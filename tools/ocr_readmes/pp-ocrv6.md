@@ -62,7 +62,7 @@ whatever width it picks instead of inferring a ratio.
 
 | backend | target | detect | recognize | warm latency (detect @960² / recognize) |
 |---|---|---|---|---|
-| `xnnpack` | CPU | fp32, true-dynamic | fp32, true-dynamic | ~574 ms / ~28 ms (Galaxy S24) |
+| `xnnpack` | CPU | static int8, true-dynamic | fp32, true-dynamic | ~28 ms recognize (Galaxy S24) |
 | `coreml` | Apple ANE | weight-only int8, enumerated | weight-only int8, enumerated | ~12–15 ms / ~2 ms (Apple M-series ANE) |
 | `vulkan` | Android GPU | fp16, true-dynamic (resize) | fp32 on **XNNPACK** (mixed-delegate) | ~73 ms / ~27 ms (Galaxy S24, Xclipse 940) |
 
@@ -70,9 +70,12 @@ whatever width it picks instead of inferring a ratio.
 > (XNNPACK) — the 18 709-token vocab head is not Vulkan-safe, and int8 SVTR is lossy, so the
 > recognizer stays fp32 on CPU for correctness.
 
-> **Why fp32 on CPU?** Static-activation int8 quantization is not stable across dynamic input
-> sizes for the detector (measured broken at ≥960px — including in the old per-bucket builds);
-> fp32 is bit-exact at every shape.
+> **Why int8 detect but fp32 recognize?** The detector is static-activation int8, calibrated on
+> real pages at 1280. It was previously shipped as fp32 on the belief that int8 was unstable
+> across dynamic input sizes; re-measured in 2026-08 that no longer holds (correlation 0.956 to
+> 0.994 against eager fp32 from 640 to 1280 square, best at 1280), and on-device the int8 build
+> returns the same detections about 15% faster end to end at 23.9 MB instead of 31.1 MB. The
+> SVTR recognizer stays fp32: int8 is lossy on its attention stack.
 
 ## CoreML notes (iOS)
 

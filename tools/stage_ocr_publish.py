@@ -41,17 +41,15 @@ MODELS = {
         # detect static-int8 + recognize int8 (xnn); weight-only int8 on the ANE;
         # vulkan is fp16 CRAFT on the GPU + int8 CRNN on XNNPACK, fp16-dominated.
         "precision": {"xnnpack": ("int8", True), "coreml": ("int8", True), "vulkan": ("fp16", False)},
-        "source": lambda size, backend: f"easyocr/{size}/EasyOCR_{size}_{backend}.pte",
     },
     "paddleocr": {
         "repo": "react-native-executorch-pp-ocrv6",
         "model": "pp_ocrv6",
         "family": "paddleocr",
         "capabilities": ["text-detection", "text-recognition"],
-        # fp32 everywhere on XNNPACK (static int8 breaks the dynamic detect);
-        # weight-only int8 on the ANE; fp16 Vulkan detect + fp32 XNNPACK rec.
-        "precision": {"xnnpack": ("fp32", False), "coreml": ("int8", True), "vulkan": ("fp16", False)},
-        "source": lambda size, backend: f"paddleocr/PP-OCRv6_{backend}.pte",
+        # static int8 detect + fp32 SVTR recognize on XNNPACK; weight-only int8 on
+        # the ANE; fp16 Vulkan detect + fp32 XNNPACK rec.
+        "precision": {"xnnpack": ("int8", True), "coreml": ("int8", True), "vulkan": ("fp16", False)},
     },
     "paddleocr_layout": {
         "repo": "react-native-executorch-pp-doclayout-v3",
@@ -60,7 +58,6 @@ MODELS = {
         "capabilities": ["object-detection"],
         # int8 loses whole boxes on this RT-DETR, so nothing here is quantized.
         "precision": {"xnnpack": ("fp32", False), "coreml": ("fp16", False), "vulkan": ("fp16", False)},
-        "source": lambda size, backend: f"paddleocr_layout/PP-DocLayoutV3_{backend}.pte",
     },
     "paddleocr_doc_helpers": {
         "repo": "react-native-executorch-paddle-helpers",
@@ -69,7 +66,6 @@ MODELS = {
         "capabilities": ["classification"],
         # dynamic int8 (qd8) on XNNPACK, weight-only int8 on the ANE, fp16 on Vulkan.
         "precision": {"xnnpack": ("int8", True), "coreml": ("int8", True), "vulkan": ("fp16", False)},
-        "source": lambda size, backend: f"paddleocr_doc_helpers/PaddleHelpers_{backend}.pte",
     },
 }
 BACKENDS = ["xnnpack", "coreml", "vulkan"]
@@ -124,12 +120,16 @@ def stage(exports_dir: Path, out_dir: Path):
 
         for size in meta.get("sizes", [None]):
             for backend in BACKENDS:
-                src = exports_dir / meta["source"](size, backend)
+                precision, quantized = meta["precision"][backend]
+                name = "_".join(filter(None, [meta["model"], size, backend, precision])) + ".pte"
+                # The exporter writes each backend's `variants[0].file`, which is
+                # this same name. Deriving the source from it instead of a second
+                # hardcoded pattern means a renamed artifact fails loudly here
+                # rather than silently staging a stale file left in exports/.
+                src = exports_dir / key / (size or "") / name
                 if not src.exists():
                     print(f"  [skip] {src} not exported")
                     continue
-                precision, quantized = meta["precision"][backend]
-                name = "_".join(filter(None, [meta["model"], size, backend, precision])) + ".pte"
                 dest = repo_dir / (f"{size}/{backend}" if size else backend)
                 dest.mkdir(parents=True, exist_ok=True)
                 shutil.copy2(src, dest / name)

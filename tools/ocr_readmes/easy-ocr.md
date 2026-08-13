@@ -64,7 +64,7 @@ carried now lives in this one document.
 | backend | `detect` H | `detect` W |
 |---|---|---|
 | `xnnpack` | `range` `[320, 1280]` step 32 | `range` `[320, 1280]` step 32 |
-| `vulkan` | `range` `[800, 1280]` step 32 | `range` `[320, 1280]` step 32 |
+| `vulkan` | `range` `[320, 1280]` step 32 | `range` `[320, 1280]` step 32 |
 | `coreml` | `enum` `320, 800, 1280` | `enum` `320, 800, 1280` |
 
 `recognize` is fixed at `[1,3,64,512]` on every backend and declares a **linear runtime
@@ -85,7 +85,9 @@ line, with every crop snapped to width 512 (the BiLSTM only delegates at a fixed
 > (its accurate operating band). Larger inputs up to 1280 are accepted but **best-effort** —
 > static-activation int8 is not stable at ≥ 960 px (this was equally true, though unmeasured,
 > of the previous per-bucket builds). Prefer resizing pages to ≤ 800 on CPU; the Vulkan and
-> CoreML detectors are accurate over their full advertised ranges.
+> CoreML detectors are accurate over their full advertised ranges. The Vulkan detector's lower
+> bound was 800 px until 2026-08 and is now 320, matching its width bound; that lower stretch is
+> fp16 like the rest of the range but has not been parity-checked.
 
 ## CoreML notes (iOS)
 

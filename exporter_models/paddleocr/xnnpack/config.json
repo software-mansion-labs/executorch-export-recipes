@@ -10,11 +10,11 @@
   "license": "apache-2.0",
   "variants": [
     {
-      "file": "pp_ocrv6_xnnpack_fp32.pte",
-      "precision": "fp32",
-      "quantized": false,
+      "file": "pp_ocrv6_xnnpack_int8.pte",
+      "precision": "int8",
+      "quantized": true,
       "default": true,
-      "size_bytes": 31066200,
+      "size_bytes": 23890904,
       "methods": {
         "detect": {
           "inputs": [

@@ -8,9 +8,9 @@ Fused **CRAFT detector + CRNN recognizer** OCR. ONE PTE per (language, backend):
   `[320, 1280]` (accurate ≤800, best-effort above — see table), Vulkan H,W
   `[320, 1280]` (the old H floor of 800 was the legacy bucket set, not a Vulkan
   limit; fp16 below H=800 is not parity-checked yet). CoreML has no RangeDim → **enumerated** over
-  the curated set (800², 1280², 1280×320) with the MIRROR companion
-  `get_enum_shapes_detect` (`int32 [3, 4]`, full shape rows — cross-dim coupling
-  preserved: 1280×320 legal, 320×1280 not).
+  the full `DET_CML_SIZES` grid, H,W ∈ {320, 800, 1280} = 9 compiled shapes.
+  All 9 exist, so the per-dim enum in `get_model_schema` (which implies dim
+  independence) cannot name a shape the model lacks.
 - `recognize [1,3,64,512]` — ONE **fixed width** (512 on all backends), declared
   via `get_enum_shapes_recognize` (`int32 [1, 4]` = `[[1,3,64,512]]`) on every
   backend; the C++ snaps every crop to 512. The CRNN's BiLSTM cannot be dynamic
