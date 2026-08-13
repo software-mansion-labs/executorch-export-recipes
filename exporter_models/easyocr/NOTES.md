@@ -5,8 +5,9 @@ Fused **CRAFT detector + CRNN recognizer** OCR. ONE PTE per (language, backend):
 - `detect [1,3,H,W]` — **dynamic** on XNNPACK/Vulkan, step 32, with a
   `get_dynamic_dims_detect` companion (no-arg, `int32 [4, 3]` rows
   `[min, max, step]`; static dims `[n, n, 1]`). Per-backend bands: XNNPACK H,W
-  `[320, 1280]` (accurate ≤800, best-effort above — see table), Vulkan H
-  `[800, 1280]`, W `[320, 1280]`. CoreML has no RangeDim → **enumerated** over
+  `[320, 1280]` (accurate ≤800, best-effort above — see table), Vulkan H,W
+  `[320, 1280]` (the old H floor of 800 was the legacy bucket set, not a Vulkan
+  limit; fp16 below H=800 is not parity-checked yet). CoreML has no RangeDim → **enumerated** over
   the curated set (800², 1280², 1280×320) with the MIRROR companion
   `get_enum_shapes_detect` (`int32 [3, 4]`, full shape rows — cross-dim coupling
   preserved: 1280×320 legal, 320×1280 not).

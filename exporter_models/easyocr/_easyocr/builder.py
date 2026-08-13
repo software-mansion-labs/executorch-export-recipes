@@ -45,8 +45,17 @@ from . import weights
 
 HERE = os.path.dirname(os.path.abspath(__file__))
 
-# Dynamic bounds. Vulkan (fp16 resizes losslessly): legacy-proven 800-1280 range.
-DET_H_MIN, DET_H_MAX = 800, 1280
+# Dynamic bounds for the fp16 (Vulkan) detect. The H floor used to be 800, not
+# because Vulkan needs it — the device-level cap is the 3D-texture extent, held
+# separately by texture_limits, and fp16 resizes losslessly — but because the
+# legacy bucketed artifact only ever shipped 800 and 1280 buckets, so the range
+# that replaced it started where the validated buckets did. That floor costs
+# real work on short pages: the client snaps H up to it, so a 1280x400 page runs
+# 1280x800, ~1.9x the pixels it needs, on the slowest detect we ship. Floored at
+# 320 (= DET_W_MIN) so H and W cover the same band.
+# NOTE: fp16 CRAFT has never been parity-checked below H=800; treat the new part
+# of the band as unverified until it is.
+DET_H_MIN, DET_H_MAX = 320, 1280
 DET_W_MIN, DET_W_MAX = 320, 1280
 # XNNPACK: static-act int8 over the FULL [320, 1280] range, calibrated ONLY at
 # <=800 sizes (DET_XNN_BAND). Static int8 scales are stable within a narrow size
