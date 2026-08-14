@@ -209,6 +209,44 @@ built with `executorch 1.3.1+112df50` from software-mansion-labs/executorch, and
 a PTE run against a different shader tree produces *gibberish rather than an
 error*.
 
+### The vision tower's attention mask, and why image TTFT was flat
+
+`encode_images` passes an all-ones `pixel_attention_mask` — every patch of a
+512x512 image is valid — so the tower's attention mask is uniformly permissive
+and computing it is pure overhead. Removing it is **bit-identical**.
+
+Removing it alone is nearly worthless, though: it deletes 5 host ops. The
+expensive half is that torch's SDPA decomposition emits a fully-masked-row NaN
+guard (`eq`/`any`/`logical_not`/`full_like`/`mul`, per layer) *whether or not a
+mask is present*. Both have to go: call the encoder with `attention_mask=None`
+**and** use `_attn_implementation="eager"`, which for an unmasked encoder is the
+same matmul/softmax/matmul but emits no guard and partitions whole.
+
+| 450M vision tower | delegate calls | host ops |
+|---|---|---|
+| xnnpack, as shipped | 51 | 229 |
+| xnnpack, unmasked eager | 51 | **75** |
+| vulkan, as shipped | 39 | 168 |
+| vulkan, unmasked eager | **27** | **52** |
+
+On device (Galaxy S26 Ultra, same fixed image, two runs each):
+
+| image TTFT | run 1 | run 2 |
+|---|---|---|
+| before | 1001 ms | 939 ms |
+| after | **711 ms** | **709 ms** |
+
+**~27% off image TTFT**, and noticeably more reproducible. Decode is unchanged
+(177 -> 180 tok/s), as expected — only the tower moved.
+
+Numerics: dropping the mask is bit-identical; eager attention reassociates the
+reduction and moves the tower output by 1.5e-6 mean absolute against a signal of
+magnitude 0.19 (7.6e-6 relative), orders of magnitude below the 8da4w
+quantization error this export already accepts.
+
+**The XNNPACK export gets the same 229 -> 75 reduction** and is not currently
+taking it. Worth applying there too, which would speed up the published model.
+
 ### Where the remaining TTFT is, if anyone wants it
 
 The vision tower is the whole of image-prompt TTFT and is barely touched. What
@@ -219,13 +257,11 @@ the Vulkan partitioner would do with it (450M), versus XNNPACK today:
 | xnnpack (shipped) | 111 | 484 |
 | vulkan | 39 | 168 |
 
-Vulkan claims much more of it, but 39 delegate calls is still 39 CPU-GPU round
+Vulkan claims much more of it, but 27 delegate calls is still 27 CPU-GPU round
 trips with staging copies at each boundary, so this is not obviously a win and
-should be measured before it is believed.
+should be measured before it is believed. The tower is left on XNNPACK.
 
-The more promising target is *what* stays on the host, which is almost entirely
-SigLIP2's attention-mask construction — 51 `expand_copy`, 24 `scalar_tensor`,
-24 `mul.Scalar`, 24 `logical_not`, 12 `eq.Scalar`, 12 `full_like`, 12 `any.dim`.
-That is padding-mask bookkeeping rather than real work, it is constant for a
-fixed image size, and it is what shatters the tower on *both* backends. Folding
-it away at export time would cut fragmentation far more than swapping backends.
+After the unmasked-eager change above, what remains on host is 50 `expand_copy`
+plus 2 `unfold_copy` — the patch extraction and position-embedding broadcast,
+not attention. That is the next thing to look at if image TTFT needs to come
+down further.

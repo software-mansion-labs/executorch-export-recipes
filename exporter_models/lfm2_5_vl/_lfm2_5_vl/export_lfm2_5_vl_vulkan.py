@@ -66,9 +66,12 @@ from executorch.examples.models.llama.source_transformation.sdpa import (
     replace_sdpa_with_custom_op,
 )
 from .model import (
+    FIXED_H,
+    FIXED_W,
     Lfm2p5VlModel,
     MAX_SEQ_LEN,
     IMAGE_SIZE,
+    PATCH_SIZE,
 )
 from executorch.exir import (
     EdgeCompileConfig,
@@ -321,6 +324,45 @@ class Lfm2p5VlEdgeManager(LLMEdgeManager):
         return self
 
 
+@contextlib.contextmanager
+def _unmasked_eager_vision_attention(lfm2):
+    """Drop the vision tower's attention mask and its SDPA guard for export.
+
+    Every patch of a 512x512 image is valid -- `encode_images` passes an
+    all-ones `pixel_attention_mask` -- so the encoder's mask is uniformly
+    permissive and computing it is pure overhead. Two separate costs follow
+    from it, and removing one without the other barely helps:
+
+      * building the mask, and
+      * SDPA's fully-masked-row NaN guard (`eq`/`any`/`logical_not`/
+        `full_like`/`mul` per layer), which torch's decomposition emits
+        whether or not a mask is actually present.
+
+    Calling the encoder with `attention_mask=None` kills the first;
+    `_attn_implementation="eager"` kills the second, since
+    `eager_attention_forward` is a plain matmul/softmax/matmul that the
+    partitioner can claim whole. On the 450M tower this takes the Vulkan
+    export from 39 delegate calls / 168 host ops to 27 / 52, and the XNNPACK
+    one from 229 host ops to 75.
+
+    Numerics: dropping the mask is bit-identical. Eager attention reassociates
+    the reduction, which moves the tower output by ~1.5e-6 mean absolute
+    against a signal of magnitude ~0.19 (7.6e-6 relative) -- orders of
+    magnitude below the 8da4w quantization error this export already accepts.
+    """
+    tower = lfm2.model_.model.vision_tower
+    modules = [m for m in tower.modules() if hasattr(m, "config")]
+    saved = [(m, m.config._attn_implementation) for m in modules]
+    saved.append((tower, tower.config._attn_implementation))
+    for module, _ in saved:
+        module.config._attn_implementation = "eager"
+    try:
+        yield tower
+    finally:
+        for module, impl in saved:
+            module.config._attn_implementation = impl
+
+
 def export_image_encoder(lfm2) -> torch.export.ExportedProgram:
     """Export vision encoder as 'vision_encoder' method (fp32, XNNPACK).
 
@@ -329,20 +371,38 @@ def export_image_encoder(lfm2) -> torch.export.ExportedProgram:
     """
 
     class ImageEncoder(torch.nn.Module):
-        def __init__(self, lfm2):
+        def __init__(self, lfm2, tower):
             super().__init__()
             self.lfm2 = lfm2
+            self.tower = tower
 
         def forward(self, images: torch.Tensor) -> torch.Tensor:
-            return self.lfm2.image_embedding(images)
+            # Inlined encode_images so the tower can be called without a mask;
+            # see _unmasked_eager_vision_attention for why.
+            x = images / 255.0
+            x = (x - 0.5) / 0.5
+            x = x.unfold(2, PATCH_SIZE, PATCH_SIZE).unfold(3, PATCH_SIZE, PATCH_SIZE)
+            x = x.permute(0, 2, 3, 4, 5, 1).reshape(
+                1, FIXED_H * FIXED_W, PATCH_SIZE * PATCH_SIZE * 3
+            )
+            spatial_shapes = torch.tensor([[FIXED_H, FIXED_W]], dtype=torch.int64)
+            hidden = self.tower.embeddings(x, spatial_shapes)
+            encoded = self.tower.encoder(inputs_embeds=hidden, attention_mask=None)
+            feats = self.tower.post_layernorm(encoded.last_hidden_state)
+            feats = feats.reshape(feats.shape[0], FIXED_H, FIXED_W, -1)
+            projector = self.lfm2.model_.model.multi_modal_projector
+            feats = feats.to(projector.linear_1.weight.dtype)
+            projected = projector(feats)
+            return projected.reshape(1, -1, projected.shape[-1])
 
-    encoder = ImageEncoder(lfm2)
     example_pixels = torch.randint(
         0, 256, (1, 3, IMAGE_SIZE, IMAGE_SIZE), dtype=torch.float32
     )
-    logging.info("Exporting vision encoder (fp32)...")
-    with torch.no_grad():
-        return torch.export.export(encoder, (example_pixels,), strict=False)
+    logging.info("Exporting vision encoder (fp32, unmasked eager attention)...")
+    with _unmasked_eager_vision_attention(lfm2) as tower, torch.no_grad():
+        return torch.export.export(
+            ImageEncoder(lfm2, tower), (example_pixels,), strict=False
+        )
 
 
 def export_text_decoder(
