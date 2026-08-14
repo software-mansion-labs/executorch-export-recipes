@@ -87,6 +87,7 @@ from executorch.extension.llm.export.builder import DType, LLMEdgeManager
 from executorch.extension.llm.export.config.llm_config import LlmConfig
 from torch.export import Dim
 from torch.nn.attention import SDPBackend
+from transformers.models.siglip2 import modeling_siglip2
 
 FORMAT = "[%(levelname)s %(asctime)s %(filename)s:%(lineno)s] %(message)s"
 logging.basicConfig(level=logging.INFO, format=FORMAT)
@@ -324,6 +325,29 @@ class Lfm2p5VlEdgeManager(LLMEdgeManager):
         return self
 
 
+def _bmm_attention_forward(
+    module, query, key, value, attention_mask, scaling, dropout=0.0, **kwargs
+):
+    """`eager_attention_forward` with the batched matmuls written as 3-D bmm.
+
+    Mathematically identical -- and bit-identical in practice -- but it avoids
+    the `expand_copy` pair that edge dialect emits when lowering a 4-D matmul.
+    See _unmasked_eager_vision_attention.
+    """
+    b, h, s, d = query.shape
+    kv_s = key.shape[2]
+    q3 = query.reshape(b * h, s, d)
+    k3 = key.reshape(b * h, kv_s, d).transpose(1, 2)
+    v3 = value.reshape(b * h, kv_s, d)
+
+    attn = torch.bmm(q3, k3) * scaling
+    if attention_mask is not None:
+        attn = attn + attention_mask.reshape(b * h, s, kv_s)
+    attn = torch.nn.functional.softmax(attn, dim=-1, dtype=torch.float32).to(query.dtype)
+    out = torch.bmm(attn, v3)
+    return out.reshape(b, h, s, d).transpose(1, 2).contiguous(), None
+
+
 @contextlib.contextmanager
 def _unmasked_eager_vision_attention(lfm2):
     """Drop the vision tower's attention mask and its SDPA guard for export.
@@ -341,14 +365,29 @@ def _unmasked_eager_vision_attention(lfm2):
     Calling the encoder with `attention_mask=None` kills the first;
     `_attn_implementation="eager"` kills the second, since
     `eager_attention_forward` is a plain matmul/softmax/matmul that the
-    partitioner can claim whole. On the 450M tower this takes the Vulkan
-    export from 39 delegate calls / 168 host ops to 27 / 52, and the XNNPACK
-    one from 229 host ops to 75.
+    partitioner can claim whole.
 
-    Numerics: dropping the mask is bit-identical. Eager attention reassociates
-    the reduction, which moves the tower output by ~1.5e-6 mean absolute
-    against a signal of magnitude ~0.19 (7.6e-6 relative) -- orders of
-    magnitude below the 8da4w quantization error this export already accepts.
+    Eager attention alone still leaves 48 host ops, because edge dialect lowers
+    a 4-D `matmul` to `expand_copy` + `bmm`, and XNNPACK does not claim
+    `expand_copy`. Both operands already have the output shape here, so each of
+    those expands is a pure ~3 MB copy that computes nothing -- 2 matmuls x 2
+    operands x 12 layers. `_bmm_attention_forward` below folds the head dim into
+    the batch dim and calls `bmm` directly, so there is nothing to broadcast.
+
+    Together, on the 450M tower:
+
+        as shipped         51 delegate calls, 229 host ops
+        unmasked eager     51,                 75
+        + bmm attention    27,                 27
+
+    What is left is 25 `native_layer_norm` and 2 `unfold_copy`. XNNPACK has no
+    layer-norm partitioner config at all, so those 25 cannot be delegated to it.
+
+    Numerics: dropping the mask is bit-identical, and so is the bmm rewrite.
+    Eager attention reassociates the reduction, which moves the tower output by
+    ~1.5e-6 mean absolute against a signal of magnitude ~0.19 (7.6e-6 relative)
+    -- orders of magnitude below the 8da4w quantization error this export
+    already accepts.
     """
     tower = lfm2.model_.model.vision_tower
     modules = [m for m in tower.modules() if hasattr(m, "config")]
@@ -356,9 +395,12 @@ def _unmasked_eager_vision_attention(lfm2):
     saved.append((tower, tower.config._attn_implementation))
     for module, _ in saved:
         module.config._attn_implementation = "eager"
+    saved_attn = modeling_siglip2.eager_attention_forward
+    modeling_siglip2.eager_attention_forward = _bmm_attention_forward
     try:
         yield tower
     finally:
+        modeling_siglip2.eager_attention_forward = saved_attn
         for module, impl in saved:
             module.config._attn_implementation = impl
 
