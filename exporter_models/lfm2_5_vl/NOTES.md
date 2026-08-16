@@ -292,8 +292,56 @@ trips with staging copies at each boundary. Measured, it is 2.25x slower
 tower stays on XNNPACK. The artifact is kept as `vk450m_tower` so that stays
 falsifiable.
 
-What remains on host after the changes above is 25 `native_layer_norm` plus 2
-`unfold_copy`. The layer norms cannot go to XNNPACK: it has no layer-norm
-partitioner config at all. The two `unfold_copy` are patch extraction. That is
-what is left if image TTFT needs to come down further, and neither is reachable
-without a new XNNPACK config.
+What remains on host after the changes above is 25 (450M) / 55 (1.6B)
+`native_layer_norm` plus 2 `unfold_copy`.
+
+### Four things that look like wins and are not
+
+All four were built and measured. None shipped. Recorded so nobody spends the
+day on them twice.
+
+**Give XNNPACK the layer norms.** XNNPACK has no layer-norm operator at all --
+not merely no partitioner config, the library has none -- so all 25/55 of them
+split the tower, and it looked like the obvious next target. They can be
+eliminated: write the norm as mean/sub/mul/rsqrt, and substitute a matmul
+against a constant 1/D vector for the mean, because `mean.dim` looks claimable
+but only covers spatial reduction of a 4-D tensor (decomposing naively is
+*worse*, 52 delegate calls instead of 27). The tower then collapses to **2
+delegate calls / 2 host ops** at both sizes -- 25 and 55 boundaries gone.
+
+It changes nothing measurable. Not at 450M, and not at 1.6B either, where there
+are more than twice as many. Partition count is not what costs time here; the
+rewrite also trades those boundaries for extra GEMV arithmetic inside the
+delegate, and the two evidently cancel. This is the useful negative result of
+the batch: **the tower is arithmetic-bound, not overhead-bound**, so the only
+remaining levers are ones that do less arithmetic.
+
+**Quantize the tower.** It is the last unquantized part of the model (decoder
+8da4w, embeddings 4-bit, tower fp32), so it looks like the biggest lever left.
+It is not reachable:
+
+| | tower partitioning | relative error |
+|---|---|---|
+| fp16 | 102 / 176 (worse) | — |
+| int8 static, whole tower | 78 / 92 (worse) | 184% |
+| int8 static, linears only | 2 / 2 | 84% |
+| int8 dynamic, linears only | 14 / 2 | 89% |
+
+XNNPACK declines fp16 GEMMs outright and drops all 122 to host. int8 partitions
+fine when confined to the linears, but the numerics do not survive, calibrated
+on six real photographs with per-channel weights -- the SigLIP-family activation
+outlier problem. It would need outlier-aware quantization or a hand-picked fp32
+keep-list, which is a project, not a recipe change.
+
+**Fewer visual tokens.** 384x384 (576 patches -> 144 tokens instead of 256)
+would cut tower work and decoder prefill together. It does not export: SigLIP2's
+position table is a fixed 1024 rows and this inlined encode path does not
+interpolate it (`broadcast [1024, 768] vs [1, 576, 768]`). Fixable, but it also
+needs react-native-executorch's `encoderTokenCount` to stop being a constant, so
+it is an export *and* runtime change.
+
+**Alias the mutable-buffer mutations.** Upstream's `alias_buffer_mutations`
+would drop the copy-back this export's Vulkan fix relies on, saving 10 shader
+dispatches per token. It does not exist in the ET tree this is built against and
+would need runtime support as well; given the layer-norm result, dispatch count
+is unlikely to be worth the port.
