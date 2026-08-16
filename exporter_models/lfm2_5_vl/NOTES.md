@@ -229,33 +229,44 @@ is a pure ~3 MB copy that computes nothing (2 matmuls x 2 operands x 12 layers).
 Folding the head dim into the batch dim and calling `bmm` directly leaves
 nothing to broadcast.
 
-| 450M vision tower | delegate calls | host ops |
+Counted in the shipped PTEs, not in the exporter, so these are what actually
+ran (`vision_encoder` method, delegate calls / host kernel calls):
+
+| vision tower | 450M | 1.6B |
 |---|---|---|
-| xnnpack, as shipped | 51 | 229 |
-| xnnpack, unmasked eager | 51 | 75 |
-| xnnpack, + bmm attention | **27** | **27** |
-| vulkan, as shipped | 39 | 168 |
-| vulkan, unmasked eager | 27 | 52 |
+| xnnpack, as shipped | 51 / 229 | — |
+| xnnpack, unmasked eager | 51 / 75 | 111 / 165 |
+| xnnpack, + bmm attention | **27 / 27** | **57 / 57** |
+| vulkan, unmasked eager | 27 / 52 | — |
 
-On device (Galaxy S26 Ultra, same fixed image and prompt). Each build is
-force-stopped and freshly loaded, then asked three times in one conversation:
+The host remainder after bmm is 25 (450M) / 55 (1.6B) `native_layer_norm` plus
+2 `unfold_copy`; no `expand_copy` survives.
 
-| image TTFT | run 1 (cold) | run 2 | run 3 |
-|---|---|---|---|
-| as shipped | 1030 ms | 298 ms | 401 ms |
-| unmasked eager | 755 ms | 310 ms | 407 ms |
-| + bmm attention | **661 ms** | 293 ms | 399 ms |
+On device (Galaxy S26 Ultra, same fixed image and prompt). **Only the first
+prompt after a load is meaningful**: later prompts in the same conversation all
+land near 300 ms whatever the build, because the tower cost is already paid, so
+a same-conversation series measures nothing about the tower.
 
-**The whole gain is on the first inference after load: 1030 -> 661 ms, -36%.**
-Steady-state TTFT is identical across all three variants (3-5 ms apart, inside
-noise), so the tower work buys the first question about an image and nothing
-after it. Run 3 is slower than run 2 in every build because the chat history
-grows, so only compare down a column. Decode is unchanged (177 -> 180 tok/s), as
-expected — only the tower moved.
+| image TTFT, first prompt after load | 450M | 1.6B |
+|---|---|---|
+| as shipped | ~1006 ms | — |
+| unmasked eager | ~800 ms | 2133 ms |
+| + bmm attention | **~661 ms** | **1872 ms** |
+| unmasked eager, tower on vulkan | ~1800 ms | — |
 
-Measure this with fresh loads, not back-to-back runs. An earlier pass here
-reported 1001/939 -> 711/709 and read as a flat ~27% win; those were four cold
-runs, and they miss that the warm path never moved.
+Both steps are real and both scale with what they delete. Dropping the mask and
+the guard is worth ~200 ms at 450M; the bmm rewrite is worth ~140 ms at 450M
+(48 `expand_copy`) and ~260 ms at 1.6B (108 of them). Together, -34% at 450M.
+Decode is unchanged (177 -> 180 tok/s), as expected — only the tower moved.
+
+Measurement notes, both of which produced wrong numbers here first:
+
+- Fresh-load each build. An earlier pass reported 1001/939 -> 711/709 and read
+  as a flat ~27% win; those were four cold runs and say nothing about the warm
+  path, which never moves.
+- Do not measure a PTE you just pushed. The first load after a 2.5 GB push cost
+  +300 ms of page-in and made the 1.6B bmm build look *slower* than the build it
+  beats by 260 ms.
 
 Numerics: dropping the mask is bit-identical, and so is the bmm rewrite. Eager
 attention reassociates the reduction and moves the tower output by 1.5e-6 mean
@@ -276,12 +287,13 @@ the Vulkan partitioner would do with it (450M), versus XNNPACK today:
 | vulkan | 39 | 168 |
 
 Vulkan claims much more of it, but 27 delegate calls is still 27 CPU-GPU round
-trips with staging copies at each boundary, so this is not obviously a win and
-should be measured before it is believed. The tower is left on XNNPACK.
+trips with staging copies at each boundary. Measured, it is 2.25x slower
+(~1800 ms vs ~800 ms for the same unmasked-eager tower on XNNPACK), so the
+tower stays on XNNPACK. The artifact is kept as `vk450m_tower` so that stays
+falsifiable.
 
-After the unmasked-eager and bmm changes above, what remains on host is 25
-`native_layer_norm` plus 2 `unfold_copy`. The layer norms cannot go to XNNPACK:
-it has no layer-norm partitioner config at all. The two `unfold_copy` are patch
-extraction. That is what is left if image TTFT needs to come down further, and
-neither is reachable without either a new XNNPACK config or moving the tower to
-Vulkan — which was measured and is 2.4x slower (1711 ms vs 711 ms).
+What remains on host after the changes above is 25 `native_layer_norm` plus 2
+`unfold_copy`. The layer norms cannot go to XNNPACK: it has no layer-norm
+partitioner config at all. The two `unfold_copy` are patch extraction. That is
+what is left if image TTFT needs to come down further, and neither is reachable
+without a new XNNPACK config.
