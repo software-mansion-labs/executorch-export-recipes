@@ -204,10 +204,38 @@ TTFT is vision tower + decoder prefill, and the tower is identical XNNPACK code
 in both builds. At 1.6B the backend is worth ~260 ms of prefill, so a tower that
 hides that difference is costing considerably more than 260 ms.
 
-The delegate is version-locked to the shaders it was exported against: these were
-built with `executorch 1.3.1+112df50` from software-mansion-labs/executorch, and
-a PTE run against a different shader tree produces *gibberish rather than an
-error*.
+The delegate is version-locked to the shaders it was exported against, and a PTE
+run against a different shader tree produces *gibberish rather than an error*.
+
+The runtime to build against is **`@ms/separate-backends` (05afc5d) on
+software-mansion-labs/executorch**, which carries the two Vulkan fixes this
+export cannot run without:
+
+    abcfb9f  Fix aten.index.Tensor being delegated past its own support check
+    05afc5d  Fix mutable buffers whose mutation is functionalized
+
+The published PTEs were exported from a `112df50`-based checkout rather than
+this one, so for the avoidance of doubt: `backends/vulkan/` is byte-identical
+between the two (`git diff 085b767 05afc5d -- backends/vulkan/` is empty), and
+the artifacts on the Hub are valid against the split branch.
+
+Without those fixes the failure is not graceful. The mutable-buffer bug is a
+SIGSEGV on a stock runtime -- the arg-count guard that turns it into a named
+error is itself part of the first fix.
+
+### Published artifacts
+
+On the Hub under `main` (the v0.10.0 tag is cut at release):
+
+| | path |
+|---|---|
+| 450M | `vl_450m/vulkan/lfm_2_5_vl_450m_vulkan_8da4w.pte` |
+| 1.6B | `vl_1_6b/vulkan/lfm_2_5_vl_1_6b_vulkan_8da4w.pte` |
+
+Both are the bmm builds. Each ships a `config.json` whose method shapes were
+read out of the PTE rather than inferred -- note `get_max_seq_len` is 256
+(`PREFILL_SEQ_CAP`) against a 2048 context, and that `token_embedding` is *not*
+capped, it stays at 2048 while only `text_decoder` takes the cap.
 
 ### The vision tower's attention mask, and why image TTFT was flat
 
