@@ -121,7 +121,7 @@ wheels = [
 
 [[package]]
 name = "executorch"
-version = "1.3.1"
+version = "1.4.1"
 source = { registry = "https://pypi.org/simple" }
 dependencies = [
     { name = "coremltools", marker = "platform_machine == 'arm64' and sys_platform == 'darwin'" },
@@ -147,7 +147,7 @@ dependencies = [
     { name = "typing-extensions", marker = "platform_machine == 'arm64' and sys_platform == 'darwin'" },
 ]
 wheels = [
-    { url = "https://files.pythonhosted.org/packages/85/c5/fff9f61a3187afb53e397a6d9e04018636615f9c7c4d5d36aafa25d6ffaa/executorch-1.3.1-cp310-cp310-macosx_14_0_arm64.whl", hash = "sha256:bc90bf8fa4339a00f680dc25011d7e5ecd3a116b08ebcd01ac1edb193e90aa5c", size = 15607021, upload-time = "2026-05-29T17:03:49.085Z" },
+    { url = "https://files.pythonhosted.org/packages/f2/69/6102ce7a5cd3bdb11d7c8c7c404c6c03d34a7084842e4bfb001b64e83902/executorch-1.4.1-cp310-cp310-macosx_14_0_arm64.whl", hash = "sha256:389464f40e6945e6926073536a7f6982a873d41df322e2e2031476456ea306ae", size = 16659021, upload-time = "2026-08-14T20:22:47.492Z" },
 ]
 
 [[package]]
@@ -190,7 +190,7 @@ dependencies = [
 
 [package.metadata]
 requires-dist = [
-    { name = "executorch", specifier = "==1.3.1" },
+    { name = "executorch", specifier = "==1.4.1" },
     { name = "exporter", editable = "../../" },
     { name = "safetensors", specifier = "==0.8.0" },
     { name = "torch", specifier = "==2.14.0.dev20260702", index = "https://download.pytorch.org/whl/nightly/cpu" },
@@ -532,7 +532,7 @@ wheels = [
 
 [[package]]
 name = "pytorch-tokenizers"
-version = "1.3.0"
+version = "1.4.1"
 source = { registry = "https://pypi.org/simple" }
 dependencies = [
     { name = "sentencepiece", marker = "platform_machine == 'arm64' and sys_platform == 'darwin'" },
@@ -540,7 +540,7 @@ dependencies = [
     { name = "tokenizers", marker = "platform_machine == 'arm64' and sys_platform == 'darwin'" },
 ]
 wheels = [
-    { url = "https://files.pythonhosted.org/packages/78/47/862c35bb51a0bfc38a68bbf012a9344f6e801358391117415bdb89f390b1/pytorch_tokenizers-1.3.0-cp310-cp310-macosx_14_0_arm64.whl", hash = "sha256:151f5a71f003805d2129377c41634f2a2b7219cdea2019dc798455e2c29b6ce5", size = 1105731, upload-time = "2026-05-26T16:32:26.351Z" },
+    { url = "https://files.pythonhosted.org/packages/e8/e7/de344486cddc2f9730dec67aa194d19023d3a6f5bba23be0658aff3face5/pytorch_tokenizers-1.4.1-cp310-cp310-macosx_14_0_arm64.whl", hash = "sha256:b49e3a93d48aaecb2ff87e5767a0210bfd42e6c40ce012cbee23d517ef1c73eb", size = 1111470, upload-time = "2026-08-05T19:37:29.339Z" },
 ]
 
 [[package]]
@@ -788,10 +788,10 @@ wheels = [
 
 [[package]]
 name = "torchao"
-version = "0.17.0"
+version = "0.18.0"
 source = { registry = "https://pypi.org/simple" }
 wheels = [
-    { url = "https://files.pythonhosted.org/packages/c9/37/ef37ca885265e5f79a168616767dd416a3cea1cc3b28bb6b503ce4a5b652/torchao-0.17.0-py3-none-any.whl", hash = "sha256:02eba449036715b9ae784fbaa1a6f97994bb7b0421ce92d1d5d1c08e5bd6d349", size = 1200680, upload-time = "2026-03-30T22:25:54.457Z" },
+    { url = "https://files.pythonhosted.org/packages/c4/4d/485477bb8f05bd501016059c6d8abd742f830cb1b24ab7704e086c7cc35a/torchao-0.18.0-py3-none-any.whl", hash = "sha256:5c2b4485341bf28b7fed2c4fc95b9f298e209f41685350f067de85527a05585e", size = 1369798, upload-time = "2026-08-03T19:43:12.649Z" },
 ]
 
 [[package]]
