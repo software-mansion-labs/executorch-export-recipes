@@ -42,7 +42,7 @@ _ONNX_FILES = [
 
 # Sub-model dynamic-shape bounds (min, max) for the text length T and latent
 # length L, matching the shipped spec.
-_T_MIN, _T_MAX = 8, 512
+_T_MIN, _T_MAX = 8, 256
 _L_MIN, _L_MAX = 4, 1000
 
 # Static feature sizes (see build_example_inputs).
