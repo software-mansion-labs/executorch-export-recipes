@@ -69,14 +69,23 @@ needs a physical device.
 
 Both reproduce identically on 1.3.1 and are independent of the ExecuTorch version.
 
-1. **`--all-variants` produces an fp32 program under the `int8` filename** for
-   `style_transfer_{candy,mosaic,rain_princess,udnie}` and `efficientnet_v2_s`. Their
-   `export.py` calls `lower(ep, config["backend"])` and never reads `variant["quantized"]`,
-   so both declared variants come out byte-identical. The *published* artifacts are
-   genuinely quantized (`style_transfer_candy` int8 1,835,532 B vs fp32 6,816,524 B;
-   `efficientnet_v2_s` int8 22,943,904 B vs fp32 85,714,464 B), so **current `main` cannot
-   reproduce the published int8 models at all**. 22 other `export.py` files do handle
-   `variant["quantized"]` correctly — these were missed.
+1. **`--all-variants` produced an fp32 program under the `int8` filename** for
+   `style_transfer_{candy,mosaic,rain_princess,udnie}` and `efficientnet_v2_s` — FIXED in
+   commit 916398b. Their `export.py` called `lower(ep, config["backend"])` and never read
+   `variant["quantized"]`, so both declared variants came out byte-identical, while the
+   *published* artifacts are genuinely quantized. No commit of those files had ever
+   contained the string "quantized": the step was never carried over when 171c4fd reshaped
+   these models onto the per-model `export()` contract, though 22 other export scripts did
+   get it. Nothing caught it because the harness verifies `method_meta` I/O shapes, and an
+   int8 XNNPACK model has exactly the same shapes and dtypes as its fp32 twin — only file
+   size differs. Verified after the fix on `style_transfer_candy`:
+
+   | file | ours | published |
+   |---|---|---|
+   | `..._xnnpack_fp32.pte` | 6,818,060 | 6,816,524 |
+   | `..._xnnpack_int8.pte` | 1,836,812 | 1,835,532 |
+
+   Before the fix the int8 was 6,818,060 B, byte-identical to fp32.
 
 2. **The published `all-MiniLM-L6-v2` does not reproduce from `main`.** Published v0.9.0 is
    90,992,000 B; `main` produces 90,391,296 B, and the embeddings differ by up to 0.19
