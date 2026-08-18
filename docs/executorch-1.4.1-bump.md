@@ -87,6 +87,27 @@ Both reproduce identically on 1.3.1 and are independent of the ExecuTorch versio
 
    Before the fix the int8 was 6,818,060 B, byte-identical to fp32.
 
-2. **The published `all-MiniLM-L6-v2` does not reproduce from `main`.** Published v0.9.0 is
-   90,992,000 B; `main` produces 90,391,296 B, and the embeddings differ by up to 0.19
-   (max abs, on a unit-normalized 384-d vector). Source/`transformers` drift, not ExecuTorch.
+2. ~~The published `all-MiniLM-L6-v2` does not reproduce from `main`.~~ **RETRACTED.** That
+   was a comparison against the **v0.9.0** tag. The library requests **v0.10.0**
+   (`NEXT_VERSION_TAG`), and against v0.10.0 `main` reproduces the published artifact
+   exactly (90,391,296 B both sides). There is no reproducibility drift; always check which
+   tag the code actually points at before concluding an artifact does not reproduce.
+
+## What the nlp re-exports actually changed
+
+Sizes of the 1.4.1 re-exports vs published **v0.10.0** (13 artifacts, 8 models). Every
+`.pte` was confirmed loading and running on a Galaxy S26 Ultra.
+
+- **7 identical in size**: all_minilm_l6_v2, all_mpnet_base_v2, clip_vit_base_patch32_text,
+  multi_qa_minilm_l6_cos_v1, multi_qa_mpnet_base_dot_v1 (all xnnpack fp32), plus the
+  distiluse and paraphrase xnnpack **8da4w** variants.
+- **2 smaller by exactly 128 B**: distiluse and paraphrase xnnpack **fp32**.
+- **4 larger by 150-370 KB**: distiluse and paraphrase **coreml** fp16 and fp32.
+
+Not chased down to a root cause (the artifacts work, so it was not worth the compute).
+Two things to know if you pick this up: distiluse and paraphrase are the only two nlp
+models whose `torchao` pin moved from the nightly to the 0.18.0 release, which makes that
+pin the obvious suspect — but their *quantized* 8da4w files match while their *fp32* files
+differ, which is the opposite of what a quantization-library change would predict. And
+size equality is not byte equality: only `all_minilm_l6_v2` has a true controlled
+1.3.1-vs-1.4.1 SHA-256 comparison (identical).
