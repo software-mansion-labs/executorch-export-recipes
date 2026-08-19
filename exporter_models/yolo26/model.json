@@ -13,6 +13,7 @@
     "x"
   ],
   "backends": [
-    "xnnpack"
+    "xnnpack",
+    "vulkan"
   ]
 }
