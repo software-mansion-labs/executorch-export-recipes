@@ -138,8 +138,12 @@ def _calibrate(prepared, shape):
         img = F.resize(
             img, list(shape[-2:]), interpolation=F.InterpolationMode.BILINEAR, antialias=True
         )
-        # TransformerNet takes 0-255 floats (upstream fast_neural_style mul(255)).
-        prepared(img.float())
+        # Calibrate on the range the RNE runtime actually feeds: StyleTransferModel
+        # sets normalizeOpts alpha=1/255, so inference sees 0-1, not the 0-255 of
+        # upstream fast_neural_style. The float net is scale-invariant (InstanceNorm
+        # after every conv), which is why a mismatch here is invisible in fp32 and
+        # only wrecks the int8 activation scales.
+        prepared(img.float() / 255.0)
 
 
 def export(config: dict, out_dir: str) -> str:

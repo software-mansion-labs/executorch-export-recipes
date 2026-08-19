@@ -9,8 +9,8 @@
   "license": "apache-2.0",
   "variants": [
     {
-      "file": "rfdetr_keypoint_preview_coreml_fp32.pte",
-      "precision": "fp32",
+      "file": "rfdetr_keypoint_preview_coreml_fp16.pte",
+      "precision": "fp16",
       "quantized": false,
       "default": true,
       "methods": {

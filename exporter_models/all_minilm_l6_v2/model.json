@@ -1,7 +1,8 @@
 {
   "hf": "https://huggingface.co/software-mansion/react-native-executorch-all-MiniLM-L6-v2",
   "backends": [
-    "xnnpack"
+    "xnnpack",
+    "coreml"
   ],
   "config": "{backend}/config.json"
 }

@@ -1,0 +1,210 @@
+{
+  "$schema": "https://huggingface.co/software-mansion/react-native-executorch-spec/resolve/main/config.schema.json",
+  "model": "deeplab_v3",
+  "family": "deeplab",
+  "capabilities": [
+    "semantic-segmentation"
+  ],
+  "backend": "coreml",
+  "license": "bsd-3-clause",
+  "variants": [
+    {
+      "file": "deeplab_v3_mobilenet_v3_large_coreml_fp16.pte",
+      "precision": "fp16",
+      "quantized": false,
+      "default": true,
+      "size": "mobilenet_v3_large",
+      "methods": {
+        "forward": {
+          "inputs": [
+            {
+              "shape": [
+                1,
+                3,
+                520,
+                520
+              ],
+              "dtype": "float32"
+            }
+          ],
+          "outputs": [
+            {
+              "shape": [
+                1,
+                21,
+                520,
+                520
+              ],
+              "dtype": "float32"
+            }
+          ]
+        }
+      }
+    },
+    {
+      "file": "deeplab_v3_resnet50_coreml_fp16.pte",
+      "precision": "fp16",
+      "quantized": false,
+      "default": false,
+      "size": "resnet50",
+      "methods": {
+        "forward": {
+          "inputs": [
+            {
+              "shape": [
+                1,
+                3,
+                520,
+                520
+              ],
+              "dtype": "float32"
+            }
+          ],
+          "outputs": [
+            {
+              "shape": [
+                1,
+                21,
+                520,
+                520
+              ],
+              "dtype": "float32"
+            }
+          ]
+        }
+      }
+    },
+    {
+      "file": "deeplab_v3_resnet101_coreml_fp16.pte",
+      "precision": "fp16",
+      "quantized": false,
+      "default": false,
+      "size": "resnet101",
+      "methods": {
+        "forward": {
+          "inputs": [
+            {
+              "shape": [
+                1,
+                3,
+                520,
+                520
+              ],
+              "dtype": "float32"
+            }
+          ],
+          "outputs": [
+            {
+              "shape": [
+                1,
+                21,
+                520,
+                520
+              ],
+              "dtype": "float32"
+            }
+          ]
+        }
+      }
+    },
+    {
+      "file": "deeplab_v3_mobilenet_v3_large_coreml_fp32.pte",
+      "precision": "fp32",
+      "quantized": false,
+      "default": false,
+      "size": "mobilenet_v3_large",
+      "methods": {
+        "forward": {
+          "inputs": [
+            {
+              "shape": [
+                1,
+                3,
+                520,
+                520
+              ],
+              "dtype": "float32"
+            }
+          ],
+          "outputs": [
+            {
+              "shape": [
+                1,
+                21,
+                520,
+                520
+              ],
+              "dtype": "float32"
+            }
+          ]
+        }
+      }
+    },
+    {
+      "file": "deeplab_v3_resnet50_coreml_fp32.pte",
+      "precision": "fp32",
+      "quantized": false,
+      "default": false,
+      "size": "resnet50",
+      "methods": {
+        "forward": {
+          "inputs": [
+            {
+              "shape": [
+                1,
+                3,
+                520,
+                520
+              ],
+              "dtype": "float32"
+            }
+          ],
+          "outputs": [
+            {
+              "shape": [
+                1,
+                21,
+                520,
+                520
+              ],
+              "dtype": "float32"
+            }
+          ]
+        }
+      }
+    },
+    {
+      "file": "deeplab_v3_resnet101_coreml_fp32.pte",
+      "precision": "fp32",
+      "quantized": false,
+      "default": false,
+      "size": "resnet101",
+      "methods": {
+        "forward": {
+          "inputs": [
+            {
+              "shape": [
+                1,
+                3,
+                520,
+                520
+              ],
+              "dtype": "float32"
+            }
+          ],
+          "outputs": [
+            {
+              "shape": [
+                1,
+                21,
+                520,
+                520
+              ],
+              "dtype": "float32"
+            }
+          ]
+        }
+      }
+    }
+  ]
+}
