@@ -1,0 +1,38 @@
+# Per-model MLX export environment for sdxs_512_dreamshaper.
+#
+# REQUIRES executorch built from the software-mansion-labs fork
+# (branch @ms/separate-backends), version-locked to the runtime MLX backend. That
+# is a native source build (buck2/cmake/submodules) that `uv sync` cannot produce
+# here -- run this export in the ET-source dev env. A pip ExecuTorch partitions,
+# quantizes and writes a .pte that then fails at execute with
+# Error::InvalidProgram. The published .pte already ships on HF. This file records
+# the pinned intent + fork source; no uv.lock is generated (the git source can't be
+# resolved without the full source build).
+#
+#   uv run --project exporter_models/sdxs_512_dreamshaper/mlx exporter export sdxs_512_dreamshaper --backend mlx --output-dir <dir>
+[project]
+name = "exporter-model-sdxs-512-dreamshaper-mlx"
+version = "0"
+requires-python = "==3.10.*"
+dependencies = [
+    "exporter",
+    "torch==2.14.0.dev20260702",
+    "executorch",
+    "transformers==5.14.1",
+    "safetensors==0.8.0",
+    "diffusers==0.39.0",
+]
+
+[tool.uv]
+environments = ["sys_platform == 'darwin' and platform_machine == 'arm64'"]
+
+[tool.uv.sources]
+exporter = { path = "../../..", editable = true }
+torch = { index = "pytorch-nightly" }
+# MLX runtime-locked fork -- native source build (see header).
+executorch = { git = "https://github.com/software-mansion-labs/executorch", branch = "@ms/separate-backends" }
+
+[[tool.uv.index]]
+name = "pytorch-nightly"
+url = "https://download.pytorch.org/whl/nightly/cpu"
+explicit = true
