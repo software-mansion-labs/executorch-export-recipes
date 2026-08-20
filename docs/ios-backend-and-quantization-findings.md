@@ -352,3 +352,45 @@ runtime/build gaps, not model problems, and are NOT evidence about quality:
 
 Note the asymmetry worth remembering: XNNPACK ships `8da4w` as ColBERT's and the
 embedding model's default, but MLX cannot currently export `8da4w` at all.
+
+---
+
+## 7. Core ML int8/per_channel does NOT generalise beyond classifiers
+
+EfficientNet-V2-S showed int8/per_channel halving the artifact (43.9 -> 22.1 MB)
+at identical latency and cos 0.9989, which looked like a free win to roll out
+across the Core ML catalogue. It is not. Host gate, int8 vs the shipped fp16
+build, 8 real images, per output tensor:
+
+| model | fp16 | int8 | shrink | per-output cosine | verdict |
+|---|---:|---:|---:|---|---|
+| efficientnet-v2-s | 43.9 MB | 22.1 MB | 2.0x | 0.998859 | **ship** |
+| selfie-segmentation | 0.6 MB | 0.3 MB | 2.0x | 0.996587 | passes, not worth it |
+| lraspp | 6.9 MB | 3.5 MB | 2.0x | 0.975663 | reject |
+| deeplab-v3-mbv3 | 22.5 MB | 11.3 MB | 2.0x | 0.948438 | reject |
+| ssdlite320 | 9.4 MB | 5.4 MB | 1.7x | boxes 0.870, scores 0.868, labels 0.839 | reject |
+
+Threshold applied: **cosine >= 0.99**.
+
+**Only classifiers benefit.** A 1000-logit vector absorbs per-channel
+quantization error that spatial maps and box coordinates do not. Rolling int8
+across the CV set would have silently degraded segmentation and detection
+outputs while looking like a pure size win. Selfie-segmentation passes but saves
+0.3 MB in absolute terms, so it does not justify a second published variant.
+
+Net: **keep fp16 as the Core ML CV default; ship int8 for efficientnet only.**
+
+### Two measurement traps hit while producing this table
+
+1. **Aggregating cosine across heterogeneous outputs is meaningless.** ssdlite
+   emits (boxes, scores, labels); `labels` are class indices cast to float, so a
+   single changed label swings an aggregate score hard. The first run reported a
+   single blended 0.859. Always score per output tensor.
+2. **A near-zero reference tensor yields cosine 0.0 regardless of error.**
+   Selfie-segmentation first scored `cos_min 0.000` and looked destroyed. It is
+   in fact the best of the set at 0.9966; some frames simply produce an
+   all-zero output channel, where cosine is undefined. Detect and exclude those
+   rather than scoring them.
+
+Both errors pointed the same way: toward condemning models that were fine. A
+metric that can only fail in one direction deserves suspicion.
