@@ -1,0 +1,203 @@
+{
+  "$schema": "https://huggingface.co/software-mansion/react-native-executorch-spec/resolve/main/config.schema.json",
+  "model": "supertonic3_mlx_fp32",
+  "family": "supertonic",
+  "capabilities": [
+    "text-to-speech"
+  ],
+  "backend": "coreml",
+  "license": "openrail",
+  "variants": [
+    {
+      "file": "duration_predictor_coreml_fp16.pte",
+      "precision": "fp16",
+      "quantized": false,
+      "default": true,
+      "methods": {
+        "forward": {
+          "inputs": [
+            {
+              "shape": [
+                1,
+                null
+              ],
+              "dtype": "int64"
+            },
+            {
+              "shape": [
+                1,
+                8,
+                16
+              ],
+              "dtype": "float32"
+            },
+            {
+              "shape": [
+                1,
+                1,
+                null
+              ],
+              "dtype": "float32"
+            }
+          ],
+          "outputs": [
+            {
+              "shape": [
+                1
+              ],
+              "dtype": "float32"
+            }
+          ]
+        }
+      }
+    },
+    {
+      "file": "text_encoder_coreml_fp16.pte",
+      "precision": "fp16",
+      "quantized": false,
+      "default": true,
+      "methods": {
+        "forward": {
+          "inputs": [
+            {
+              "shape": [
+                1,
+                null
+              ],
+              "dtype": "int64"
+            },
+            {
+              "shape": [
+                1,
+                50,
+                256
+              ],
+              "dtype": "float32"
+            },
+            {
+              "shape": [
+                1,
+                1,
+                null
+              ],
+              "dtype": "float32"
+            }
+          ],
+          "outputs": [
+            {
+              "shape": [
+                1,
+                256,
+                null
+              ],
+              "dtype": "float32"
+            }
+          ]
+        }
+      }
+    },
+    {
+      "file": "vector_estimator_coreml_fp16.pte",
+      "precision": "fp16",
+      "quantized": false,
+      "default": true,
+      "methods": {
+        "forward": {
+          "inputs": [
+            {
+              "shape": [
+                1,
+                144,
+                null
+              ],
+              "dtype": "float32"
+            },
+            {
+              "shape": [
+                1,
+                256,
+                null
+              ],
+              "dtype": "float32"
+            },
+            {
+              "shape": [
+                1,
+                50,
+                256
+              ],
+              "dtype": "float32"
+            },
+            {
+              "shape": [
+                1,
+                1,
+                null
+              ],
+              "dtype": "float32"
+            },
+            {
+              "shape": [
+                1,
+                1,
+                null
+              ],
+              "dtype": "float32"
+            },
+            {
+              "shape": [
+                1
+              ],
+              "dtype": "float32"
+            },
+            {
+              "shape": [
+                1
+              ],
+              "dtype": "float32"
+            }
+          ],
+          "outputs": [
+            {
+              "shape": [
+                1,
+                144,
+                null
+              ],
+              "dtype": "float32"
+            }
+          ]
+        }
+      }
+    },
+    {
+      "file": "vocoder_coreml_fp16.pte",
+      "precision": "fp16",
+      "quantized": false,
+      "default": true,
+      "methods": {
+        "forward": {
+          "inputs": [
+            {
+              "shape": [
+                1,
+                144,
+                null
+              ],
+              "dtype": "float32"
+            }
+          ],
+          "outputs": [
+            {
+              "shape": [
+                1,
+                null
+              ],
+              "dtype": "float32"
+            }
+          ]
+        }
+      }
+    }
+  ]
+}

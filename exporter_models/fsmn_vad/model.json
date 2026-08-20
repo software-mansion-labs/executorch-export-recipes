@@ -6,7 +6,6 @@
   "repo": "software-mansion/react-native-executorch-fsmn-vad",
   "config": "{backend}/config.json",
   "backends": [
-    "xnnpack",
-    "mlx"
+    "xnnpack"
   ]
 }

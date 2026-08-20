@@ -5,7 +5,8 @@
   ],
   "backends": [
     "xnnpack",
-    "coreml"
+    "coreml",
+    "mlx"
   ],
   "config": "{backend}/config.json"
 }

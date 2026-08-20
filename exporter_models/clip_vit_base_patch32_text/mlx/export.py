@@ -1,3 +1,21 @@
+# MLX: exports cleanly, but the artifact only computes at the declared MAX token
+# length (74). Every shorter length fails at execute with error 0x1. Measured
+# 2026-08-20 at L = 74, 73, 64, 37, 32, 8, 2, 1: only L = 74 succeeds.
+#
+# Same failure mode as all_minilm_l6_v2 / multi_qa_minilm_l6_cos_v1 /
+# paraphrase_multilingual_minilm_l12_v2 -- see those exporters for the full
+# write-up. Re-tested after rebuilding with the software-mansion-labs fork and
+# running under the fork runtime: identical result, so it is not a PyPI-wheel
+# artifact.
+#
+# RNE feeds tokens at their exact length without padding, so this would throw on
+# essentially every real query. "mlx" is therefore removed from this model's
+# model.json backends. The exporter is kept so the finding can be re-tested.
+#
+# Note the contrast within this same repo: the VISION tower
+# (clip_vit_base_patch32_vision) has a static image input, exports to MLX and Core
+# ML, and is published. Only the text tower is affected.
+
 from pathlib import Path
 
 import torch

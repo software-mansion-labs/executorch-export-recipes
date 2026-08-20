@@ -1,60 +1,38 @@
-# ROOT CAUSE (investigated 2026-08-19, shared by every Core ML model disabled in
-# this repo except rfdetr_keypoint): Core ML's CPU cast kernel segfaults on
-# dynamically-shaped tensors. macOS crash report from the failing execute():
+# ROOT CAUSE (re-investigated 2026-08-20 -- this SUPERSEDES the earlier
+# "CPU cast kernel" diagnosis, which was wrong).
 #
-#     libvDSP.dylib   vDSP_vflt32                     <- int32 -> float32 convert
-#     Espresso        Espresso::cast_kernel_cpu::__launch(...)
-#     Espresso        Espresso::net::__forward(...)
-#     CoreML          -[MLNeuralNetworkEngine executePlan:error:]
+# The fault is on the NON-CPU compute paths. Full matrix for all_mpnet_base_v2,
+# dynamic Dim("tokens", 1..382), measured on a CLEARED Core ML compiled-model
+# cache (~/Library/Caches/executorchcoreml -- a stale cache silently serves an
+# older compilation and will fake a pass):
 #
-# The decisive test is same model, same code, shape spec the only difference:
-#     all_mpnet_base_v2            dynamic Dim -> SIGSEGV, static -> OK (1, 768)
-#     clip_vit_base_patch32_text   dynamic Dim -> SIGSEGV, static -> OK (1, 512)
-#     fsmn_vad                     dynamic Dim -> error 0x1, static -> OK (2e-6)
+#     compute_unit     precision   result
+#     CPU_ONLY         fp16        OK
+#     CPU_ONLY         fp32        OK
+#     CPU_AND_NE       fp16        SIGSEGV
+#     CPU_AND_NE       fp32        OK  <- only because fp32 cannot run on the ANE,
+#                                         so it silently falls back to the CPU
+#     ALL              fp16        SIGSEGV
+#     ALL              fp32        SIGSEGV
 #
-# It is NOT a length/buffer mismatch: dynamic mpnet crashes at EVERY length
-# (1, 24, 200, 380 and the max 382), so the dynamic path itself is broken, not a
-# size disagreement between the compiled plan and the actual input.
+# So CPU_AND_NE is NOT a fix. Anything that actually reaches the ANE or the GPU
+# crashes; only the CPU path is safe. A CPU_ONLY Core ML build has no accelerator
+# advantage over the existing XNNPACK export, so shipping one buys nothing --
+# which is why "coreml" stays out of this model's model.json backends.
 #
-# It is also NOT "Core ML cannot do dynamic shapes". all_minilm_l6_v2 and
-# multi_qa_minilm_l6_cos_v1 use the same Dim("tokens", ...) pattern and run
-# correctly (cos 0.99998 / 0.99997). So it is dynamic shapes PLUS something these
-# graphs emit that BERT does not -- mpnet's relative-position-bucket arithmetic and
-# CLIP's causal-mask/argmax indexing both build integer tensors sized by the
-# symbolic dim, which is what that cast is converting. The exact offending node has
-# NOT been isolated; treat that last step as a hypothesis, not a finding.
+# The trigger is the masked mean-pool over a dynamic sequence dim, bisected one
+# wrapper piece at a time (encoder alone OK, + CLS/SEP prepend OK, + mean-pool
+# SIGSEGV). Core ML infers the pooled output as data-dependent [?, H] even though
+# the reduction removes the dynamic axis, and the non-CPU backends reject it:
+#     Espresso exception: "Invalid blob shape": Data-dependent shapes were disabled
+# Reproduces from plain coremltools with no ExecuTorch involved. Filed upstream as
+# apple/coremltools#2825; see docs/coremltools-2825-repro.md.
 #
-# WORKAROUND, not applied here: export with static shapes. That costs the
-# variable-length input contract (the runtime would have to pad to a fixed length),
-# so it is a product decision rather than an exporter one.
+# fsmn_vad SPECIFICS: this model does not segfault -- it fails with error 0x1 at
+# execute under CPU_AND_NE in both fp16 and fp32 (re-tested 2026-08-20 on a clear
+# cache). That is a different fault from the mpnet segfault above and is NOT fixed
+# by changing compute_unit, so Core ML stays disabled here too.
 #
-# DISABLED: Core ML is not supported for this model, and this whole exporter is
-# commented out. Verified 2026-08-19 on ExecuTorch 1.4.1 / coremltools 9.0.
-#
-# The blocker is the DYNAMIC sequence dim. The model exports with
-# Dim("T", min=100, max=1000) because VAD runs on variable-length audio; the Core
-# ML .pte builds fine but every execute() fails with ExecuTorch error 0x1 at both
-# fp16 and fp32. Re-exported with a STATIC [1000, 512] input it runs and is
-# numerically excellent: max abs error 2e-6 vs the float PyTorch reference. So the
-# graph and the weights are fine -- only the dynamic shape is not.
-#
-# Two other things had to be solved first, and both worked; keep them if this is
-# revisited:
-#   1. coremltools 9.0 cannot convert aten.fft_rfft ("got 1 input(s), expected
-#      [4]"), and skipping it just moves the failure to torch.complex64, which
-#      Core ML has no dtype for.
-#   2. Fixed by rewriting the front-end: fbank only ever uses |rfft(x)|**2, so the
-#      complex FFT is replaced by a real DFT as two matmuls (Re = x @ cos_basis,
-#      Im = -x @ sin_basis, |X|**2 = Re**2 + Im**2). That also drops the
-#      abs()/pow(2) round-trip. The commented code below contains that rewrite.
-#
-# aten.as_strided_copy.default is unsupported by Core ML and falls back to CPU;
-# that is harmless (lower_full_graph=False handles it).
-#
-# To enable: needs dynamic-shape support from the Core ML delegate. Shipping a
-# fixed-length variant instead would change this model's API contract, so it is
-# not done here. "coreml" is removed from model.json backends so batches skip it.
-
 # import importlib.util
 # import sys
 # from pathlib import Path

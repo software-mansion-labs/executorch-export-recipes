@@ -1,31 +1,40 @@
-# DISABLED: Core ML is not supported for this model, and this whole exporter is
-# commented out. Verified 2026-08-19 on ExecuTorch 1.4.1 / coremltools 9.0.
+# ROOT CAUSE (re-investigated 2026-08-20 -- this SUPERSEDES the earlier
+# "CPU cast kernel" diagnosis, which was wrong).
 #
-# Two independent failures, either one fatal:
+# The fault is on the NON-CPU compute paths. Full matrix for all_mpnet_base_v2,
+# dynamic Dim("tokens", 1..382), measured on a CLEARED Core ML compiled-model
+# cache (~/Library/Caches/executorchcoreml -- a stale cache silently serves an
+# older compilation and will fake a pass):
 #
-# 1. The SYNTHESIZER does not export at all:
-#        Could not guard on data-dependent expression u5 < 1 (unhinted: u5 < 1).
-#        (Size-like symbols: u5)
-#    Its sequence length is derived from the predicted durations (indices.shape[0]
-#    driving pred_aln_trg), i.e. a genuinely data-dependent unbacked symint. The
-#    XNNPACK export of the identical graph succeeds, so this is Core ML's shape
-#    requirement, not a broken model.
+#     compute_unit     precision   result
+#     CPU_ONLY         fp16        OK
+#     CPU_ONLY         fp32        OK
+#     CPU_AND_NE       fp16        SIGSEGV
+#     CPU_AND_NE       fp32        OK  <- only because fp32 cannot run on the ANE,
+#                                         so it silently falls back to the CPU
+#     ALL              fp16        SIGSEGV
+#     ALL              fp32        SIGSEGV
 #
-# 2. The DURATION PREDICTOR does export (fp16 35.8 MB, fp32 62.7 MB) but the .pte
-#    is unusable: every method fails to LOAD with ExecuTorch error 0x23
-#    (Error::InvalidProgram) -- forward_32, forward_64 and forward_128, at both
-#    precisions. Nothing was even executed.
+# So CPU_AND_NE is NOT a fix. Anything that actually reaches the ANE or the GPU
+# crashes; only the CPU path is safe. A CPU_ONLY Core ML build has no accelerator
+# advantage over the existing XNNPACK export, so shipping one buys nothing --
+# which is why "coreml" stays out of this model's model.json backends.
 #
-# Kokoro is a multi-method, two-program model (duration predictor with
-# forward_32/64/128, plus a synthesizer) and goes through the export_all path, so
-# config carries "variants" (plural) and one call must emit every declared file.
-# The commented code below already handles that correctly -- it builds the exported
-# programs once and lowers them per precision -- so if this is revisited, the
-# plumbing is done and the two failures above are what remain.
+# The trigger is the masked mean-pool over a dynamic sequence dim, bisected one
+# wrapper piece at a time (encoder alone OK, + CLS/SEP prepend OK, + mean-pool
+# SIGSEGV). Core ML infers the pooled output as data-dependent [?, H] even though
+# the reduction removes the dynamic axis, and the non-CPU backends reject it:
+#     Espresso exception: "Invalid blob shape": Data-dependent shapes were disabled
+# Reproduces from plain coremltools with no ExecuTorch involved. Filed upstream as
+# apple/coremltools#2825; see docs/coremltools-2825-repro.md.
 #
-# "coreml" is removed from model.json backends so batch exports skip it. Kokoro
-# stays on XNNPACK.
-
+# kokoro SPECIFICS: kokoro never reaches execution -- it fails to EXPORT, so
+# compute_unit is irrelevant. Retried 2026-08-20 with CPU_AND_NE: duration_predictor
+# builds, then the next sub-model dies on 'bert.embeddings.position_ids'. The
+# previously recorded failure was a data-dependent guard ("Could not guard on
+# data-dependent expression u5 < 1"). Either way this is an export-time tracing
+# problem, not a Core ML runtime one.
+#
 # import importlib.util
 # import sys
 # from pathlib import Path

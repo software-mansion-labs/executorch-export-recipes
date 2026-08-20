@@ -1,3 +1,15 @@
+# MLX: does not export -- same data-dependent guard that blocks the Core ML path.
+#
+# Measured 2026-08-20 with the software-mansion-labs fork:
+#     Could not guard on data-dependent expression u5 < 1
+#
+# This is an export-time tracing failure, so it is backend-independent: Core ML
+# fails the same way (see coreml/export.py). Neither Apple backend can be produced
+# until the guard is resolved in the model code, so this is not something a
+# partitioner or compile-config change can fix.
+#
+# "mlx" is removed from this model's model.json backends. The exporter is kept.
+
 import importlib.util
 import sys
 from pathlib import Path

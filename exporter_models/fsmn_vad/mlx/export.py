@@ -1,3 +1,21 @@
+# MLX: does not lower -- the MLX partitioner crashes on in-place clamp.
+#
+# Measured 2026-08-20 with the software-mansion-labs fork:
+#
+#     handler failed for <EdgeOpOverload: aten.clamp_.default>:
+#         float() argument must be a string or a real number, not 'Slot'
+#     TypeError: float() argument must be a string or a real number, not 'Slot'
+#
+# The export emits a .pte but it fails to LOAD at runtime. This is a defect in the
+# MLX backend's in-place-passthrough handler, NOT the missing-compile-config issue
+# that blocked efficientnet_v2_s / ssdlite320 / rfdetr_nano_* (those were fixed by
+# adding EdgeCompileConfig(_check_ir_validity=False, _skip_dim_order=True) and now
+# export, execute and ship). Adding that config here does not help, because the
+# failure is inside the partitioner's op handler rather than in IR validation.
+#
+# Core ML is separately disabled for this model (see coreml/export.py), so fsmn_vad
+# has no working Apple accelerator backend today. "mlx" is removed from model.json.
+
 import importlib.util
 import sys
 from pathlib import Path

@@ -112,8 +112,8 @@ wheels = [
 
 [[package]]
 name = "executorch"
-version = "1.4.1"
-source = { registry = "https://pypi.org/simple" }
+version = "1.4.1+226b471"
+source = { git = "https://github.com/software-mansion-labs/executorch?branch=%40ms%2Fseparate-backends-1.4.1#226b47146256b8cae0f71b3af92aa16be60ae950" }
 dependencies = [
     { name = "coremltools", marker = "platform_machine == 'arm64' and sys_platform == 'darwin'" },
     { name = "expecttest", marker = "platform_machine == 'arm64' and sys_platform == 'darwin'" },
@@ -136,9 +136,6 @@ dependencies = [
     { name = "torch", marker = "platform_machine == 'arm64' and sys_platform == 'darwin'" },
     { name = "torchao", marker = "platform_machine == 'arm64' and sys_platform == 'darwin'" },
     { name = "typing-extensions", marker = "platform_machine == 'arm64' and sys_platform == 'darwin'" },
-]
-wheels = [
-    { url = "https://files.pythonhosted.org/packages/f2/69/6102ce7a5cd3bdb11d7c8c7c404c6c03d34a7084842e4bfb001b64e83902/executorch-1.4.1-cp310-cp310-macosx_14_0_arm64.whl", hash = "sha256:389464f40e6945e6926073536a7f6982a873d41df322e2e2031476456ea306ae", size = 16659021, upload-time = "2026-08-14T20:22:47.492Z" },
 ]
 
 [[package]]
@@ -172,6 +169,7 @@ name = "exporter-model-supertonic-3"
 version = "0"
 source = { virtual = "." }
 dependencies = [
+    { name = "coremltools", marker = "platform_machine == 'arm64' and sys_platform == 'darwin'" },
     { name = "executorch", marker = "platform_machine == 'arm64' and sys_platform == 'darwin'" },
     { name = "exporter", marker = "platform_machine == 'arm64' and sys_platform == 'darwin'" },
     { name = "numpy", marker = "platform_machine == 'arm64' and sys_platform == 'darwin'" },
@@ -182,7 +180,8 @@ dependencies = [
 
 [package.metadata]
 requires-dist = [
-    { name = "executorch", specifier = "==1.4.1" },
+    { name = "coremltools", specifier = "==9.0" },
+    { name = "executorch", git = "https://github.com/software-mansion-labs/executorch?branch=%40ms%2Fseparate-backends-1.4.1" },
     { name = "exporter", editable = "../../" },
     { name = "numpy", specifier = "==2.0.0" },
     { name = "onnx", specifier = "==1.17.0" },

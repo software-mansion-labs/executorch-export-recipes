@@ -1,3 +1,25 @@
+# MLX: exports, but the artifact is unusable at the token lengths RNE feeds.
+#
+# Measured 2026-08-20, fork toolchain, fork runtime, Dim("tokens", 1..382):
+#     EVERY length FAILS with error 0x1, including the declared max 382 --
+#     strictly worse than all_mpnet_base_v2, which at least works at max length
+#
+# Same family failure as all_minilm_l6_v2 / multi_qa_minilm_l6_cos_v1 /
+# paraphrase_multilingual_minilm_l12_v2 / clip_vit_base_patch32_text -- the
+# position-embedding buffer is specialized to the padded maximum, so shorter
+# inputs refuse to broadcast. RNE's createTextEmbedder feeds tokens at their exact
+# length with no padding, so this throws on essentially every real query.
+#
+# Not a toolchain artifact: re-tested after rebuilding with the software-mansion-labs
+# fork and running under the fork runtime, identical result.
+#
+# NOT universal: distiluse_base_multilingual_cased_v2 uses the same dynamic-Dim
+# pattern and is correct at every length (cosine 1.000000), and IS published. It
+# loads through its own _distiluse_model.py rather than a bare AutoModel.
+#
+# "mlx" is removed from this model's model.json backends. The exporter is kept so
+# the finding can be re-tested.
+
 from pathlib import Path
 
 import torch

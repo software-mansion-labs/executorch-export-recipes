@@ -55,7 +55,10 @@ class YOLOInstanceSegmentation(InstanceSegmentationWrapper):
         bbox = preds[0, :, :4]
         scores = preds[0, :, 4]
         classes = preds[0, :, 5]
-        mask_coeffs = preds[:, :, -self.nm :]
+        # The YOLO26 end2end head returns preds in fp32 even on a halved model,
+        # while protos follow the model dtype. Align them so the bmm below works
+        # under an fp16 export; this is a no-op when both are already fp32.
+        mask_coeffs = preds[:, :, -self.nm :].to(protos.dtype)
 
         if self.mask_size is not None:
             protos = F.interpolate(
