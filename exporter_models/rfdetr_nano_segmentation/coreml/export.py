@@ -34,6 +34,25 @@ class _RFDETRSegmentationWrapper(nn.Module):
         return bboxes, scores, pred_masks
 
 
+# CONTRACT MISMATCH: this model does not satisfy the RNE instance segmentation
+# task contract, and never has, at any precision.
+#
+# createInstanceSegmenter validates against:
+#   [f32(N,4), f32(N), f32(N), f32(N,MH,MW)]   boxes, scores, classes, masks
+#
+# this export produces:
+#   [(1,100,4), (1,100,2), (1,100,78,78)]      three outputs, batched
+#
+# Two problems: there is no separate `classes` output, and every output carries a
+# leading batch dim the contract does not allow. On device the task therefore
+# fails with "spec doesn't match any of provided variant for batched and
+# unbatched". Confirmed 2026-08-20 for both the int8 and fp16 builds, so this is
+# independent of the precision change and predates it.
+#
+# The sibling detector export is fine: it emits (300,4), (300,), (300,), which
+# matches the object detection contract, and is verified working on device.
+
+
 def _lower(exported, precision: str):
     import coremltools as ct
     from executorch.backends.apple.coreml.compiler import CoreMLBackend

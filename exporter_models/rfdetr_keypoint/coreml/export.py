@@ -47,6 +47,27 @@ def _load_model():
     return mod
 
 
+# DEVICE WARNING: fp16 is broken for this model on iPhone, and the failure is
+# invisible to host testing.
+#
+# Measured 2026-08-20 on an iPhone 16: the fp32 build detects and draws keypoints
+# correctly; the fp16 build draws nothing at all. On macOS both builds are
+# indistinguishable (max score 0.813 vs 0.811 and 0.868 vs 0.867 on the same
+# person images), so a host-side check passes fp16 cleanly.
+#
+# It is NOT the Apple Neural Engine. The obvious hypothesis was that fp16 reaches
+# the ANE where fp32 cannot, so an fp16 build pinned to compute_unit=CPU_ONLY was
+# also tested on device: it fails identically. Whatever breaks is in the fp16
+# numerics or lowering of this graph, not in compute-unit routing.
+#
+# Consequences:
+#   * Do not ship an fp16 Core ML variant for this model. fp32 stays.
+#   * A latency benchmark cannot be trusted here on its own. fp16 measured 1.30x
+#     faster than fp32 (123.4 vs 159.9 ms) at half the size while producing
+#     unusable output, because the benchmark harness verifies that output is
+#     finite and correctly delegated, not that it is correct.
+
+
 def export(config: dict, out_dir: str) -> str:
     import coremltools as ct
     from executorch.backends.apple.coreml.compiler import CoreMLBackend
