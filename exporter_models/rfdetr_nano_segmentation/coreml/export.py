@@ -30,28 +30,24 @@ class _RFDETRSegmentationWrapper(nn.Module):
         bboxes = torch.cat([cxy - half_wh, cxy + half_wh], dim=-1) * self.resolution
         probs = pred_logits.sigmoid()
         max_scores, class_ids = probs.max(dim=-1)
-        scores = torch.stack([max_scores, class_ids.float()], dim=-1)
-        return bboxes, scores, pred_masks
+        # flattened contract: 4 batch-squeezed outputs (boxes, scores, labels, masks),
+        # matching the xnnpack export and createInstanceSegmenter's allowed spec
+        # [f32(N,4), f32(N), f32(N), f32(N,MH,MW)]. This exporter previously packed
+        # scores and class ids into one (1,N,2) tensor and kept the batch dim, which
+        # no variant of the task contract accepts.
+        return bboxes[0], max_scores[0], class_ids[0].float(), pred_masks[0]
 
 
-# CONTRACT MISMATCH: this model does not satisfy the RNE instance segmentation
-# task contract, and never has, at any precision.
+# CONTRACT: 4 batch-squeezed outputs (boxes, scores, labels, masks), matching
+# createInstanceSegmenter's allowed spec [f32(N,4), f32(N), f32(N), f32(N,MH,MW)]
+# and the xnnpack export.
 #
-# createInstanceSegmenter validates against:
-#   [f32(N,4), f32(N), f32(N), f32(N,MH,MW)]   boxes, scores, classes, masks
-#
-# this export produces:
-#   [(1,100,4), (1,100,2), (1,100,78,78)]      three outputs, batched
-#
-# Two problems: there is no separate `classes` output, and every output carries a
-# leading batch dim the contract does not allow. On device the task therefore
-# fails with "spec doesn't match any of provided variant for batched and
-# unbatched". Confirmed 2026-08-20 for both the int8 and fp16 builds, so this is
-# independent of the precision change and predates it.
-#
-# The sibling detector export is fine: it emits (300,4), (300,), (300,), which
-# matches the object detection contract, and is verified working on device.
-
+# Until 2026-08-20 this exporter emitted three batched outputs instead --
+# [(1,100,4), (1,100,2), (1,100,78,78)] -- packing scores and class ids together
+# and keeping the batch dim. No variant of the task contract accepts that, so the
+# model failed spec validation on device with "spec doesn't match any of provided
+# variant for batched and unbatched". It affected every precision, so the Core ML
+# build of this model had never been usable through the task.
 
 def _lower(exported, precision: str):
     import coremltools as ct
