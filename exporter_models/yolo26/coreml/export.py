@@ -19,16 +19,26 @@ class _YoloDetection(torch.nn.Module):
         return p[:, :4], p[:, 4], p[:, 5]
 
 
-# NOTE: fp16 only, deliberately. A FLOAT32 compute_precision build of this graph
-# forces the Core ML GPU path, where the MPSGraph MLIR compiler fails an internal
-# assertion ("Error: MLIR pass manager failed", MPSGraphExecutable.mm) and aborts
-# the process -- so the host crashes and, on device, the app dies with no catchable
-# error. Verified 2026-08-19 at all three resolutions (384/512/640) on ExecuTorch
-# 1.4.1 / coremltools 9.0. The graph itself is fine: the identical export lowered
-# with compute_unit=CPU_ONLY runs and matches the torch reference to 1.5e-4 px on
-# boxes and 1e-6 on scores, and every other Core ML model in this repo (including
-# fp32 SSDLite, FastSAM and style transfer) executes normally. So this looks like
-# an Apple MPSGraph compiler bug specific to this graph rather than a bad export.
+# NOTE: fp16 only, deliberately, and never the Core ML GPU.
+#
+# This graph aborts the process on the Core ML GPU path: the MPSGraph MLIR
+# compiler fails an internal assertion ("Error: MLIR pass manager failed",
+# MPSGraphExecutable.mm:5070). It is an assertion, so SIGABRT, which no caller
+# can catch -- the host process dies and on device the app dies with it.
+#
+# CORRECTION 2026-08-20: this was originally recorded as an fp32 problem, on the
+# reasoning that a FLOAT32 compute_precision build forces the GPU path. Precision
+# is not the cause. An fp16 build with compute_unit pinned to CPU_AND_GPU hits the
+# identical assertion, reproduced at all three resolutions (384/512/640). The
+# trigger is the GPU path itself; fp32 merely happened to route there. Anything
+# that puts this graph on the Core ML GPU will abort, at any precision.
+#
+# The graph itself is fine. The identical export runs correctly under ALL,
+# CPU_ONLY and CPU_AND_NE, and matches the torch reference to 1.5e-4 px on boxes
+# and 1e-6 on scores. efficientnet-v2-s lowered with CPU_AND_GPU runs normally, so
+# this is specific to this graph rather than a general Core ML GPU fault: an Apple
+# MPSGraph compiler bug, not a bad export.
+#
 # fp16 is also the only precision the ANE accepts, so nothing useful is lost.
 # The yolo26 <size>/coreml/config.json files intentionally list fp16 variants only.
 def export(config: dict, out_dir: str) -> str:
