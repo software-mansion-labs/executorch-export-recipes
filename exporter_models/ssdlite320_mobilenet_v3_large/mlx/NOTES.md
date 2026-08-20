@@ -22,11 +22,32 @@ These exporters only ever declared an MLX fp32 variant, so fp32-vs-fp32 is the
 fair comparison and it is deliberately the conservative one: MLX still loses it.
 
 **Caveat specific to this model.** The 1.75x margin against the shipped Core ML
-default is the narrowest in this study, so this is the least emphatic removal of
-the set. Note also that ssdlite320 is the one model measured where Core ML fp16 is
-*slower* than its own fp32 (9.7 vs 9.2 ms, consistent across mean/min/p90), which
-is being investigated separately and is a question about Core ML defaults rather
-than about MLX.
+default was the narrowest in this study. A follow-up compute-unit sweep has since
+improved the Core ML side: pinning `compute_unit=CPU_ONLY` gives 7.2 ms, so the
+real margin is **2.4x** (17.0 vs 7.2 ms). The removal therefore stands more
+firmly than the table above suggests.
+
+**Correction.** An earlier revision of this file stated that Core ML fp16 is
+*slower* than its own fp32 for this model (9.7 vs 9.2 ms). That was measured on a
+single run and did not reproduce: a repeat gave fp32 9.6 ms and fp16 9.5 ms, i.e.
+the ordering flipped, and both gaps sit inside run-to-run variance of about
+0.5 ms with fully overlapping min/p90 distributions. The correct statement is
+that **fp16 buys no speed on this model**, not that it is slower.
+
+The reason is that the Apple Neural Engine is a net loss here. Pinned compute
+units, fp16, iPhone 16:
+
+| compute unit | median |
+|---|---|
+| ALL (default) | 9.5 ms |
+| CPU_AND_NE | 9.7 ms |
+| CPU_AND_GPU | 11.8 ms |
+| **CPU_ONLY** | **7.2 ms** |
+
+`ALL` and `CPU_AND_NE` are indistinguishable, so the default routes to the ANE,
+and dropping the ANE is 24% faster. That also explains why fp16 shows no gain:
+on the ANE path, conv math precision is not the bottleneck. This is a question
+about Core ML compute-unit defaults, not about MLX.
 
 ## Context
 
