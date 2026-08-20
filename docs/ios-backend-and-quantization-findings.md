@@ -394,3 +394,37 @@ Net: **keep fp16 as the Core ML CV default; ship int8 for efficientnet only.**
 
 Both errors pointed the same way: toward condemning models that were fine. A
 metric that can only fail in one direction deserves suspicion.
+
+---
+
+## 8. Core ML compute_unit, full CV sweep: the default is correct
+
+Extending section 6 to every remaining CV model. `ALL` vs `CPU_ONLY` only:
+`CPU_AND_NE` was indistinguishable from `ALL` everywhere measured, and
+`CPU_AND_GPU` either loses or aborts the process.
+
+| model | ALL | CPU_ONLY | winner | ratio |
+|---|---:|---:|---|---:|
+| selfie-segmentation | **0.3** | 1.1 | ALL | 3.67x |
+| fast-sam-s | **9.4** | 31.1 | ALL | 3.31x |
+| yolo26-seg-s @640 | **10.5** | 31.4 | ALL | 2.99x |
+| fcn-resnet50 | **47.5** | 136.7 | ALL | 2.88x |
+| yolo26-pose @640 | **3.9** | 10.6 | ALL | 2.72x |
+| lraspp | **7.5** | 12.8 | ALL | 1.71x |
+| deeplab-v3-mbv3 | **24.6** | 28.4 | ALL | 1.15x |
+| rfdetr-nano-det | **33.5** | 38.1 | ALL | 1.14x |
+
+Combined with section 6 (yolo26-s at three resolutions, efficientnet, ssdlite320)
+this is **11 CV models measured, and ssdlite320 is the only one where the default
+is wrong.**
+
+### Conclusion: change nothing
+
+Do not pin `compute_unit` anywhere. The Core ML default is correct for 10 of 11
+CV models, by margins up to 7x. The single exception, ssdlite320 (CPU_ONLY 24%
+faster), is worth a pin only after a second device confirms it, since it is a
+lone outlier resting on one device and its suspected cause (graph fragmentation
+from a Core ML introduced `select_scatter`) was never demonstrated.
+
+This is a negative result and that is the value of it: the ssdlite measurement
+alone would have justified a catalogue wide `CPU_ONLY` pin costing up to 3.7x.
