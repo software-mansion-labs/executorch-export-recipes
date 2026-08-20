@@ -61,7 +61,20 @@ def export(config: dict, out_dir: str) -> str:
 
     schema_json = load_and_validate_schema(_MODEL_DIR / "schema.json")
 
+    # CPU_ONLY, deliberately. These graphs fail the Apple Neural Engine path
+    # (coremltools#2825 masked mean-pool over a dynamic sequence dim, surfacing
+    # as `Espresso exception: "Invalid blob shape": Data-dependent shapes were
+    # disabled`; clip-text additionally `ANECCompile() FAILED`). Core ML still
+    # returns correct output because it silently falls back to CPU, but the
+    # failed ANE compile is paid on every call. Pinning CPU_ONLY skips the
+    # attempt entirely. Measured on an iPhone 16, fp16, 3 warmup + 15 timed:
+    #   all-MiniLM      13.7 ms -> 2.5 ms   5.5x
+    #   multi-qa        14.1 ms -> 2.5 ms   5.6x
+    #   paraphrase-L12  26.9 ms -> 4.2 ms   6.4x
+    #   distiluse       33.0 ms -> 8.0 ms   4.1x
+    #   clip-text       18.1 ms -> 4.9 ms   3.7x
     specs = CoreMLBackend.generate_compile_specs(
+        compute_unit=ct.ComputeUnit.CPU_ONLY,
         minimum_deployment_target=ct.target.iOS18,
         compute_precision=precision,
     )

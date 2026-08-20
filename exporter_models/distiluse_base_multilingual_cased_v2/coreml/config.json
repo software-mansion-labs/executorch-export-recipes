@@ -11,45 +11,10 @@
   "tokenizer_config": "../tokenizer_config.json",
   "variants": [
     {
-      "file": "distiluse_base_multilingual_cased_v2_coreml_fp32.pte",
-      "precision": "fp32",
-      "quantized": false,
-      "default": true,
-      "methods": {
-        "forward": {
-          "inputs": [
-            {
-              "shape": [
-                1,
-                126
-              ],
-              "dtype": "int64"
-            },
-            {
-              "shape": [
-                1,
-                126
-              ],
-              "dtype": "int64"
-            }
-          ],
-          "outputs": [
-            {
-              "shape": [
-                1,
-                512
-              ],
-              "dtype": "float32"
-            }
-          ]
-        }
-      }
-    },
-    {
       "file": "distiluse_base_multilingual_cased_v2_coreml_fp16.pte",
       "precision": "fp16",
       "quantized": false,
-      "default": false,
+      "default": true,
       "methods": {
         "forward": {
           "inputs": [
