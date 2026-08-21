@@ -9,9 +9,9 @@
   "license": "mit",
   "variants": [
     {
-      "file": "clip_vit_base_patch32_image_mlx_fp32.pte",
-      "precision": "fp32",
-      "quantized": false,
+      "file": "clip_vit_base_patch32_image_mlx_int8.pte",
+      "precision": "int8",
+      "quantized": true,
       "default": true,
       "methods": {
         "forward": {

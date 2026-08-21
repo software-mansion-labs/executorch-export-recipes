@@ -30,6 +30,22 @@ def export(config: dict, out_dir: str) -> str:
     variant = config["variant"]
 
     module = _load_model().load_embedder()
+
+    if variant.get("quantized"):
+        # 68% of this model's parameters are in the token embedding (large
+        # multilingual vocab), so quantizing Linear alone only reaches 412 MB.
+        # The embedding CAN be quantized here: unlike Whisper, this is an
+        # encoder with no tied output projection, so the embedding is a pure
+        # lookup and never serves a raw matmul.
+        #
+        # Measured min cosine vs the fp32 reference over multilingual probes:
+        #   int8 linear      412 MB  0.999859
+        #   int8 linear+emb  136 MB  0.999790   <- shipped
+        #   int4 linear+emb  146 MB  0.979790   (visibly worse, not offered)
+        from executorch.backends.mlx.llm.quantization import quantize_model_
+
+        quantize_model_(module, qlinear_config="8w", qembedding_config="8w")
+
     inputs = (
         torch.zeros(1, 8, dtype=torch.int64),
         torch.ones(1, 8, dtype=torch.int64),
