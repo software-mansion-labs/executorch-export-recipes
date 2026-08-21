@@ -2,7 +2,8 @@
   "hf": "https://huggingface.co/software-mansion/react-native-executorch-clip-vit-base-patch32",
   "backends": [
     "xnnpack",
-    "coreml"
+    "coreml",
+    "mlx"
   ],
   "config": "{backend}/config.json"
 }

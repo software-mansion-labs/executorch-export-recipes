@@ -4,7 +4,9 @@
     "tts"
   ],
   "backends": [
-    "xnnpack"
+    "xnnpack",
+    "coreml",
+    "mlx"
   ],
   "config": "{backend}/config.json",
   "multi_pte": true
