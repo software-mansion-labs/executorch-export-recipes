@@ -11,9 +11,9 @@
   "tokenizer_config": "../tokenizer_config.json",
   "variants": [
     {
-      "file": "distiluse_base_multilingual_cased_v2_mlx_fp32.pte",
-      "precision": "fp32",
-      "quantized": false,
+      "file": "distiluse_base_multilingual_cased_v2_mlx_int8.pte",
+      "precision": "int8",
+      "quantized": true,
       "default": true,
       "methods": {
         "forward": {
