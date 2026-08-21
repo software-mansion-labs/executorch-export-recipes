@@ -46,5 +46,8 @@ Core ML build is unquantized.
 loaded under the fork runtime): identical `0x23` failure. So this is not a
 PyPI-wheel artifact, unlike the YOLO fp16 MLX case which the fork did fix.
 
-`coreml` is therefore **not** in this model's `model.json` backends. The exporter is
-kept so the finding can be re-tested.
+No Core ML `.pte` is published for this model. The exporter and its
+`coreml/config.json` are kept, and `coreml` stays in `model.json` backends, so
+`--backend coreml` actually runs and the finding can be re-tested. (It was
+previously dropped from that list, which made the exporter unreachable and this
+paragraph impossible to act on.)

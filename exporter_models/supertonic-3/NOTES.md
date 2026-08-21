@@ -24,6 +24,9 @@ latent 4..1000), and a symbolic dim reaches the Core ML converter as a placehold
 it cannot represent. `vocoder`, which takes only a float latent and was the best
 candidate, is never reached because the run aborts on the first failure.
 
-`coreml` is therefore **not** in this model's `model.json` backends. The exporter is
-kept so the finding can be re-tested against a future coremltools. Related:
+No Core ML `.pte` is published for this model. The exporter and its
+`coreml/config.json` are kept, and `coreml` stays in `model.json` backends, so the
+command above actually runs and the finding can be re-tested against a future
+coremltools. (It was previously dropped from that list, which made the command
+above fail with a SpecError before it ever reached coremltools.) Related:
 apple/coremltools#2825 and `docs/coremltools-2825-repro.md`.
