@@ -15,6 +15,7 @@
   "backends": [
     "xnnpack",
     "coreml",
-    "vulkan"
+    "vulkan",
+    "mlx"
   ]
 }
