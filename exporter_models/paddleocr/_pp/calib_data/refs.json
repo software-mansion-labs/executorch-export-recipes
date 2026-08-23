@@ -1,0 +1,90 @@
+{
+  "english/english_1.png": {
+    "lang": "english",
+    "text": "The quick brown fox jumps over the lazy dog"
+  },
+  "english/english_2.png": {
+    "lang": "english",
+    "text": "Invoice Total 1250.00 USD Date 2026-06-15"
+  },
+  "english/english_3.png": {
+    "lang": "english",
+    "text": "Order 48217 shipped to 221B Baker Street"
+  },
+  "latin/latin_1.png": {
+    "lang": "latin",
+    "text": "Café au lait coûte 3 euros à Paris"
+  },
+  "latin/latin_2.png": {
+    "lang": "latin",
+    "text": "Über den Wölken in München 2026"
+  },
+  "latin/latin_3.png": {
+    "lang": "latin",
+    "text": "El niño comió jamón en España"
+  },
+  "cyrillic/cyrillic_1.png": {
+    "lang": "cyrillic",
+    "text": "Быстрая коричневая лиса прыгает"
+  },
+  "cyrillic/cyrillic_2.png": {
+    "lang": "cyrillic",
+    "text": "Москва Россия индекс 101000"
+  },
+  "cyrillic/cyrillic_3.png": {
+    "lang": "cyrillic",
+    "text": "Сумма заказа 1250 рублей"
+  },
+  "zh_sim/zh_sim_1.png": {
+    "lang": "zh_sim",
+    "text": "快速的棕色狐狸跳过懒狗"
+  },
+  "zh_sim/zh_sim_2.png": {
+    "lang": "zh_sim",
+    "text": "发票总额 1250 元 日期 2026"
+  },
+  "zh_sim/zh_sim_3.png": {
+    "lang": "zh_sim",
+    "text": "北京 中国 邮编 100000"
+  },
+  "japanese/japanese_1.png": {
+    "lang": "japanese",
+    "text": "速い茶色のキツネが跳ぶ"
+  },
+  "japanese/japanese_2.png": {
+    "lang": "japanese",
+    "text": "東京 日本 2026年6月"
+  },
+  "japanese/japanese_3.png": {
+    "lang": "japanese",
+    "text": "請求金額 1250 円"
+  },
+  "korean/korean_1.png": {
+    "lang": "korean",
+    "text": "빠른 갈색 여우가 뛴다"
+  },
+  "korean/korean_2.png": {
+    "lang": "korean",
+    "text": "서울 대한민국 우편번호 04524"
+  },
+  "korean/korean_3.png": {
+    "lang": "korean",
+    "text": "주문 합계 1250 원"
+  },
+  "telugu/telugu_1.png": {
+    "lang": "telugu",
+    "text": "నమస్కారం తెలుగు భాష"
+  },
+  "telugu/telugu_2.png": {
+    "lang": "telugu",
+    "text": "హైదరాబాద్ భారతదేశం"
+  },
+  "kannada/kannada_1.png": {
+    "lang": "kannada",
+    "text": "ನಮಸ್ಕಾರ ಕನ್ನಡ ಭಾಷೆ"
+  },
+  "kannada/kannada_2.png": {
+    "lang": "kannada",
+    "text": "ಬೆಂಗಳೂರು ಭಾರತ ದೇಶ"
+  }
+}

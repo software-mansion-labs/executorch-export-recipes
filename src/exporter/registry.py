@@ -117,6 +117,7 @@ def model_extras(model: str) -> list[str]:
 _EXTRA_IMPORTS = {
     "coreml": ["coremltools"],
     "quant": ["torchao"],
+    "ocr": ["cv2", "numpy"],
     # detection covers two disjoint stacks: rfdetr models (rfdetr) and yolo/
     # fast_sam (ultralytics). A given model installs only one, so require just
     # the common `numpy` here; the exact stack is pinned per-model (see each

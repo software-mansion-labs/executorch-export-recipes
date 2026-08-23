@@ -1,0 +1,46 @@
+# Per-model export environment for easyocr (fused CRAFT detect + per-language
+# CRNN recognize) — pinned, verified stack.
+#   uv run --project exporter_models/easyocr exporter export easyocr --size <lang> --backend <b> --output-dir <dir>
+#
+# torchvision backs CRAFT's VGG16-bn backbone; opencv + numpy back the int8
+# calibration loaders. The `easyocr` package itself is needed only to emit
+# `EasyOCR_<lang>.charset.json` beside the PTE — the vocab size V is hardcoded in
+# `_easyocr/weights.py`, so the PTE never depends on it (emission is best-effort).
+# easyocr under-constrains torch, hence the override below.
+[project]
+name = "exporter-model-easyocr"
+version = "0"
+requires-python = "==3.10.*"
+dependencies = [
+    "exporter",
+    "torch==2.14.0.dev20260702",
+    "torchvision==0.29.0.dev20260702",
+    "torchao==0.18.0.dev20260702",
+    "executorch==1.3.1",
+    "safetensors==0.8.0",
+    "coremltools==9.0",
+    "opencv-python-headless==4.12.0.88",
+    "numpy==2.0.0",
+    "easyocr==1.7.2",
+]
+
+[tool.uv]
+# Exports run only on this macOS arm64 host; limit resolution to it so the
+# nightly torch/torchvision/torchao +cpu-vs-plain platform split can't fail the lock.
+environments = ["sys_platform == 'darwin' and platform_machine == 'arm64'"]
+# easyocr declares a bare `torch`/`torchvision`; force the nightly pair.
+override-dependencies = [
+    "torch==2.14.0.dev20260702",
+    "torchvision==0.29.0.dev20260702",
+]
+
+[tool.uv.sources]
+exporter = { path = "../..", editable = true }
+torch = { index = "pytorch-nightly" }
+torchvision = { index = "pytorch-nightly" }
+torchao = { index = "pytorch-nightly" }
+
+[[tool.uv.index]]
+name = "pytorch-nightly"
+url = "https://download.pytorch.org/whl/nightly/cpu"
+explicit = true
