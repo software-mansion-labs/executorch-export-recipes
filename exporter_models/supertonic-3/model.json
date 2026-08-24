@@ -5,6 +5,7 @@
   "multi_pte": true,
   "backends": [
     "xnnpack",
-    "mlx"
+    "mlx",
+    "coreml"
   ]
 }

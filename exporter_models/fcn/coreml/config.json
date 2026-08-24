@@ -1,0 +1,78 @@
+{
+  "$schema": "https://huggingface.co/software-mansion/react-native-executorch-spec/resolve/main/config.schema.json",
+  "model": "fcn",
+  "family": "fcn",
+  "capabilities": [
+    "semantic-segmentation"
+  ],
+  "backend": "coreml",
+  "license": "bsd-3-clause",
+  "variants": [
+    {
+      "file": "fcn_resnet50_coreml_fp16.pte",
+      "precision": "fp16",
+      "quantized": false,
+      "default": true,
+      "size": "resnet50",
+      "methods": {
+        "forward": {
+          "inputs": [
+            {
+              "shape": [
+                1,
+                3,
+                520,
+                520
+              ],
+              "dtype": "float32"
+            }
+          ],
+          "outputs": [
+            {
+              "shape": [
+                1,
+                21,
+                520,
+                520
+              ],
+              "dtype": "float32"
+            }
+          ]
+        }
+      }
+    },
+    {
+      "file": "fcn_resnet101_coreml_fp16.pte",
+      "precision": "fp16",
+      "quantized": false,
+      "default": false,
+      "size": "resnet101",
+      "methods": {
+        "forward": {
+          "inputs": [
+            {
+              "shape": [
+                1,
+                3,
+                520,
+                520
+              ],
+              "dtype": "float32"
+            }
+          ],
+          "outputs": [
+            {
+              "shape": [
+                1,
+                21,
+                520,
+                520
+              ],
+              "dtype": "float32"
+            }
+          ]
+        }
+      }
+    }
+  ]
+}

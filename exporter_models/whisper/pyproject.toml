@@ -1,7 +1,7 @@
-# Per-model export environment for whisper XNNPACK & CoreML (pinned executorch==1.2.0 stack).
+# Per-model export environment for whisper XNNPACK & CoreML (pinned executorch==1.4.1 stack).
 #   uv run --project exporter_models/whisper exporter export whisper --backend xnnpack --output-dir <dir>
 #
-# NOTE: CoreML export requires ExecuTorch 1.2.0 (fails on 1.3.1).
+# NOTE: CoreML export failed on 1.3.1 and was pinned to 1.2.0; 1.4.1 exports it cleanly.
 # The MLX backend requires ExecuTorch 1.3.1+, so MLX export uses its own pyproject.toml:
 #   uv run --project exporter_models/whisper/mlx exporter export whisper --backend mlx --output-dir <dir>
 [project]
@@ -11,10 +11,10 @@ requires-python = "==3.10.*"
 dependencies = [
     "exporter",
     "torch==2.14.0.dev20260702",
-    "executorch==1.2.0",
+    "executorch==1.4.1",
     "transformers==5.14.1",
     "safetensors==0.8.0",
-    "torchao==0.18.0.dev20260702",
+    "torchao==0.18.0",
     "coremltools==9.0",
     "numpy==2.0.0",
     "tqdm==4.67.3",
@@ -28,7 +28,6 @@ environments = ["sys_platform == 'darwin' and platform_machine == 'arm64'"]
 [tool.uv.sources]
 exporter = { path = "../..", editable = true }
 torch = { index = "pytorch-nightly" }
-torchao = { index = "pytorch-nightly" }
 
 [[tool.uv.index]]
 name = "pytorch-nightly"

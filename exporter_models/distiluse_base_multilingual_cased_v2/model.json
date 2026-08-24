@@ -8,6 +8,7 @@
   "config": "{backend}/config.json",
   "backends": [
     "xnnpack",
-    "coreml"
+    "coreml",
+    "mlx"
   ]
 }

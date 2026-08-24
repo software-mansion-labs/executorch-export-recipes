@@ -1,0 +1,219 @@
+{
+  "$schema": "https://huggingface.co/software-mansion/react-native-executorch-spec/resolve/main/config.schema.json",
+  "model": "kokoro",
+  "family": "kokoro",
+  "capabilities": [
+    "text-to-speech"
+  ],
+  "backend": "mlx",
+  "license": "apache-2.0",
+  "variants": [
+    {
+      "file": "duration_predictor_mlx_fp32.pte",
+      "precision": "fp32",
+      "quantized": false,
+      "default": true,
+      "methods": {
+        "forward_32": {
+          "inputs": [
+            {
+              "shape": [
+                1,
+                32
+              ],
+              "dtype": "int64"
+            },
+            {
+              "shape": [
+                1,
+                32
+              ],
+              "dtype": "bool"
+            },
+            {
+              "shape": [
+                1,
+                128
+              ],
+              "dtype": "float32"
+            },
+            {
+              "shape": [
+                1
+              ],
+              "dtype": "float32"
+            }
+          ],
+          "outputs": [
+            {
+              "shape": [
+                32
+              ],
+              "dtype": "int64"
+            },
+            {
+              "shape": [
+                1,
+                32,
+                640
+              ],
+              "dtype": "float32"
+            }
+          ]
+        },
+        "forward_64": {
+          "inputs": [
+            {
+              "shape": [
+                1,
+                64
+              ],
+              "dtype": "int64"
+            },
+            {
+              "shape": [
+                1,
+                64
+              ],
+              "dtype": "bool"
+            },
+            {
+              "shape": [
+                1,
+                128
+              ],
+              "dtype": "float32"
+            },
+            {
+              "shape": [
+                1
+              ],
+              "dtype": "float32"
+            }
+          ],
+          "outputs": [
+            {
+              "shape": [
+                64
+              ],
+              "dtype": "int64"
+            },
+            {
+              "shape": [
+                1,
+                64,
+                640
+              ],
+              "dtype": "float32"
+            }
+          ]
+        },
+        "forward_128": {
+          "inputs": [
+            {
+              "shape": [
+                1,
+                128
+              ],
+              "dtype": "int64"
+            },
+            {
+              "shape": [
+                1,
+                128
+              ],
+              "dtype": "bool"
+            },
+            {
+              "shape": [
+                1,
+                128
+              ],
+              "dtype": "float32"
+            },
+            {
+              "shape": [
+                1
+              ],
+              "dtype": "float32"
+            }
+          ],
+          "outputs": [
+            {
+              "shape": [
+                128
+              ],
+              "dtype": "int64"
+            },
+            {
+              "shape": [
+                1,
+                128,
+                640
+              ],
+              "dtype": "float32"
+            }
+          ]
+        }
+      }
+    },
+    {
+      "file": "synthesizer_mlx_fp32.pte",
+      "precision": "fp32",
+      "quantized": false,
+      "default": true,
+      "methods": {
+        "forward": {
+          "inputs": [
+            {
+              "shape": [
+                1,
+                128
+              ],
+              "dtype": "int64"
+            },
+            {
+              "shape": [
+                1,
+                128
+              ],
+              "dtype": "bool"
+            },
+            {
+              "shape": [
+                296
+              ],
+              "dtype": "int64"
+            },
+            {
+              "shape": [
+                1,
+                128,
+                640
+              ],
+              "dtype": "float32"
+            },
+            {
+              "shape": [
+                1,
+                256
+              ],
+              "dtype": "float32"
+            }
+          ],
+          "outputs": [
+            {
+              "shape": [
+                1,
+                1,
+                177600
+              ],
+              "dtype": "float32"
+            }
+          ]
+        }
+      }
+    }
+  ],
+  "size": "standard"
+}

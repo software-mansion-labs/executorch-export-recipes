@@ -1,0 +1,47 @@
+{
+  "$schema": "https://huggingface.co/software-mansion/react-native-executorch-spec/resolve/main/config.schema.json",
+  "model": "clip_vit_base_patch32_text",
+  "family": "clip",
+  "capabilities": [
+    "text-embedding"
+  ],
+  "backend": "mlx",
+  "license": "mit",
+  "variants": [
+    {
+      "file": "clip_vit_base_patch32_text_mlx_fp32.pte",
+      "precision": "fp32",
+      "quantized": false,
+      "default": true,
+      "methods": {
+        "forward": {
+          "inputs": [
+            {
+              "shape": [
+                1,
+                74
+              ],
+              "dtype": "int64"
+            },
+            {
+              "shape": [
+                1,
+                74
+              ],
+              "dtype": "int64"
+            }
+          ],
+          "outputs": [
+            {
+              "shape": [
+                1,
+                512
+              ],
+              "dtype": "float32"
+            }
+          ]
+        }
+      }
+    }
+  ]
+}

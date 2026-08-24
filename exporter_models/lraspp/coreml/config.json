@@ -1,0 +1,44 @@
+{
+  "$schema": "https://huggingface.co/software-mansion/react-native-executorch-spec/resolve/main/config.schema.json",
+  "model": "lraspp_mobilenet_v3_large",
+  "family": "lraspp",
+  "capabilities": [
+    "semantic-segmentation"
+  ],
+  "backend": "coreml",
+  "license": "bsd-3-clause",
+  "variants": [
+    {
+      "file": "lraspp_mobilenet_v3_large_coreml_fp16.pte",
+      "precision": "fp16",
+      "quantized": false,
+      "default": true,
+      "methods": {
+        "forward": {
+          "inputs": [
+            {
+              "shape": [
+                1,
+                3,
+                520,
+                520
+              ],
+              "dtype": "float32"
+            }
+          ],
+          "outputs": [
+            {
+              "shape": [
+                1,
+                21,
+                520,
+                520
+              ],
+              "dtype": "float32"
+            }
+          ]
+        }
+      }
+    }
+  ]
+}

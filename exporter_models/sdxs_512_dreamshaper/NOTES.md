@@ -49,16 +49,43 @@ UNet is too big for the ANE compiler. `export.py` pins
 `minimum_deployment_target` is `iOS17` here (not the `iOS18` in
 `skills/backends/coreml`) — that is what produced the shipped, device-verified `.pte`.
 
-## MLX is published but NOT wired into react-native-executorch
+## MLX is NOT published (removed 2026-08-21)
 
-`mlx/sdxs_512_dreamshaper_mlx_int4.pte` exists in the HF repo and this exporter
-reproduces it, but `models.ts` ships only XNNPACK fp32 + CoreML fp16. MLX has no
-`aten.native_group_norm`, and a diffusion UNet has GroupNorm in every ResBlock, so
-`denoise` fragments into **28 subgraphs** (25x group_norm + 2x upsample_nearest2d);
-`decode` into 4. On an iPhone 17 Pro that measured ~3x SLOWER than CoreML (though ~4x
-faster than XNNPACK) at worse quality. An unquantized fp32 MLX export fragments
-identically, proving the split is op coverage and not the 4w dequant pattern — so no
-dtype change fixes it. Revisit only if MLX gains `native_group_norm`.
+`mlx/sdxs_512_dreamshaper_mlx_int4.pte` was published for a while and has been
+removed from the HF repo, which now carries `mlx/NOTES.md` in its place. This
+exporter is kept so the decision can be re-tested against a future
+ExecuTorch/MLX release; `model.json` still lists `mlx` and `mlx/config.json` is
+still tracked here for that reason.
+
+MLX loses on all three axes:
+
+| | xnnpack fp32 | coreml fp16 | mlx int4 |
+| --- | --- | --- | --- |
+| size | 1760.6 MB | **880.7 MB** | 1034.8 MB |
+| latency | slowest | **baseline** | ~3x slower than CoreML |
+| mean pixel err | 1.8e-5 | **0.002** | degraded, not quantified |
+
+Being *larger* than CoreML fp16 while quantized to 4 bits is what settles it:
+the size win that justifies shipping MLX for CLIP and distiluse is absent here.
+Latency was measured on an iPhone 17 Pro (~4x faster than XNNPACK, but XNNPACK
+is not the iOS build we ship). On quality, the MLX build is 4w weight-only on
+linears with convs and embeddings left fp32, the same class as the `8da4w` row
+in the table above that measured 0.115 and was rejected as coherent but
+degraded; MLX was observed worse in the original comparison but was never
+separately measured against the seed-42 reference.
+
+**Root cause is op coverage.** The MLX backend registers no
+`aten.native_group_norm` and no `aten.upsample_nearest2d` (confirmed absent from
+`backends/mlx/ops.py` on upstream `main`, which does register `layer_norm`,
+`native_layer_norm`, `rms_norm` and `_native_batch_norm_legit_no_training`). A
+diffusion UNet has GroupNorm in every ResBlock, so `denoise` fragments into
+**28 subgraphs** (25x group_norm + 2x upsample_nearest2d) and `decode` into 4.
+`encode` is the control: pure transformer, LayerNorm only, delegates in one
+piece. An unquantized fp32 MLX export fragments identically, proving the split
+is op coverage and not the 4w dequant pattern, so no dtype change fixes it.
+
+Filed upstream as https://github.com/pytorch/executorch/issues/22017. Revisit
+only if the MLX backend gains `native_group_norm`.
 
 As with the other MLX models, `mlx/export.py` needs executorch built from the
 software-mansion-labs fork (version-locked to the runtime MLX backend); a pip

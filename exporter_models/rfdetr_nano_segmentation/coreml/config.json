@@ -9,9 +9,9 @@
   "license": "apache-2.0",
   "variants": [
     {
-      "file": "rfdetr_nano_coreml_int8.pte",
-      "precision": "int8",
-      "quantized": true,
+      "file": "rfdetr_nano_coreml_fp16.pte",
+      "precision": "fp16",
+      "quantized": false,
       "default": true,
       "methods": {
         "forward": {

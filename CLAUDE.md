@@ -57,6 +57,11 @@ harness imports `export.py` to discover it without a full backend env).
   quantization, gotchas, and how to **profile / verify delegation** of a
   produced `.pte` with the executorch-profiler.
 
+Also see `docs/executorch-1.4.1-bump.md` for the ExecuTorch 1.4.1 pin bump: which
+models are byte-identical across ET versions (so a re-export is a no-op), the
+`torchao` `.dev`-sorts-below-release trap, and why CoreML `.pte` cannot be verified
+in-process.
+
 ## Verifying an export
 
 An export is not done when it produces a `.pte` — it is done when the `.pte`
