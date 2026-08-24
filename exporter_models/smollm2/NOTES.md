@@ -93,11 +93,26 @@ react-native-executorch's model registry; the old `_8da4w.pte` names describe a
 build we are deliberately not producing any more. 1_7b is untouched and keeps
 `smollm2_1_7b_xnnpack_8da4w.pte`.
 
-## Worth checking for 1_7b
+## 1_7b was measured too, and keeps 4-bit
 
-1_7b keeps 4-bit on the sweep's recommendation, but its measured degradation is
-the largest of the three (ppl 6.50 -> 11.99, a 1.8x increase, against 1.3x at
-135m and 1.25x at 360m). Nothing here proves it is broken, and it was not
-re-exported or tested on device. If int8 is adopted for the small sizes it is
-worth measuring for 1_7b too: int8 would land near 1.8 GB against 3.42 GB bf16,
-so it would still be the smaller variant.
+1_7b has the largest measured degradation of the three sizes (ppl 6.50 -> 11.99,
+1.8x, against 1.3x at 135m and 1.25x at 360m), so it was exported as int8 and
+compared on device against the published 4-bit build:
+
+| 1_7b | file | decode | RSS | gravity | reverse a string | capital of France |
+|---|---|---|---|---|---|---|
+| published int4 | 1.018 GB | 29-45 tok/s | 1955 MiB | confused | correct | correct |
+| int8 per-channel | 1.817 GB | 25-27 tok/s | 2104-2737 MiB | correct | correct | correct |
+
+The int4 build's gravity answer is wrong ("if you throw the ball down, it will
+come back up") and runs to the token cap, where int8 answers cleanly. But that
+is one prompt out of three, and unlike 135m/360m the 4-bit build is not broken
+on ordinary questions -- it just costs 1.8x the file and ~40% of the speed to
+fix that one answer.
+
+**So 1_7b keeps the sweep's 4-bit recipe.** The perplexity ratio flagged it, the
+device did not confirm it, and the evidence is not strong enough to hand users a
+model that is 800 MB larger and slower. If this is revisited, the missing
+measurement is the bf16 build on the same prompts: if bf16 also fumbles the
+gravity question then int4 is not the cause and there is nothing to fix. That
+run was set up but not completed (the device dropped off USB mid-transfer).
