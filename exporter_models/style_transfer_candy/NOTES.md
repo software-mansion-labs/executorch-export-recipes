@@ -1,5 +1,35 @@
 # style_transfer_candy notes
 
+## Core ML: pin the compute unit, the ANE is a trap here (measured 2026-08-24)
+
+`compute_unit=CPU_AND_GPU` in every style's `coreml/export.py`. Measured on an
+iPhone 16 (ET 1.4.1, 3 warmup + 15 timed, median, mean over the four styles):
+
+| config | mean | note |
+| --- | --- | --- |
+| fp16 `ALL` | 209.4 ms | ANE-eligible, and the slowest |
+| fp16 `CPU_ONLY` | 109.7 ms | fastest mean, but 99.6-119.9 ms spread |
+| **fp16 `CPU_AND_GPU`** | **114.2 ms** | shipped; ~114 ms on all four styles |
+| fp32 `ALL` | 152.8 ms | dropped at v0.10.0 |
+
+ExecuTorch defaults to `ComputeUnit.ALL`, under which fp16 is ANE-eligible and
+fp32 is not (the ANE is fp16-only). fp32 therefore *looked* faster than fp16 and
+its removal was contested on those grounds
+([#1375](https://github.com/software-mansion/react-native-executorch/pull/1375)).
+The comparison was measuring placement, not precision: exclude the ANE and fp16
+is the fastest build at half of fp32's size. Same op mix that shatters the MLX
+partition into 50 subgraphs (InstanceNorm every block, reflection pads built from
+`flip`/`cat`) appears to fragment the ANE path too.
+
+`CPU_AND_GPU` over `CPU_ONLY` despite the slightly worse mean: `CPU_ONLY` ranges
+99.6-119.9 ms across the four styles while `CPU_AND_GPU` holds ~114 ms on all
+four, so it should degrade less under CPU contention and thermal load.
+
+**Core ML export is NOT byte-reproducible.** Two exports from identical code
+differ in sha256 at identical size (UUIDs embedded in the mlmodelc blob), so the
+byte-identity check used for XNNPACK does not transfer. Verify a Core ML rebuild
+by measuring it on device, not by hashing it.
+
 ## MLX is NOT published (measured and rejected 2026-08-21)
 
 `mlx/export.py` and `mlx/config.json` are kept so the decision can be re-tested,
