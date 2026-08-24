@@ -2,9 +2,19 @@
 
 ## Gated weights
 
-Both the Instruct and the SpinQuant repos are gated on HuggingFace. Accept the
-license on each model page and `hf auth login` before exporting, or
-`snapshot_download` fails with a 401/403.
+Both the Instruct and the SpinQuant repos are gated on HuggingFace, and each is
+approved separately -- access to `Llama-3.2-1B-Instruct` does not grant access
+to `Llama-3.2-1B-Instruct-SpinQuant_INT4_EO8`. Request access on all four model
+pages and `hf auth login` before exporting.
+
+Being logged in is not enough to tell whether you have access: `model_info()`
+succeeds on these repos for any authenticated user (the metadata is public) and
+only the file download 403s. Check with an actual fetch:
+
+```bash
+python -c "from huggingface_hub import hf_hub_download as d; \
+  d('meta-llama/Llama-3.2-1B-Instruct','original/params.json')"
+```
 
 ## No weight conversion
 
