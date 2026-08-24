@@ -47,7 +47,7 @@
         ],
         "get_max_context_len": 2048,
         "get_max_seq_len": 2048,
-        "get_n_layers": null,
+        "get_n_layers": 16,
         "get_vocab_size": 65536,
         "use_kv_cache": true,
         "use_sdpa_with_kv_cache": true
@@ -92,7 +92,7 @@
         ],
         "get_max_context_len": 2048,
         "get_max_seq_len": 2048,
-        "get_n_layers": null,
+        "get_n_layers": 16,
         "get_vocab_size": 65536,
         "use_kv_cache": true,
         "use_sdpa_with_kv_cache": true

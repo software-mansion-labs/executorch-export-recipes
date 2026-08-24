@@ -22,7 +22,7 @@
                 1,
                 {
                   "min": 1,
-                  "max": 2048
+                  "max": 2047
                 }
               ],
               "dtype": "int64"
@@ -51,7 +51,7 @@
         ],
         "get_max_context_len": 2048,
         "get_max_seq_len": 2048,
-        "get_n_layers": null,
+        "get_n_layers": 32,
         "get_vocab_size": 200064,
         "use_kv_cache": true,
         "use_sdpa_with_kv_cache": true
@@ -71,7 +71,7 @@
                 1,
                 {
                   "min": 1,
-                  "max": 2048
+                  "max": 2047
                 }
               ],
               "dtype": "int64"
@@ -100,7 +100,7 @@
         ],
         "get_max_context_len": 2048,
         "get_max_seq_len": 2048,
-        "get_n_layers": null,
+        "get_n_layers": 32,
         "get_vocab_size": 200064,
         "use_kv_cache": true,
         "use_sdpa_with_kv_cache": true

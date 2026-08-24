@@ -38,8 +38,8 @@ def export(config: dict, out_dir: str) -> str:
     cfg = LlmConfig()
     cfg.base.model_class = ModelType(spec["model_class"])
     cfg.base.params = params_path
-    # bos/eos come from the config (single source of truth); export_llama
-    # derives the rest (seq_len, vocab) from params.
+    # Runner constants come from the config -- the single source of truth.
+    # export_llama derives the rest (vocab) from params.
     consts = config["variant"].get("constants", {})
     cfg.base.metadata = json.dumps(
         {k: consts[k] for k in ("get_bos_id", "get_eos_ids") if k in consts}
@@ -50,12 +50,13 @@ def export(config: dict, out_dir: str) -> str:
         cfg.model.dtype_override = DtypeOverride.fp16
     else:  # 8da4w
         cfg.model.dtype_override = DtypeOverride.bf16
-        cfg.quantization.group_size = p.GROUP_SIZE
+        cfg.quantization.group_size = spec["quant"]["group_size"]
+        cfg.quantization.embedding_quantize = spec["quant"]["embedding_quantize"]
         cfg.quantization.qmode = "8da4w"
     cfg.backend.xnnpack.enabled = True
     cfg.backend.xnnpack.extended_ops = True
-    cfg.export.max_seq_length = p.CONTEXT_LEN
-    cfg.export.max_context_length = p.CONTEXT_LEN
+    cfg.export.max_seq_length = consts["get_max_seq_len"]
+    cfg.export.max_context_length = consts["get_max_context_len"]
     cfg.export.output_name = out_path
 
     cwd = os.getcwd()

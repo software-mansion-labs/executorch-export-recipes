@@ -1,6 +1,5 @@
 {
   "hf": "https://huggingface.co/software-mansion/react-native-executorch-qwen-2.5",
-  "repo": "software-mansion/react-native-executorch-qwen-2.5",
   "config": "{size}/{backend}/config.json",
   "sizes": [
     "0_5b",

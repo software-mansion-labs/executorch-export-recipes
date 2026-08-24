@@ -18,17 +18,26 @@ _COMMON = {
     "layer_types": _LAYER_TYPES,
 }
 
+# `quant` is the XNNPACK 8da4w recipe: linear group size + `embedding_quantize`
+# "<bitwidth>,<groupsize>" (groupsize 0 = per-channel). These are the per-size
+# winners of the quantization sweep the old `exports/llms` directory ran (size /
+# throughput / perplexity / KL-divergence Pareto over fp16 and nine 8da4w
+# group-size combinations); the first export of this model shipped a uniform
+# group_size 64 with no embedding quantization instead, so the published 8da4w
+# .pte predate this recipe. See NOTES.md.
 SIZES = {
     "350m": {
         "model_class": "lfm2_5_350m",
         "params": {**_COMMON, "dim": 1024, "hidden_dim": 4608, "n_heads": 16},
+        "quant": {"group_size": 32, "embedding_quantize": "8,32"},
     },
     "1_2b": {
         "model_class": "lfm2_5_1_2b",
         "params": {**_COMMON, "dim": 2048, "hidden_dim": 8192, "n_heads": 32},
+        "quant": {"group_size": 32, "embedding_quantize": "8,0"},
     },
 }
 
-GROUP_SIZE = 64
-PREFILL_CAP = 64
-CONTEXT_LEN = 2048
+# The MLX backend quantizes to 4w on its own schedule -- unrelated to the
+# XNNPACK 8da4w sweep above, so it keeps its own group size.
+MLX_GROUP_SIZE = 64

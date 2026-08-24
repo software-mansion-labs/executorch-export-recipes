@@ -120,7 +120,9 @@ qwen2_5) would silently export the wrong model entirely. `export.py` downloads
 the pinned `source` and runs executorch's HF->Meta `convert_weights`, caching
 the result under `~/.cache/exporter_meta_checkpoints/`. Llama is the exception:
 Meta ships native-format `params.json` + `consolidated.00.pth`, so it needs no
-conversion table at all.
+conversion table at all. `lfm2_5_text` is the one model still relying on the
+auto-download; it is safe only because the table happens to name the repos we
+publish from.
 
 ## Per-model dependencies (pinned uv projects)
 

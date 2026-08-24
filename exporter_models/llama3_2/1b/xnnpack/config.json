@@ -1,0 +1,111 @@
+{
+  "$schema": "https://huggingface.co/software-mansion/react-native-executorch-spec/resolve/main/config.schema.json",
+  "model": "llama_3_2",
+  "family": "llama",
+  "capabilities": [
+    "text-generation"
+  ],
+  "backend": "xnnpack",
+  "license": "llama-3.2-community",
+  "variants": [
+    {
+      "file": "llama_3_2_1b_xnnpack_bf16.pte",
+      "precision": "bf16",
+      "quantized": false,
+      "default": true,
+      "methods": {
+        "enable_dynamic_shape": true,
+        "forward": {
+          "inputs": [
+            {
+              "shape": [
+                1,
+                {
+                  "min": 1,
+                  "max": 2047
+                }
+              ],
+              "dtype": "int64"
+            },
+            {
+              "shape": [
+                1
+              ],
+              "dtype": "int64"
+            }
+          ],
+          "outputs": [
+            {
+              "shape": [
+                1,
+                128256
+              ],
+              "dtype": "bfloat16"
+            }
+          ]
+        },
+        "get_bos_id": 128000,
+        "get_eos_ids": [
+          128009,
+          128001
+        ],
+        "get_max_context_len": 4096,
+        "get_max_seq_len": 2048,
+        "get_n_layers": 16,
+        "get_vocab_size": 128256,
+        "use_kv_cache": true,
+        "use_sdpa_with_kv_cache": true
+      }
+    },
+    {
+      "file": "llama_3_2_1b_xnnpack_spinquant.pte",
+      "precision": "spinquant",
+      "quantized": true,
+      "default": true,
+      "methods": {
+        "enable_dynamic_shape": true,
+        "forward": {
+          "inputs": [
+            {
+              "shape": [
+                1,
+                {
+                  "min": 1,
+                  "max": 2047
+                }
+              ],
+              "dtype": "int64"
+            },
+            {
+              "shape": [
+                1
+              ],
+              "dtype": "int64"
+            }
+          ],
+          "outputs": [
+            {
+              "shape": [
+                1,
+                128256
+              ],
+              "dtype": "float32"
+            }
+          ]
+        },
+        "get_bos_id": 128000,
+        "get_eos_ids": [
+          128009,
+          128001
+        ],
+        "get_max_context_len": 4096,
+        "get_max_seq_len": 2048,
+        "get_n_layers": 16,
+        "get_vocab_size": 128256,
+        "use_kv_cache": true,
+        "use_sdpa_with_kv_cache": true
+      }
+    }
+  ],
+  "size": "1b"
+}
