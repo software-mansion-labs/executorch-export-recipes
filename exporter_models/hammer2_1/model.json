@@ -1,0 +1,13 @@
+{
+  "hf": "https://huggingface.co/software-mansion/react-native-executorch-hammer-2.1",
+  "repo": "software-mansion/react-native-executorch-hammer-2.1",
+  "config": "{size}/{backend}/config.json",
+  "sizes": [
+    "0_5b",
+    "1_5b",
+    "3b"
+  ],
+  "backends": [
+    "xnnpack"
+  ]
+}

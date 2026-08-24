@@ -93,14 +93,34 @@ as `config["variant"]["constants"]`. LLM exports embed these into the `.pte`
 from the config (the single source of truth) — NOT hardcoded:
 
 - MLX (gemma4, gemma4_omni): `constant_methods=config["variant"]["constants"]`.
-- export_llama path (lfm2_5_text): `cfg.base.metadata` is built from the
-  config's `get_bos_id`/`get_eos_ids` (export_llama derives seq_len/vocab from
-  params). These per-(size,backend) values genuinely differ (e.g. text
-  `get_max_seq_len` is 2048 on xnnpack but 65 on mlx), which is why they live
-  in the config, not a shared constant.
+- export_llama path (lfm2_5_text, llama3_2, qwen2_5, qwen3, hammer2_1, smollm2,
+  phi_4_mini): `cfg.base.metadata` is built from the config's
+  `get_bos_id`/`get_eos_ids`, and `cfg.export.max_seq_length` /
+  `max_context_length` from `get_max_seq_len` / `get_max_context_len`
+  (export_llama derives vocab from params). These per-(size,backend) values
+  genuinely differ (e.g. lfm2_5_text's `get_max_seq_len` is 2048 on xnnpack but
+  65 on mlx), which is why they live in the config, not a shared constant.
 
 When a model's config carries these, set them there — never re-hardcode in
 export.py.
+
+## export_llama models: params, weights, and the auto-download trap
+
+The `export_llama` families keep a `_params.py` at the model-dir top holding, per
+size, the architecture `params` (mirroring `examples/models/<m>/config/*.json`
+where executorch ships one, carried locally where it does not), the
+`model_class`, the upstream `source` checkpoint, and the `quant` recipe.
+
+**Always set `cfg.base.checkpoint` explicitly.** Left empty, `export_llama`
+resolves `model_class` through its own `HUGGING_FACE_REPO_IDS` table, which
+points at the **base** weights (`Qwen/Qwen2.5-0.5B`,
+`HuggingFaceTB/SmolLM2-135M`) while we publish the **Instruct** ones — and a
+fine-tune that borrows another family's `model_class` (hammer2_1 rides on
+qwen2_5) would silently export the wrong model entirely. `export.py` downloads
+the pinned `source` and runs executorch's HF->Meta `convert_weights`, caching
+the result under `~/.cache/exporter_meta_checkpoints/`. Llama is the exception:
+Meta ships native-format `params.json` + `consolidated.00.pth`, so it needs no
+conversion table at all.
 
 ## Per-model dependencies (pinned uv projects)
 
