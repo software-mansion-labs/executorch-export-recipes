@@ -86,9 +86,12 @@ def export(config: dict, out_dir: str) -> str:
         cfg.model.dtype_override = DtypeOverride.bf16
     else:  # 8da4w
         cfg.model.dtype_override = DtypeOverride.fp32
-        cfg.quantization.qmode = "8da4w"
-        # An unset knob means "executorch default" (see _params.py).
-        for knob, value in spec["quant"].items():
+        # A recipe may name its own qmode (e.g. "torchao:8da8w" for int8
+        # weights); the rest of the dict are quantization knobs. An unset knob
+        # means "executorch default" (see _params.py).
+        knobs = dict(spec["quant"])
+        cfg.quantization.qmode = knobs.pop("qmode", "8da4w")
+        for knob, value in knobs.items():
             if value is not None:
                 setattr(cfg.quantization, knob, value)
     cfg.backend.xnnpack.enabled = True

@@ -57,8 +57,8 @@
       }
     },
     {
-      "file": "smollm2_135m_xnnpack_8da4w.pte",
-      "precision": "8da4w",
+      "file": "smollm2_135m_xnnpack_8da8w.pte",
+      "precision": "8da8w",
       "quantized": true,
       "default": true,
       "methods": {

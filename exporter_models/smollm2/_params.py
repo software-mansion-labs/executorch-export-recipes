@@ -14,26 +14,26 @@ format. These are the *Instruct* repos; export_llama's own auto-download would
 resolve `smollm2` to the 135M base repo for every size, which is why the
 checkpoint is always passed explicitly.
 
-`quant` is the 8da4w recipe: linear group size + `embedding_quantize`
-"<bitwidth>,<groupsize>" (groupsize 0 = per-channel); `None` means leave the
-knob at its executorch default. Values are the per-size winners of the
-quantization sweep the old `exports/llms` directory ran (size / throughput /
-perplexity / KL-divergence Pareto over bf16 and nine 8da4w group-size
-combinations), with one deliberate correction:
+`quant` is the quantization recipe: `qmode` (default `8da4w`), linear
+`group_size` and `embedding_quantize` "<bitwidth>,<groupsize>" (groupsize 0 =
+per-channel). `None` leaves a knob at its executorch default.
 
-**135m and 360m do NOT use the sweep's `8da4w_default` winner.** An unset
-`group_size` makes executorch fall back to 128, and it then quantizes a Linear
-only when `in_features % group_size == 0`. At dim 576 / 960 that skips every
-attention projection and two thirds of the MLP, so "8da4w_default" is very
-nearly the unquantized model -- which is why it trivially won the sweep's
-quality metrics, and why the currently-published `_8da4w.pte` for these two
-sizes are *larger* than their bf16 counterparts (0.56 vs 0.27 GB, 1.36 vs
-0.72 GB). 576 and 960 are both divisible by 32, so `group_size 32` quantizes every
-linear, and the sweep's own numbers say 32 is the right size to pick: for 135m
-it scores ppl 16.61 against 19.10 for gs64, and for 360m 11.29 against 12.72,
-for about 4 MB and 11 MB more respectively. 1_7b is unaffected and keeps the
-sweep's `gs64 + emb 8,64` winner -- there gs32 diverges outright (ppl 4e9).
-See NOTES.md.
+**135m and 360m ship int8 per-channel (`8da8w`), not 4-bit.** SmolLM2 is too
+small to survive 4-bit: at 135m the int4 build answers a "reverse a string"
+prompt with nonsense `re.sub` code, and at 360m it refuses ordinary questions
+outright ("I'm sorry, I'm not a six-year-old..."), while int8 tracks the bf16
+answers on the same prompts. int8 is also still smaller than the bf16 it
+replaces (0.166 vs 0.270 GB at 135m, 0.412 vs 0.725 GB at 360m), so the
+quantized variant keeps its reason to exist. Measured on device -- see NOTES.md.
+
+Note `group_size` must be 0 here: executorch's XNNPACK delegate supports group
+quantization only at 4 bits ("Only 4b group quantization is supported"), so int8
+has to be per-channel. `qmode` also has to be plain `8da8w` rather than
+`torchao:8da8w`, which needs TorchAO's opaque kernel library and does not lower
+to XNNPACK.
+
+1_7b keeps 4-bit (`gs64 + emb 8,64`, the sweep's winner); it is large enough
+that int4 holds up, and there `gs32` diverges outright (ppl 4e9).
 """
 
 _COMMON = {
@@ -53,7 +53,7 @@ SIZES = {
             **_COMMON, "dim": 576, "hidden_dim": 1536, "n_heads": 9,
             "n_kv_heads": 3, "n_layers": 30, "rope_theta": 100000.0,
         },
-        "quant": {"group_size": 32, "embedding_quantize": "8,0"},
+        "quant": {"qmode": "8da8w", "group_size": 0, "embedding_quantize": "8,0"},
     },
     "360m": {
         "model_class": "smollm2",
@@ -62,7 +62,7 @@ SIZES = {
             **_COMMON, "dim": 960, "hidden_dim": 2560, "n_heads": 15,
             "n_kv_heads": 5, "n_layers": 32, "rope_theta": 100000.0,
         },
-        "quant": {"group_size": 32, "embedding_quantize": "8,0"},
+        "quant": {"qmode": "8da8w", "group_size": 0, "embedding_quantize": "8,0"},
     },
     "1_7b": {
         "model_class": "smollm2",

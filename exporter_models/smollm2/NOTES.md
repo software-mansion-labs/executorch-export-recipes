@@ -62,30 +62,42 @@ needed for the quantized variant to actually be quantized. bf16 is unaffected.
 
 ## Measured on device (Galaxy S26 Ultra, SM-S948B, Android 16)
 
-Re-exported 135m 8da4w with the recipe above and compared against the published
-file with executorch's `llama_main` (arm64, ET 1.4.1 @226b471, greedy,
-`--cpu_threads=4`):
+Four builds per size, executorch's `llama_main` (arm64, ET 1.4.1 @226b471),
+greedy, `--cpu_threads=4`:
 
-| size | | published `_8da4w.pte` | re-exported (gs32 + emb 8,0) |
-|---|---|---|---|
-| 135m | file | 0.561 GB | 0.106 GB |
-| 135m | RSS | 692 MiB | 250 MiB |
-| 135m | decode | 81 tok/s | 223 tok/s |
-| 360m | file | 1.364 GB | 0.253 GB |
-| 360m | RSS | 1223 MiB | 481 MiB |
-| 360m | decode | 32 tok/s | 100 tok/s |
+| 135m | file | decode | RSS | "reverse a string" |
+|---|---|---|---|---|
+| bf16 (the original) | 0.270 GB | 14 tok/s | 433 MiB | correct |
+| published `_8da4w` | 0.561 GB | 93 tok/s | 692 MiB | correct |
+| **int8 per-channel (shipped)** | **0.166 GB** | **248 tok/s** | **316 MiB** | **correct** |
+| int4 gs32 | 0.106 GB | 335 tok/s | 250 MiB | nonsense `re.sub` code |
 
-Both are ~5.3x smaller, ~2.5x lighter in RAM and ~3x faster to decode, which is
-what quantizing a model that was never actually quantized should look like.
+| 360m | file | decode | RSS | "explain gravity to a six year old" |
+|---|---|---|---|---|
+| bf16 (the original) | 0.725 GB | 11 tok/s | 935 MiB | correct |
+| published `_8da4w` | 1.364 GB | 37 tok/s | 1555 MiB | correct |
+| **int8 per-channel (shipped)** | **0.412 GB** | **106 tok/s** | **649 MiB** | **correct** |
+| int4 gs32 | 0.253 GB | 152 tok/s | 481 MiB | refuses: "I'm not a six-year-old..." |
 
-**The quality cost is real and visible.** On "explain gravity to a six year old",
-135m answers well either way, but 360m regresses outright: the published (barely
-quantized) file gives a clean answer, while the re-export derails into "I'm sorry,
-I'm not a six-year-old..." and runs to the token cap. One prompt is not a
-measurement, but it is consistent with the ppl the sweep recorded (9.84 -> 11.29
-at 360m, 14.00 -> 16.61 at 135m).
+int8 is the variant worth shipping at both sizes: smaller than the bf16 it sits
+beside, far smaller than the file it replaces, an order of magnitude faster than
+bf16, and it tracks the bf16 answers. 4-bit buys another ~40% size and speed and
+loses the model.
 
-So the choice is explicit: ship a genuinely quantized 135m/360m that is 5x
-smaller and 3x faster but measurably weaker, or drop the quantized variant for
-these two sizes and ship bf16 only. The status quo -- a "quantized" file twice
-the size of bf16 -- is the one option that makes no sense.
+## The published filename changes
+
+Because the variant is genuinely int8 now, its `precision` is `8da8w` and the
+file is `smollm2_{135m,360m}_xnnpack_8da8w.pte`, not `_8da4w.pte`. Whoever
+republishes has to add the new file and update the consuming URL in
+react-native-executorch's model registry; the old `_8da4w.pte` names describe a
+build we are deliberately not producing any more. 1_7b is untouched and keeps
+`smollm2_1_7b_xnnpack_8da4w.pte`.
+
+## Worth checking for 1_7b
+
+1_7b keeps 4-bit on the sweep's recommendation, but its measured degradation is
+the largest of the three (ppl 6.50 -> 11.99, a 1.8x increase, against 1.3x at
+135m and 1.25x at 360m). Nothing here proves it is broken, and it was not
+re-exported or tested on device. If int8 is adopted for the small sizes it is
+worth measuring for 1_7b too: int8 would land near 1.8 GB against 3.42 GB bf16,
+so it would still be the smaller variant.
