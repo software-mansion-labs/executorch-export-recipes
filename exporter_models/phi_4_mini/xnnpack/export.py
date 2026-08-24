@@ -54,8 +54,11 @@ def export(config: dict, out_dir: str) -> str:
     p = _load_params()
     variant = config["variant"]
 
-    out_path = str(Path(out_dir) / variant["file"])
-    Path(out_dir).mkdir(parents=True, exist_ok=True)
+    # Resolve before the chdir below: export_llama writes output_name relative
+    # to the cwd, so a relative --output-dir would land in the temp dir.
+    out_dir = Path(out_dir).resolve()
+    out_path = str(out_dir / variant["file"])
+    out_dir.mkdir(parents=True, exist_ok=True)
 
     with tempfile.NamedTemporaryFile("w", suffix=".json", delete=False) as f:
         json.dump(p.PARAMS, f)

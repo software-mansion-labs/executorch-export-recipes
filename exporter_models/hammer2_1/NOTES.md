@@ -37,3 +37,19 @@ files are usable in the meantime, the bf16 files are not.
 
 Everything else (IO, bos, lengths, layer counts) matches. Check with
 `tools/probe_published_pte.py hammer2_1 --size 0_5b`.
+
+## Measured on device (Galaxy S26 Ultra, SM-S948B, Android 16)
+
+The stop-token bug reproduces directly. Same prompt, greedy, executorch's
+`llama_main` (arm64, ET 1.4.1 @226b471), 0_5b bf16:
+
+```
+published:  Three primary colors are red, blue, and yellow.<|im_end|>
+            <|endoftext|>            <- ran past the turn, stopped only on 151643
+re-exported: Three primary colors are red, blue, and yellow.<|im_end|>
+                                     <- stopped on 151645, as intended
+```
+
+Identical text, but the published file emits `<|im_end|>` as content and keeps
+generating. In a chat session that leaks the turn marker into the answer and
+burns tokens until `<|endoftext|>` happens to appear.

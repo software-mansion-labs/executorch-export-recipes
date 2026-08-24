@@ -33,20 +33,42 @@ def _range(url: str, start: int, end: int) -> bytes:
     return r.stdout
 
 
+def _parse_flatbuffer(data: bytes):
+    """Program from the flatbuffer prefix alone.
+
+    Deliberately not `deserialize_pte_binary`: that one restores the weight
+    segments, which is exactly what we avoided downloading. The private helper
+    was renamed between executorch versions, so try both spellings.
+    """
+    import executorch.exir._serialize._program as prog_mod
+
+    if hasattr(prog_mod, "_flatbuffer_to_program"):        # executorch >= 1.4
+        return prog_mod._flatbuffer_to_program(data)
+    return prog_mod._json_to_program(                       # older
+        prog_mod._program_flatbuffer_to_json(data))
+
+
+def read_program(data: bytes):
+    """Parse an in-memory .pte prefix (header + program flatbuffer)."""
+    from executorch.exir._serialize._program import _ExtendedHeader
+
+    eh = _ExtendedHeader.from_bytes(data[8:72])
+    if not eh.is_valid():
+        raise SystemExit("no valid ExecuTorch extended header")
+    return _parse_flatbuffer(data[:eh.program_size])
+
+
 def fetch_program(url: str):
     """Return the parsed program flatbuffer, without downloading the weights."""
-    from executorch.exir._serialize._program import (
-        _ExtendedHeader, _json_to_program, _program_flatbuffer_to_json,
-    )
+    from executorch.exir._serialize._program import _ExtendedHeader
+
     eh = _ExtendedHeader.from_bytes(_range(url, 0, 63)[8:])
     if not eh.is_valid():
         raise SystemExit(f"no valid ExecuTorch extended header at {url}")
     data = _range(url, 0, eh.program_size - 1)
     if len(data) != eh.program_size:
         raise SystemExit(f"short read: {len(data)} of {eh.program_size} bytes")
-    # Parse the flatbuffer only; the full deserializer would try to restore the
-    # weight segments we deliberately did not fetch.
-    return _json_to_program(_program_flatbuffer_to_json(data[:eh.program_size]))
+    return _parse_flatbuffer(data)
 
 
 def summarize(program) -> dict:
@@ -107,18 +129,34 @@ def main() -> int:
     ap.add_argument("model", nargs="?", help="model name as `exporter list` prints it")
     ap.add_argument("--size")
     ap.add_argument("--backend", default="xnnpack")
-    ap.add_argument("--url", help="probe one .pte URL and dump its contract")
+    ap.add_argument("--url", help="probe one .pte (URL or local path) and dump its contract")
+    ap.add_argument("--local", help="check a local .pte against <model>'s config")
     ap.add_argument("--json", action="store_true")
     args = ap.parse_args()
 
     if args.url:
-        print(json.dumps(summarize(fetch_program(args.url)), indent=2))
+        prog = (read_program(Path(args.url).read_bytes())
+                if Path(args.url).exists() else fetch_program(args.url))
+        print(json.dumps(summarize(prog), indent=2))
         return 0
     if not args.model:
         ap.error("give a model name or --url")
 
     from exporter import registry
     spec = registry.load(args.model, size=args.size, backend=args.backend)
+
+    if args.local:
+        got = summarize(read_program(Path(args.local).read_bytes()))
+        name = Path(args.local).name
+        v = next((x for x in spec.variants if x.file == name), None)
+        if v is None:
+            ap.error(f"{name} is not a variant of {args.model}: "
+                     f"{[x.file for x in spec.variants]}")
+        d = diff(v, got)
+        print(f"{args.local}: {'matches its config' if not d else str(len(d)) + ' difference(s)'}")
+        for line in d:
+            print(f"    {line}")
+        return 1 if d else 0
     hf = json.loads((registry.MODELS_DIR / args.model / "model.json").read_text())["hf"]
     prefix = hf.rstrip("/") + "/resolve/main/"
     sub = f"{args.size}/{args.backend}/" if args.size else f"{args.backend}/"

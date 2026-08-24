@@ -28,8 +28,12 @@ attention projection and two thirds of the MLP, so "8da4w_default" is very
 nearly the unquantized model -- which is why it trivially won the sweep's
 quality metrics, and why the currently-published `_8da4w.pte` for these two
 sizes are *larger* than their bf16 counterparts (0.56 vs 0.27 GB, 1.36 vs
-0.72 GB). 576 and 960 are both divisible by 64, so `group_size 64` quantizes
-every linear. See NOTES.md.
+0.72 GB). 576 and 960 are both divisible by 32, so `group_size 32` quantizes every
+linear, and the sweep's own numbers say 32 is the right size to pick: for 135m
+it scores ppl 16.61 against 19.10 for gs64, and for 360m 11.29 against 12.72,
+for about 4 MB and 11 MB more respectively. 1_7b is unaffected and keeps the
+sweep's `gs64 + emb 8,64` winner -- there gs32 diverges outright (ppl 4e9).
+See NOTES.md.
 """
 
 _COMMON = {
@@ -49,7 +53,7 @@ SIZES = {
             **_COMMON, "dim": 576, "hidden_dim": 1536, "n_heads": 9,
             "n_kv_heads": 3, "n_layers": 30, "rope_theta": 100000.0,
         },
-        "quant": {"group_size": 64, "embedding_quantize": None},
+        "quant": {"group_size": 32, "embedding_quantize": "8,0"},
     },
     "360m": {
         "model_class": "smollm2",
@@ -58,7 +62,7 @@ SIZES = {
             **_COMMON, "dim": 960, "hidden_dim": 2560, "n_heads": 15,
             "n_kv_heads": 5, "n_layers": 32, "rope_theta": 100000.0,
         },
-        "quant": {"group_size": 64, "embedding_quantize": None},
+        "quant": {"group_size": 32, "embedding_quantize": "8,0"},
     },
     "1_7b": {
         "model_class": "smollm2",
