@@ -1,0 +1,25 @@
+{
+  "hf": "https://huggingface.co/software-mansion/react-native-executorch-easy-ocr",
+  "license": "apache-2.0",
+  "config": "{size}/{backend}/config.json",
+  "sizes": [
+    "english",
+    "latin",
+    "japanese",
+    "zh_sim",
+    "korean",
+    "telugu",
+    "kannada",
+    "cyrillic"
+  ],
+  "extras": [
+    "quant",
+    "coreml",
+    "ocr"
+  ],
+  "backends": [
+    "xnnpack",
+    "coreml",
+    "vulkan"
+  ]
+}

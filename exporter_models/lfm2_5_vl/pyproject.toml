@@ -1,7 +1,13 @@
-# Per-model export environment for lfm2_5_vl (MLX backend).
+# Per-model export environment for lfm2_5_vl (MLX and Vulkan backends).
 #
 # REQUIRES executorch built from the software-mansion-labs fork
-# (branch @ms/separate-backends-1.4.1), version-locked to the MLX runtime. That is a
+# (branch @ms/separate-backends-1.4.1), version-locked to the MLX runtime -- and,
+# for the vulkan/ variants, to the Vulkan shaders that runtime was built with (a
+# PTE run against a different shader tree yields gibberish, not an error).
+# The PUBLISHED vulkan artifacts were built with `executorch 1.3.1+112df50`, off
+# the pre-1.4.1 fork branch (@ms/separate-backends). The pin below has since moved
+# to the 1.4.1 fork branch, so re-exporting vulkan needs the runtime's shader tree
+# to move in step; the shipped .pte still correspond to the 1.3.1 shaders. That is a
 # native source build (buck2/cmake/submodules) that `uv sync` cannot produce
 # here -- run this export in the ET-source dev env. The published .pte already
 # ships on HF. This file records the pinned intent + fork source; no uv.lock is

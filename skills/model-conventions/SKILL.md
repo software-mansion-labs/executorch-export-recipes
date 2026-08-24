@@ -73,12 +73,13 @@ or lfm's model_class), not via config.
 
 ## Nested / umbrella models
 
-A dir whose children are models — not a model itself — groups related models.
-`easyocr/` holds `easyocr/craft` and `easyocr/crnn`, each with its own
-`model.json` and contract (craft is `multi_pte`, crnn is sized). The registry
-discovers one level of nesting: a top dir that isn't itself a model is scanned
-for child model dirs, emitted as `parent/child`. The rest of the registry
-handles slash-bearing model names via path joins.
+A dir whose children are models — not a model itself — groups related models
+(e.g. a `family/` dir holding `family/detector` and `family/recognizer`, each
+with its own `model.json` and contract). The registry discovers one level of
+nesting: a top dir that isn't itself a model is scanned for child model dirs,
+emitted as `parent/child`. The rest of the registry handles slash-bearing model
+names via path joins. (No current model uses this: the old `easyocr/craft` +
+`easyocr/crnn` pair was superseded by the fused, sized `easyocr` model.)
 
 ## LLM runner constants
 
