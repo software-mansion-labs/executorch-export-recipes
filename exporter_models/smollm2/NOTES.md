@@ -93,26 +93,85 @@ react-native-executorch's model registry; the old `_8da4w.pte` names describe a
 build we are deliberately not producing any more. 1_7b is untouched and keeps
 `smollm2_1_7b_xnnpack_8da4w.pte`.
 
-## 1_7b was measured too, and keeps 4-bit
+## 1_7b: the 4-bit recipe is worse than it first looked
 
 1_7b has the largest measured degradation of the three sizes (ppl 6.50 -> 11.99,
 1.8x, against 1.3x at 135m and 1.25x at 360m), so it was exported as int8 and
-compared on device against the published 4-bit build:
+compared on device against the published 4-bit build.
 
-| 1_7b | file | decode | RSS | gravity | reverse a string | capital of France |
-|---|---|---|---|---|---|---|
-| published int4 | 1.018 GB | 29-45 tok/s | 1955 MiB | confused | correct | correct |
-| int8 per-channel | 1.817 GB | 25-27 tok/s | 2104-2737 MiB | correct | correct | correct |
+The first comparison used three prompts and favoured keeping int4. That sample
+was too small: it happened to miss int4's characteristic failure modes. Widened
+to ten prompts, greedy decoding (`--temperature=0`), 110-token budget:
 
-The int4 build's gravity answer is wrong ("if you throw the ball down, it will
-come back up") and runs to the token cap, where int8 answers cleanly. But that
-is one prompt out of three, and unlike 135m/360m the 4-bit build is not broken
-on ordinary questions -- it just costs 1.8x the file and ~40% of the speed to
-fix that one answer.
+| prompt | int4 | int8 |
+|---|---|---|
+| capital of France | ok | ok |
+| reverse a string | ok | ok |
+| explain gravity | **wrong physics** | ok |
+| 3pm + 90 minutes | wrong (3pm) | wrong (4pm) |
+| three planets | glitch ("700-year-old dust") | glitch ("fourth planet from the man") |
+| why ice floats | ok | stop-token derail, see below |
+| write a haiku | **repetition loop to the cap** | ok |
+| list vs tuple | **states it backwards** | ok |
+| console a friend | ok (one invalid UTF-8 byte) | ok |
+| explain primes | **loops, muddled** | ok |
 
-**So 1_7b keeps the sweep's 4-bit recipe.** The perplexity ratio flagged it, the
-device did not confirm it, and the evidence is not strong enough to hand users a
-model that is 800 MB larger and slower. If this is revisited, the missing
-measurement is the bf16 build on the same prompts: if bf16 also fumbles the
-gravity question then int4 is not the cause and there is nothing to fix. That
-run was set up but not completed (the device dropped off USB mid-transfer).
+int4 fails 4 of 10; int8 fails 0 of 10 outright. Neither can do the arithmetic.
+
+int4's failures are the classic signature of over-quantization: degenerate
+repetition ("Rhythmic, Rhythmic, Rhythmic..." to the token cap on the haiku, and
+"But if you had a number, say..." on primes), plus a confidently reversed fact
+-- it tells the user that lists "can be modified, but not directly, while tuples
+can", which is exactly backwards and is the kind of thing a coding assistant
+must not say.
+
+For the record, two claims in the earlier version of this section were wrong.
+int4's gravity answer does **not** run to the token cap -- that was an artefact
+of an 80-token budget; at 110 tokens it terminates on EOS. And "the device did
+not confirm it" no longer holds: with ten prompts the device confirms the
+perplexity signal.
+
+### The ice-float derail is a stop-token gap, not quantization
+
+int8 on "why does ice float" starts correctly, emits `<|endoftext|>` mid
+sentence, and then continues into unrelated lowercase pretraining text about the
+invasion of Iraq. It reproduces byte-for-byte across runs (greedy decoding).
+
+The cause is the config, not the weights: in the smollm2 tokenizer token 0 is
+`<|endoftext|>` and token 2 is `<|im_end|>`, and every smollm2 config declares
+`"get_eos_ids": [2]`. When the model emits token 0 the runner does not recognise
+a stop and keeps generating. Upstream declares `eos_token_id = 2` too, so the
+config is faithful to the reference -- but the gap is latent for **all** smollm2
+sizes and both precisions, and int4 simply did not happen to emit token 0 on
+these ten prompts.
+
+`get_eos_ids` is a list precisely so a model can carry more than one stop token
+(hammer2_1 in this MR carries `[151645, 151643]`). Declaring `[2, 0]` for
+smollm2 would turn this from "generates unrelated content" into "stops early".
+That is a config change, not a re-export, so it is cheap and independent of the
+precision decision below.
+
+### bf16 is not a candidate
+
+The tiebreaker finally ran (the file is 3.42 GB; USB kept dropping the single
+push, so it went over in 256 MB chunks and was verified on device against the
+published sha256):
+
+| 1_7b | file | decode | RSS |
+|---|---|---|---|
+| int4 | 1.018 GB | 40-46 tok/s | 1955 MiB |
+| int8 per-channel | 1.817 GB | 25-27 tok/s | 2104-2737 MiB |
+| bf16 | 3.424 GB | **1.5-1.9 tok/s** | 3702 MiB |
+
+bf16 answers gravity correctly and cleanly, which settles the question the
+tiebreaker was for: int4's wrong answer **is** caused by quantization, not by
+the model or the prompt. But bf16 decodes ~25x slower than int4 -- it falls off
+a memory-bandwidth cliff at 3.4 GB -- so it is a reference point, not a
+shippable variant.
+
+### Recommendation (not yet applied)
+
+Switch 1_7b to int8 per-channel, at +78% file size (1.018 -> 1.817 GB) and -40%
+decode (40-46 -> 25-27 tok/s), and add token 0 to `get_eos_ids` for all three
+sizes. The recipe in `_params.py` is deliberately left on 4-bit until that is
+agreed, because changing it means a re-export and a republish.
