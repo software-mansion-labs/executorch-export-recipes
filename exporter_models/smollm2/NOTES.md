@@ -66,16 +66,26 @@ Re-exported 135m 8da4w with the recipe above and compared against the published
 file with executorch's `llama_main` (arm64, ET 1.4.1 @226b471, greedy,
 `--cpu_threads=4`):
 
-| | published `_8da4w.pte` | re-exported (gs32 + emb 8,0) |
-|---|---|---|
-| file size | 0.56 GB | 0.106 GB |
-| RSS after prefill | 692 MiB | 250 MiB |
-| decode | 92-94 tok/s | 301-333 tok/s |
-| prefill | 1129 tok/s | 1750 tok/s |
+| size | | published `_8da4w.pte` | re-exported (gs32 + emb 8,0) |
+|---|---|---|---|
+| 135m | file | 0.561 GB | 0.106 GB |
+| 135m | RSS | 692 MiB | 250 MiB |
+| 135m | decode | 81 tok/s | 223 tok/s |
+| 360m | file | 1.364 GB | 0.253 GB |
+| 360m | RSS | 1223 MiB | 481 MiB |
+| 360m | decode | 32 tok/s | 100 tok/s |
 
-The re-export is 5.3x smaller, 2.8x lighter in RAM and ~3.5x faster to decode,
-which is what quantizing a model that was never actually quantized should look
-like. It answers general questions cleanly and stops at `<|im_end|>`; it is
-visibly weaker on code prompts, consistent with the ppl 14.00 -> 16.61 the sweep
-measured. That is the trade being made, and it is the reason to decide
-explicitly whether a quantized variant of a 135M model is worth shipping at all.
+Both are ~5.3x smaller, ~2.5x lighter in RAM and ~3x faster to decode, which is
+what quantizing a model that was never actually quantized should look like.
+
+**The quality cost is real and visible.** On "explain gravity to a six year old",
+135m answers well either way, but 360m regresses outright: the published (barely
+quantized) file gives a clean answer, while the re-export derails into "I'm sorry,
+I'm not a six-year-old..." and runs to the token cap. One prompt is not a
+measurement, but it is consistent with the ppl the sweep recorded (9.84 -> 11.29
+at 360m, 14.00 -> 16.61 at 135m).
+
+So the choice is explicit: ship a genuinely quantized 135m/360m that is 5x
+smaller and 3x faster but measurably weaker, or drop the quantized variant for
+these two sizes and ship bf16 only. The status quo -- a "quantized" file twice
+the size of bf16 -- is the one option that makes no sense.

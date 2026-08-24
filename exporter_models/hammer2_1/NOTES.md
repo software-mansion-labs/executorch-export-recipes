@@ -53,3 +53,8 @@ re-exported: Three primary colors are red, blue, and yellow.<|im_end|>
 Identical text, but the published file emits `<|im_end|>` as content and keeps
 generating. In a chat session that leaks the turn marker into the answer and
 burns tokens until `<|endoftext|>` happens to appear.
+
+The 8da4w pair is unaffected (both already carry `151645`) and matches
+byte-for-byte in behaviour: same answer, same 0.417 GB, same ~590 MiB RSS, both
+stopping at `<|im_end|>`. The re-exported file is 128 bytes larger, which is the
+second eos id.
