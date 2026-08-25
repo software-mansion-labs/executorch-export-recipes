@@ -48,6 +48,8 @@ _MODEL_DIR = _HERE.parent
 # change; `None` means the base checkpoint that ships with BASE_REPO.
 BASE_REPO = "hexgrad/Kokoro-82M"
 FINETUNE_REPO = "software-mansion/react-native-executorch-kokoro"
+# Pinned so a re-export from the published tag is reproducible.
+FINETUNE_REVISION = "v0.10.0"
 CHECKPOINTS = {
     "standard": None,
     "polish": "finetunes/kokoro_polish_converted.pth",
@@ -329,7 +331,9 @@ def _checkpoint(size: str) -> str | None:
         return None
     from huggingface_hub import hf_hub_download
 
-    return hf_hub_download(repo_id=FINETUNE_REPO, filename=filename)
+    return hf_hub_download(
+        repo_id=FINETUNE_REPO, filename=filename, revision=FINETUNE_REVISION
+    )
 
 
 def export(config: dict, out_dir: str) -> None:
