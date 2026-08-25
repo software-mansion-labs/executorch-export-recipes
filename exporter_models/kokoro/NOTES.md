@@ -8,23 +8,48 @@ and is out of scope.
 
 - **duration_predictor_std.pte** — exports clean; real export verified `io_ok` against
   `config.json` (methods `forward_32/64/128`).
-- **synthesizer_std.pte** — config contract is correct (probed from the published HF
-  artifact), but **re-export is blocked under torch 2.12**: `torch.export` raises a
-  data-dependent guard error (`Could not guard on data-dependent expression u7 < 1`)
-  on a slice deep in the decoder/istftnet graph. The export.py synthesizer path
-  faithfully matches the recipe's non-dynamic path (`KModel(... disable_complex=True)`,
-  `remove_weight_norms`, `duration_padding=None`), so the recipe-as-vendored hits the
-  same wall on this torch version. The published `synthesizer_std.pte` predates this
-  stricter data-dependent guard.
+- **synthesizer_coreml_fp32.pte** — exports clean and verified against a real
+  af_heart voice plus the published duration predictor's own `d`: spectral
+  correlation 0.9993 and RMS ratio 0.9991 against eager. On an iPhone 16 it is
+  627 ms warm against 4741 ms for the published XNNPACK build (7.4 s of audio,
+  so 11.8x realtime versus 1.6x), after a one-time 12 s compile that is cached
+  across launches.
+- **synthesizer_std.pte** — the data-dependent guard that used to block re-export
+  (`Could not guard on data-dependent expression u7 < 1`) is fixed, see below. The
+  xnnpack path has not been re-exported yet, but the blocker is gone.
 
-## Unblock options for the synthesizer (future)
+## What was fixed in `_kokoro_model/istftnet.py`
 
-- Pin an older torch (the recipe's era) where the data-dependent slice guard does not fire.
-- Add a minimal `torch._check` / `guard_or_false` shim at the offending slice in the
-  vendored decoder forward (real model surgery; trace the symbol with
-  `TORCH_LOGS="dynamic"` / tlparse first).
-- Export via the recipe's `--dynamic` path (explicit `Dim` shapes for tokens/duration),
-  which may resolve the symbolic constraint differently than the static inp-128 path.
+Two changes in `SineGen`, both verified against the original formulation:
 
-The config keeps both variants so the contract is recorded; only the synthesizer's
-re-export is deferred.
+1. `rad_values = (f0_values / sampling_rate) % 1` is written as `x - floor(x)`.
+   coremltools converts `% 1` to a tensor of **zeros** (apple/coremltools#2836,
+   divisor 1 only), which silently collapses the excitation. No error is raised,
+   the audio is just wrong.
+2. The pulse-train branch used `tmp_cumsum[idx, u_loc[idx, :, 0], :]` followed by
+   `temp_sum[1:] -= temp_sum[:-1]`. The boolean-mask select produces an unbacked
+   size and ET's view -> view_copy pass then fails to guard on it, which is what
+   blocked re-export. `_segmented_wrapped_phase` computes the same phase as a
+   segmented prefix sum wrapped mod 1 (cos differs by <5e-6 in fp32), with static
+   shapes only. Wrapping also keeps every intermediate in [0, 1) instead of
+   growing to hundreds of cycles.
+
+`aten.cummax` is not in the core ATen opset, so the scan is built from
+`maximum`/`cat`/`slice` and unrolls to ceil(log2(T)) steps. Integer literals
+assigned into float tensors (`rand_ini[:, 0] = 0`) must be float literals, or the
+Core ML converter rejects the `slice_update` on a dtype mismatch.
+
+## Why Core ML is synthesizer-only, fp32, CPU_ONLY
+
+- **No duration predictor.** The shipping contract is a single dynamic `forward`
+  (see the v0.10.0 artifact). coremltools cannot express it: dynamic `F.pad` on a
+  rank > 1 tensor is unsupported, and the `torch.cat` workaround makes
+  `torch.export` derive a non-equality constraint on the token dim. A static
+  `forward_32/64/128` Core ML build does export and run correctly on device, but
+  the runtime feeds the exact token count without padding, so it would only fit
+  chunks that land exactly on those sizes.
+- **fp32.** In fp16 the decoder lands at 0.973 spectral correlation against eager
+  versus 0.9993 in fp32.
+- **CPU_ONLY.** `ComputeUnit.ALL` gave a 25 minute compile for one method of the
+  duration predictor and an execute failure for another; CPU_ONLY is the 7.6x win
+  above.
