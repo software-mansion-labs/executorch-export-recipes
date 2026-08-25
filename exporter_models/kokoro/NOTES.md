@@ -1,8 +1,16 @@
 # kokoro onboarding notes
 
-English/standard only (matches the recipe's single-language export). German/Polish
-per-language export logic lives upstream in `github.com/NorbertKlockiewicz/kokoro-export`
-and is out of scope.
+The Core ML export covers all three language variants (standard, polish, german).
+The xnnpack and mlx exports still cover the standard weights only and raise on the
+other two; their published Polish/German `.pte` were produced upstream in
+`github.com/NorbertKlockiewicz/kokoro-export`.
+
+Language variants ride the harness's `{size}` axis: `sizes: [standard, polish,
+german]` with `config: "{backend}/{size}/config.json"`, one `export.py` per
+backend picking the checkpoint from `config["size"]`. The Polish and German
+fine-tunes live at `finetunes/kokoro_{polish,german}_converted.pth` in the
+published HF repo; they share the base architecture and config exactly (same
+five modules, same per-module parameter counts), so only the weights differ.
 
 ## Status
 
@@ -10,10 +18,10 @@ and is out of scope.
   still the default. The data-dependent guard that used to block re-exporting the
   synthesizer (`Could not guard on data-dependent expression u7 < 1`) is fixed,
   see below.
-- **duration_predictor_std_coreml_fp32.pte** — single `forward`, token axis fixed
-  at 128 (the runtime pads up to it), plus a companion `get_model_schema`.
-- **synthesizer_std_coreml_fp32.pte** — token axis fixed at 128, **frame axis
-  dynamic (16..296)**, so audio length follows the predicted durations exactly and
+- **duration_predictor_{std,pl,de}_coreml_fp32.pte** — single `forward`, token
+  axis fixed at 128 (the runtime pads up to it).
+- **synthesizer_{std,pl,de}_coreml_fp32.pte** — token axis fixed at 128, **frame
+  axis dynamic (16..296)**, declared through a companion `get_model_schema`, so audio length follows the predicted durations exactly and
   no tempo scaling is needed. Verified against the exact exported graph at
   D = 296/220/120/60: spectral correlation 0.99981 / 0.99987 / 0.99998 / 0.99993.
   On an iPhone 16 the static-frame build ran 7.4 s of audio in 627 ms warm against
@@ -68,3 +76,28 @@ correlate only ~0.88 sample-wise across phase draws. Compare magnitude spectra
 instead: same-phase spectral correlation floors at ~0.999, which is what the
 numbers above report. Compare against the exact exported graph, not against a
 differently padded eager model.
+
+## Verifying a language variant
+
+`.pte` versus the exact exported eager graph, per language voice, at several
+frame counts (spectral correlation):
+
+| D | standard | polish | german |
+|---|---|---|---|
+| 296 | 0.999811 | 0.999968 | 0.999941 |
+| 220 | 0.999873 | 0.999976 | 0.999955 |
+| 120 | 0.999979 | 0.999984 | 0.999946 |
+| 60  | 0.999934 | 0.999988 | 0.997674 |
+| 16  | -        | 0.920152 | 0.976817 |
+
+Always measure the **eager-vs-eager floor at the same D** before reading a
+number as a regression. The excitation draws a random initial phase, and short
+outputs have too little spectral resolution to see past it: at D=16 two runs of
+the same graph correlate only ~0.93 (polish) / ~0.96 (german), and at D=60 the
+german floor ranges 0.9962..0.9991 over six draws. Every number above is at or
+above its own floor.
+
+Building inputs for the check: use the real predicted durations over the longest
+token prefix that fits in D frames, topped up to hit D exactly. Rescaling all 128
+tokens into D < 128 frames needs per-token counts below 1 and silently produces
+garbage indices.

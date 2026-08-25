@@ -43,6 +43,17 @@ import torch
 _HERE = Path(__file__).resolve().parent
 _MODEL_DIR = _HERE.parent
 
+# Language variants ride the {size} axis. They are fine-tunes of the base
+# checkpoint with an identical architecture and config, so only the weights
+# change; `None` means the base checkpoint that ships with BASE_REPO.
+BASE_REPO = "hexgrad/Kokoro-82M"
+FINETUNE_REPO = "software-mansion/react-native-executorch-kokoro"
+CHECKPOINTS = {
+    "standard": None,
+    "polish": "finetunes/kokoro_polish_converted.pth",
+    "german": "finetunes/kokoro_german_converted.pth",
+}
+
 # Runtime contract, mirrored by the companion schema and by the task in RNE.
 MAX_TOKENS = 128
 MIN_FRAMES = 16
@@ -309,6 +320,18 @@ def _spectral_corr(a, b):
     return float(np.corrcoef(fa, fb)[0, 1])
 
 
+def _checkpoint(size: str) -> str | None:
+    """Local path of the fine-tuned checkpoint for `size`, or None for base."""
+    if size not in CHECKPOINTS:
+        raise ValueError(f"unknown kokoro size {size!r}, expected one of {sorted(CHECKPOINTS)}")
+    filename = CHECKPOINTS[size]
+    if filename is None:
+        return None
+    from huggingface_hub import hf_hub_download
+
+    return hf_hub_download(repo_id=FINETUNE_REPO, filename=filename)
+
+
 def export(config: dict, out_dir: str) -> None:
     import coremltools as ct
     from executorch.backends.apple.coreml.compiler import CoreMLBackend
@@ -335,7 +358,12 @@ def export(config: dict, out_dir: str) -> None:
         return next(v["file"] for v in config["variants"] if needle in v["file"])
 
     torch.manual_seed(0)
-    model = KModel(repo_id="hexgrad/Kokoro-82M", disable_complex=True, lstm_padding=None)
+    model = KModel(
+        repo_id=BASE_REPO,
+        model=_checkpoint(config.get("size") or "standard"),
+        disable_complex=True,
+        lstm_padding=None,
+    )
 
     # Example inputs only steer tracing, so a random voice reference is fine.
     voice_ref = torch.randn(1, VOICE_REF_SIZE)

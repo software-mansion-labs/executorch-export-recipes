@@ -8,6 +8,11 @@
     "coreml",
     "mlx"
   ],
-  "config": "{backend}/config.json",
+  "sizes": [
+    "standard",
+    "polish",
+    "german"
+  ],
+  "config": "{backend}/{size}/config.json",
   "multi_pte": true
 }
