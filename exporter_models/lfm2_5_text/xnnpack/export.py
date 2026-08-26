@@ -52,7 +52,10 @@ def export(config: dict, out_dir: str) -> str:
     if config["variant"]["precision"] == "fp16":
         cfg.model.dtype_override = DtypeOverride.fp16
     else:  # 8da4w
-        cfg.model.dtype_override = DtypeOverride.bf16
+        # fp32, not bf16: the published 8da4w artifacts emit float32 logits and
+        # the config declares float32. Overriding to bf16 here silently changes
+        # the output contract on the next re-export.
+        cfg.model.dtype_override = DtypeOverride.fp32
         cfg.quantization.group_size = spec["quant"]["group_size"]
         cfg.quantization.embedding_quantize = spec["quant"]["embedding_quantize"]
         cfg.quantization.qmode = "8da4w"
