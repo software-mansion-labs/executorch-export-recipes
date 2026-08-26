@@ -71,6 +71,6 @@ SIZES = {
             **_COMMON, "dim": 2048, "hidden_dim": 8192, "n_heads": 32,
             "n_kv_heads": 32, "n_layers": 24, "rope_theta": 130000.0,
         },
-        "quant": {"group_size": 64, "embedding_quantize": "8,64"},
+        "quant": {"qmode": "8da8w", "group_size": 0, "embedding_quantize": "8,0"},
     },
 }

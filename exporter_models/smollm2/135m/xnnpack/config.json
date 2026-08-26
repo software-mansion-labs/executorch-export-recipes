@@ -9,54 +9,6 @@
   "license": "apache-2.0",
   "variants": [
     {
-      "file": "smollm2_135m_xnnpack_bf16.pte",
-      "precision": "bf16",
-      "quantized": false,
-      "default": true,
-      "methods": {
-        "enable_dynamic_shape": true,
-        "forward": {
-          "inputs": [
-            {
-              "shape": [
-                1,
-                {
-                  "min": 1,
-                  "max": 2047
-                }
-              ],
-              "dtype": "int64"
-            },
-            {
-              "shape": [
-                1
-              ],
-              "dtype": "int64"
-            }
-          ],
-          "outputs": [
-            {
-              "shape": [
-                1,
-                49152
-              ],
-              "dtype": "bfloat16"
-            }
-          ]
-        },
-        "get_bos_id": 1,
-        "get_eos_ids": [
-          2
-        ],
-        "get_max_context_len": 2048,
-        "get_max_seq_len": 2048,
-        "get_n_layers": 30,
-        "get_vocab_size": 49152,
-        "use_kv_cache": true,
-        "use_sdpa_with_kv_cache": true
-      }
-    },
-    {
       "file": "smollm2_135m_xnnpack_8da8w.pte",
       "precision": "8da8w",
       "quantized": true,
