@@ -4,7 +4,8 @@
     "tts"
   ],
   "backends": [
-    "xnnpack"
+    "xnnpack",
+    "mlx"
   ],
   "config": "{backend}/config.json",
   "multi_pte": true

@@ -615,29 +615,47 @@ def _ms_deform_attn_forward(
     if input_padding_mask is not None:
         value = value.masked_fill(input_padding_mask[..., None], float(0))
 
+    # Rank-5 variant. Core ML caps tensor rank at 5, and the natural
+    # (N, Len_q, n_heads, n_levels, n_points, 2) sampling grid is rank 6, so
+    # collapse (n_levels, n_points) into one n_levels*n_points axis here and
+    # slice [lid*P:(lid+1)*P] in _ms_deform_attn_core_pytorch instead of
+    # indexing [..., lid]. Numerically identical to the rank-6 formulation.
+    n_lvl, n_pts = self.n_levels, self.n_points
     sampling_offsets = self.sampling_offsets(query).view(
-        N, Len_q, self.n_heads, self.n_levels, self.n_points, 2
+        N, Len_q, self.n_heads, n_lvl * n_pts, 2
     )
     attention_weights = self.attention_weights(query).view(
-        N, Len_q, self.n_heads, self.n_levels * self.n_points
+        N, Len_q, self.n_heads, n_lvl * n_pts
+    )
+
+    # reference_points is (N, Len_q, L_ref, D) with L_ref either n_levels or 1
+    # (the export path broadcasts a single set of points over levels).
+    # Materialise the level axis, then repeat each level n_points times so it
+    # lines up elementwise with the collapsed sampling_offsets axis.
+    ref = reference_points
+    if ref.shape[2] == 1 and n_lvl > 1:
+        ref = ref.expand(-1, -1, n_lvl, -1)
+    ref = (
+        ref.unsqueeze(3)
+        .expand(-1, -1, -1, n_pts, -1)
+        .reshape(N, Len_q, n_lvl * n_pts, ref.shape[-1])
+        .unsqueeze(2)
     )
 
     if reference_points.shape[-1] == 2:
         offset_normalizer = torch.stack(
             [input_spatial_shapes[..., 1], input_spatial_shapes[..., 0]], -1
         )
+        offset_normalizer = (
+            offset_normalizer.unsqueeze(1)
+            .expand(-1, n_pts, -1)
+            .reshape(n_lvl * n_pts, 2)
+        )
         sampling_locations = (
-            reference_points[:, :, None, :, None, :]
-            + sampling_offsets / offset_normalizer[None, None, None, :, None, :]
+            ref + sampling_offsets / offset_normalizer[None, None, None, :, :]
         )
     elif reference_points.shape[-1] == 4:
-        sampling_locations = (
-            reference_points[:, :, None, :, None, :2]
-            + sampling_offsets
-            / self.n_points
-            * reference_points[:, :, None, :, None, 2:]
-            * 0.5
-        )
+        sampling_locations = ref[..., :2] + sampling_offsets / n_pts * ref[..., 2:] * 0.5
     else:
         raise ValueError(
             "Last dim of reference_points must be 2 or 4, but get {} instead.".format(
@@ -676,17 +694,24 @@ def _ms_deform_attn_core_pytorch(
     spatial_shapes_list=None,
 ):
     B, n_heads, head_dim, _ = value.shape
-    _, Len_q, _, L, P, _ = sampling_locations.shape
+    # sampling_locations is rank 5 here: (B, Len_q, n_heads, n_levels*n_points, 2).
+    _, Len_q, _, LP, _ = sampling_locations.shape
     _iter = (
         spatial_shapes_list if spatial_shapes_list is not None else value_spatial_shapes
     )
+    L = len(_iter)
+    P = LP // L
 
     value_list = value.split([H * W for H, W in _iter], dim=3)
     sampling_grids = 2 * sampling_locations - 1
     sampling_value_list = []
     for lid_, (H, W) in enumerate(_iter):
         value_l_ = value_list[lid_].view(B * n_heads, head_dim, H, W)
-        sampling_grid_l_ = sampling_grids[:, :, :, lid_].transpose(1, 2).flatten(0, 1)
+        sampling_grid_l_ = (
+            sampling_grids[:, :, :, lid_ * P : (lid_ + 1) * P, :]
+            .transpose(1, 2)
+            .flatten(0, 1)
+        )
         sampling_value_l_ = F.grid_sample(
             value_l_,
             sampling_grid_l_,

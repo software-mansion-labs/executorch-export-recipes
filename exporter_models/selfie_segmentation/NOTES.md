@@ -22,6 +22,21 @@
   sync when re-publishing.
 - No `schema.json` / `get_model_schema` companion: both variants are fully
   static, so the runtime derives the model spec from ExecuTorch `MethodMeta`.
+- **The published portrait `.pte` does not hash-match a re-export, and that is
+  fine.** `xnnpack/selfie_segmentation_xnnpack_fp32.pte` on the Hub is
+  `176aba6a…` / 497 924 B, while the current exporter produces `ea5cd127…` /
+  473 732 B (the hash `docs/executorch-1.4.1-bump.md` records for both 1.3.1 and
+  1.4.1). Verified 2026-08-21 under the ET 1.4.1 runtime on host: the published
+  artifact loads, reports the expected `1x3x256x256 -> 1x1x256x256` contract, and
+  produces output **bit-identical** to the re-export (max abs difference exactly
+  0.0 over 6 inputs, on both the probability and the logit scale), with both
+  matching eager to 2.2e-10. The 24 KB delta is container-level, not numerics, so
+  the published build is kept and NOT re-published.
+- Note that this model saturates to ~0 on synthetic input (uniform noise, flat
+  fields, crude silhouettes all give max probability ~2e-06). Comparing exports
+  on random tensors alone is therefore a weak test: agreement on an all-but-zero
+  output means little. Compare on the logit scale, or against another `.pte`,
+  rather than reading an absolute probability delta.
 - If verifying a `.pte` from a numpy image, `np.transpose` leaves the array
   channels-last; the ExecuTorch runtime reads raw buffers as contiguous NCHW —
   `np.ascontiguousarray` first, or the output is garbage.

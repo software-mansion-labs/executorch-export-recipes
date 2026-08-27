@@ -3,7 +3,7 @@
   "extras": [
     "quant"
   ],
-  "repo": "OpenMed/privacy-filter-nemotron",
+  "repo": "software-mansion/react-native-executorch-privacy-filter-nemotron",
   "backends": [
     "xnnpack",
     "mlx"

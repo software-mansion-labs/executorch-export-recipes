@@ -1,0 +1,70 @@
+{
+  "$schema": "https://huggingface.co/software-mansion/react-native-executorch-spec/resolve/main/config.schema.json",
+  "model": "fsmn_vad",
+  "family": "fsmn",
+  "capabilities": [
+    "voice-activity-detection"
+  ],
+  "backend": "coreml",
+  "license": "apache-2.0",
+  "variants": [
+    {
+      "file": "fsmn_vad_coreml_fp16.pte",
+      "precision": "fp16",
+      "quantized": false,
+      "default": true,
+      "methods": {
+        "forward": {
+          "inputs": [
+            {
+              "shape": [
+                1000,
+                512
+              ],
+              "dtype": "float32"
+            }
+          ],
+          "outputs": [
+            {
+              "shape": [
+                1,
+                1000,
+                248
+              ],
+              "dtype": "float32"
+            }
+          ]
+        }
+      }
+    },
+    {
+      "file": "fsmn_vad_coreml_fp32.pte",
+      "precision": "fp32",
+      "quantized": false,
+      "default": false,
+      "methods": {
+        "forward": {
+          "inputs": [
+            {
+              "shape": [
+                1000,
+                512
+              ],
+              "dtype": "float32"
+            }
+          ],
+          "outputs": [
+            {
+              "shape": [
+                1,
+                1000,
+                248
+              ],
+              "dtype": "float32"
+            }
+          ]
+        }
+      }
+    }
+  ]
+}

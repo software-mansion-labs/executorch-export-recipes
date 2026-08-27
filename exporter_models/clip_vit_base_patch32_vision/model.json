@@ -4,7 +4,9 @@
     "quant"
   ],
   "backends": [
-    "xnnpack"
+    "xnnpack",
+    "coreml",
+    "mlx"
   ],
   "config": "{backend}/config.json"
 }

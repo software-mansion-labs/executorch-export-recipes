@@ -67,7 +67,10 @@ def export(config: dict, out_dir: str) -> str:
             return self.decoder(tokens, positions, encodings.to(self.dtype))
 
     precision = config["variant"].get("precision", "fp32")
-    dtype_map = {"float16": torch.float16, "bfloat16": torch.bfloat16, "float32": torch.float32, "fp32": torch.float32, "fp16": torch.float16, "bf16": torch.bfloat16}
+    dtype_map = {"float16": torch.float16, "bfloat16": torch.bfloat16, "float32": torch.float32, "fp32": torch.float32, "fp16": torch.float16, "bf16": torch.bfloat16,
+                 # quantized variants keep a bf16 compute dtype; only the
+                 # Linear weights are integer
+                 "int8": torch.bfloat16, "int4": torch.bfloat16}
     torch_dtype = dtype_map[precision]
     size = config.get("size") or "tiny"
 
@@ -92,6 +95,34 @@ def export(config: dict, out_dir: str) -> str:
             decoder, max_cache_len=224, dtype=torch_dtype
         ).eval()
         decoder_wrapper = DecoderWrapper(decode_module, dtype=torch_dtype)
+
+    if config["variant"].get("quantized"):
+        # Weight-only quantization of the Linear layers.
+        #
+        # Measured on LibriSpeech dummy (greedy decode, WER vs ground truth;
+        # "drift" = WER of this scheme's transcript against the bf16 one):
+        #
+        #            bf16     int8 (8w)            int4 (4w g64)
+        #   tiny     9.87%    9.87% drift 0.97%    18.24% drift 13.42%
+        #   small    8.41%    8.41% drift 0.00%     9.00% drift  1.19%
+        #
+        # int4 damage is STRONGLY size dependent: it doubles the error rate on
+        # tiny while costing almost nothing on small. int8 is free at both
+        # sizes. Prefer int8 unless the packed size win is worth measuring.
+        #
+        # The token embedding is deliberately left unquantized. Whisper ties
+        # its output projection to `token_embedding.weight` through a raw
+        # matmul rather than an nn.Linear, and a quantized tensor subclass
+        # cannot serve that matmul (IntxUnpackedToInt8Tensor: unimplemented
+        # operator). That caps the win on the small sizes, where the embedding
+        # is most of the model: Linear is 44% of tiny's weights but 82% of
+        # small's.
+        from executorch.backends.mlx.llm.quantization import quantize_model_
+
+        qcfg = {"int8": {"qlinear_config": "8w"},
+                "int4": {"qlinear_config": "4w", "qlinear_group_size": 64}}[precision]
+        quantize_model_(encoder, **qcfg)
+        quantize_model_(decode_module, **qcfg)
 
     SAMPLE_RATE = 16000
     encode_inputs = (torch.randn(16 * SAMPLE_RATE, dtype=torch.float32),)

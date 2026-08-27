@@ -1,3 +1,32 @@
+# Core ML export, RE-ENABLED 2026-08-20 after the original disabling was found to
+# rest on an invalid measurement.
+#
+# The note this replaces claimed, measured "on a real image" 2026-08-19:
+#     coreml fp16    7.017 px landmark error
+#     coreml fp32   46.796 px + selects a different top-scoring query
+# and concluded Core ML was unusable for this model.
+#
+# That measurement was wrong. The test fed a NON-CONTIGUOUS input tensor
+# (PIL -> numpy -> .permute(2,0,1) with no .contiguous()). ExecuTorch reads the
+# underlying storage in the wrong order and returns deterministic garbage, while
+# eager PyTorch handles the same tensor correctly -- so the reference looks right
+# and the .pte looks broken. The same mistake was independently repeated on
+# 2026-08-20 and produced the same false negative, which is how it was caught.
+#
+# Re-measured with .contiguous() input, published fp32 artifact, 6 real VOC person
+# images, against the float reference:
+#     box_err 0.000   score_err 0.0000   landmark err <= 0.046 px   6/6 images
+# and confirmed WORKING on a physical iPhone in the demo app.
+#
+# ALWAYS call .contiguous() on image tensors before Method.execute(). This class of
+# bug silently condemns any image model.
+#
+# Caveat carried forward, NOT re-verified: the fp16 variant was reported at
+# 7.017 px and looked visibly wrong on device. That figure came from the same
+# invalid harness, so treat it as unmeasured rather than as a known defect. Only
+# fp32 is published and verified; re-test fp16 with contiguous input before
+# shipping it.
+
 import importlib.util
 import sys
 from pathlib import Path
@@ -16,6 +45,27 @@ def _load_model():
     sys.modules[name] = mod
     spec.loader.exec_module(mod)
     return mod
+
+
+# DEVICE WARNING: fp16 is broken for this model on iPhone, and the failure is
+# invisible to host testing.
+#
+# Measured 2026-08-20 on an iPhone 16: the fp32 build detects and draws keypoints
+# correctly; the fp16 build draws nothing at all. On macOS both builds are
+# indistinguishable (max score 0.813 vs 0.811 and 0.868 vs 0.867 on the same
+# person images), so a host-side check passes fp16 cleanly.
+#
+# It is NOT the Apple Neural Engine. The obvious hypothesis was that fp16 reaches
+# the ANE where fp32 cannot, so an fp16 build pinned to compute_unit=CPU_ONLY was
+# also tested on device: it fails identically. Whatever breaks is in the fp16
+# numerics or lowering of this graph, not in compute-unit routing.
+#
+# Consequences:
+#   * Do not ship an fp16 Core ML variant for this model. fp32 stays.
+#   * A latency benchmark cannot be trusted here on its own. fp16 measured 1.30x
+#     faster than fp32 (123.4 vs 159.9 ms) at half the size while producing
+#     unusable output, because the benchmark harness verifies that output is
+#     finite and correctly delegated, not that it is correct.
 
 
 def export(config: dict, out_dir: str) -> str:

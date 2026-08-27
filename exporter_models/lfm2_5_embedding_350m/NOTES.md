@@ -50,3 +50,35 @@ and drop this local config.
 The `mlx/` backend (selected with `--backend mlx`) fetches its config from the HF
 pointer and is structural-only — the MLX backend needs an ET source build, not
 verified here.
+
+## Core ML: exporter exists, but the artifact does not load
+
+`coreml/export.py` was added 2026-08-20 and **converts successfully** (fp16, ~710 MB),
+but the resulting `.pte` fails to load in the ExecuTorch runtime:
+
+```
+[tensor_parser_portable.cpp:192] getTensorDataPtr() failed: 0x23
+[method.cpp:606] Failed parsing tensor at index 0: 0x23
+```
+
+Note what this is **not**: it is not the dynamic-shape crash that disables the other
+Core ML text models (apple/coremltools#2825). This fails at load, in the *portable*
+tensor parser, meaning ops the Core ML partitioner did not claim kept their constants
+in the ExecuTorch program and that data is unreadable -- plausibly the artifact size
+or a constant-segment issue. The dynamic-shape question is therefore still **open**
+for this model: it never executed, so it never got far enough to hit it.
+
+The Core ML variant also differs from the MLX/XNNPACK ones in two deliberate ways:
+the model is loaded in **float32** (Core ML has no bfloat16 input dtype) and
+`quantize_model_` is **not** applied (it packs weights for the MLX runtime), so the
+Core ML build is unquantized.
+
+**Re-tested 2026-08-20 with the software-mansion-labs fork toolchain** (rebuilt and
+loaded under the fork runtime): identical `0x23` failure. So this is not a
+PyPI-wheel artifact, unlike the YOLO fp16 MLX case which the fork did fix.
+
+No Core ML `.pte` is published for this model. The exporter and its
+`coreml/config.json` are kept, and `coreml` stays in `model.json` backends, so
+`--backend coreml` actually runs and the finding can be re-tested. (It was
+previously dropped from that list, which made the exporter unreachable and this
+paragraph impossible to act on.)

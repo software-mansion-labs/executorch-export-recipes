@@ -12,6 +12,8 @@
     "x"
   ],
   "backends": [
-    "xnnpack"
+    "xnnpack",
+    "coreml",
+    "mlx"
   ]
 }

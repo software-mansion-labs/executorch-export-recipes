@@ -1,0 +1,163 @@
+{
+  "$schema": "https://huggingface.co/software-mansion/react-native-executorch-spec/resolve/main/config.schema.json",
+  "model": "yolo26_seg",
+  "family": "yolo",
+  "capabilities": [
+    "object-detection",
+    "instance-segmentation"
+  ],
+  "backend": "mlx",
+  "license": "agpl-3.0",
+  "variants": [
+    {
+      "file": "yolo26_seg_m_384_mlx_fp16.pte",
+      "precision": "fp16",
+      "quantized": false,
+      "default": true,
+      "methods": {
+        "forward": {
+          "inputs": [
+            {
+              "shape": [
+                1,
+                3,
+                384,
+                384
+              ],
+              "dtype": "float32"
+            }
+          ],
+          "outputs": [
+            {
+              "shape": [
+                300,
+                4
+              ],
+              "dtype": "float32"
+            },
+            {
+              "shape": [
+                300
+              ],
+              "dtype": "float32"
+            },
+            {
+              "shape": [
+                300
+              ],
+              "dtype": "float32"
+            },
+            {
+              "shape": [
+                300,
+                96,
+                96
+              ],
+              "dtype": "float32"
+            }
+          ]
+        }
+      }
+    },
+    {
+      "file": "yolo26_seg_m_512_mlx_fp16.pte",
+      "precision": "fp16",
+      "quantized": false,
+      "default": false,
+      "methods": {
+        "forward": {
+          "inputs": [
+            {
+              "shape": [
+                1,
+                3,
+                512,
+                512
+              ],
+              "dtype": "float32"
+            }
+          ],
+          "outputs": [
+            {
+              "shape": [
+                300,
+                4
+              ],
+              "dtype": "float32"
+            },
+            {
+              "shape": [
+                300
+              ],
+              "dtype": "float32"
+            },
+            {
+              "shape": [
+                300
+              ],
+              "dtype": "float32"
+            },
+            {
+              "shape": [
+                300,
+                128,
+                128
+              ],
+              "dtype": "float32"
+            }
+          ]
+        }
+      }
+    },
+    {
+      "file": "yolo26_seg_m_640_mlx_fp16.pte",
+      "precision": "fp16",
+      "quantized": false,
+      "default": false,
+      "methods": {
+        "forward": {
+          "inputs": [
+            {
+              "shape": [
+                1,
+                3,
+                640,
+                640
+              ],
+              "dtype": "float32"
+            }
+          ],
+          "outputs": [
+            {
+              "shape": [
+                300,
+                4
+              ],
+              "dtype": "float32"
+            },
+            {
+              "shape": [
+                300
+              ],
+              "dtype": "float32"
+            },
+            {
+              "shape": [
+                300
+              ],
+              "dtype": "float32"
+            },
+            {
+              "shape": [
+                300,
+                160,
+                160
+              ],
+              "dtype": "float32"
+            }
+          ]
+        }
+      }
+    }
+  ]
+}

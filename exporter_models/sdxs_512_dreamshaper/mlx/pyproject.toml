@@ -30,7 +30,7 @@ environments = ["sys_platform == 'darwin' and platform_machine == 'arm64'"]
 exporter = { path = "../../..", editable = true }
 torch = { index = "pytorch-nightly" }
 # MLX runtime-locked fork -- native source build (see header).
-executorch = { git = "https://github.com/software-mansion-labs/executorch", branch = "@ms/separate-backends" }
+executorch = { git = "https://github.com/software-mansion-labs/executorch", branch = "@ms/separate-backends-1.4.1" }
 
 [[tool.uv.index]]
 name = "pytorch-nightly"

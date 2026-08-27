@@ -1,0 +1,75 @@
+{
+  "$schema": "https://huggingface.co/software-mansion/react-native-executorch-spec/resolve/main/config.schema.json",
+  "model": "clip_vit_base_patch32",
+  "family": "clip",
+  "capabilities": [
+    "text-embedding",
+    "image-embedding"
+  ],
+  "backend": "coreml",
+  "license": "mit",
+  "tokenizer": "../tokenizer.json",
+  "variants": [
+    {
+      "file": null,
+      "components": {
+        "image": "clip_vit_base_patch32_image_coreml_fp16.pte",
+        "text": "clip_vit_base_patch32_text_coreml_fp16.pte"
+      },
+      "precision": "fp16",
+      "quantized": false,
+      "default": true,
+      "methods": {
+        "image": {
+          "inputs": [
+            {
+              "shape": [
+                1,
+                3,
+                224,
+                224
+              ],
+              "dtype": "float32"
+            }
+          ],
+          "outputs": [
+            {
+              "shape": [
+                1,
+                512
+              ],
+              "dtype": "float32"
+            }
+          ]
+        },
+        "text": {
+          "inputs": [
+            {
+              "shape": [
+                1,
+                74
+              ],
+              "dtype": "int64"
+            },
+            {
+              "shape": [
+                1,
+                74
+              ],
+              "dtype": "int64"
+            }
+          ],
+          "outputs": [
+            {
+              "shape": [
+                1,
+                512
+              ],
+              "dtype": "float32"
+            }
+          ]
+        }
+      }
+    }
+  ]
+}

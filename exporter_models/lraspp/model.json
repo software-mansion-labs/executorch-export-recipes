@@ -6,6 +6,8 @@
   "repo": "software-mansion/react-native-executorch-lraspp",
   "config": "{backend}/config.json",
   "backends": [
-    "xnnpack"
+    "xnnpack",
+    "coreml",
+    "mlx"
   ]
 }

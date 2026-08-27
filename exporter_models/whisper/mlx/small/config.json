@@ -10,9 +10,9 @@
   "tokenizer": "../tokenizer.json",
   "variants": [
     {
-      "file": "whisper_small_mlx_bf16.pte",
-      "precision": "bf16",
-      "quantized": false,
+      "file": "whisper_small_mlx_int8.pte",
+      "precision": "int8",
+      "quantized": true,
       "default": true,
       "methods": {
         "encode": {
