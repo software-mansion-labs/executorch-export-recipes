@@ -122,6 +122,12 @@ def export(config: dict, out_dir: str) -> str:
     #
     # With cpu_and_gpu, fp16 matches fp32 to 0.0008 confidence, 0.23 px box and
     # 0.17 px landmark, at 144.0 ms against 165.1 ms and 263 MB against 389 MB.
+    #
+    # Only fp16 is published now. It was checked against fp32 across 13 real
+    # photos and 40 detections first: visible landmarks agreed to 1.04 px, boxes
+    # to 0.653 px and scores to 0.072, with no detection crossing the threshold.
+    # The fp32 path below still works if that ever needs revisiting; add the
+    # variant back to config.json to build it.
     compute_unit = ct.ComputeUnit.CPU_AND_GPU if precision == ct.precision.FLOAT16 else ct.ComputeUnit.ALL
 
     specs = CoreMLBackend.generate_compile_specs(
