@@ -85,13 +85,22 @@ Rule of thumb: any per-token autoregressive `decode` is dispatch-bound and wants
 `CPU_ONLY`; large encoders want `ALL`. Sweep rather than assume, and sweep on
 device — this is not visible from the export side.
 
-The same sweep on a single-method model can confirm the default is right.
-RF-DETR keypoint at fp16 wants `ALL` (122.7 ms) over `CPU_AND_NE` (125.0),
-`CPU_ONLY` (136.1) and `CPU_AND_GPU` (171.0). Note also that the Neural Engine
-is **fp16-only**: the same model at fp32 shows `CPU_AND_NE` (337.5) matching
-`CPU_ONLY` (352.9) and `ALL` (173.6) matching `CPU_AND_GPU` (176.7), i.e. the
-ANE contributing nothing at all. An fp32 CoreML model never reaches the ANE
-whatever compute unit it asks for.
+Sweep for **correctness first**, not latency. RF-DETR keypoint at fp16 is only
+correct under `CPU_AND_GPU`; on an iPhone 16 it scores 0.862 there against
+fp32's 0.863, and 0.421 / 0.422 / 0.411 under `ALL` / `CPU_AND_NE` / `CPU_ONLY`.
+Both the CPU and the ANE fp16 paths return wrong scores for that graph. Ranking
+those four by latency alone picks a broken build, and the broken one is faster,
+so a benchmark on its own actively misleads here.
+
+Compute unit is also platform-dependent. On macOS the same fp16 model is wrong
+only under `CPU_ONLY`, so a host check passes a build the device gets wrong:
+`ALL` resolves differently on the two platforms. Anything decided by
+compute unit has to be confirmed on device.
+
+Note also that the Neural Engine is **fp16-only**. RF-DETR keypoint at fp32
+shows `CPU_AND_NE` (337.5 ms) matching `CPU_ONLY` (352.9) and `ALL` (173.6)
+matching `CPU_AND_GPU` (176.7), i.e. the ANE contributing nothing at all. An
+fp32 CoreML model never reaches the ANE whatever compute unit it asks for.
 
 ## int8 (weight quantization)
 
