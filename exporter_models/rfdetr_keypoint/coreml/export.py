@@ -47,8 +47,15 @@ def _load_model():
     return mod
 
 
-# DEVICE WARNING: fp16 is broken for this model on iPhone, and the failure is
-# invisible to host testing.
+# DEVICE WARNING (RESOLVED 2026-08-28): fp16 is broken for this model on iPhone
+# under ALL, CPU_ONLY and CPU_AND_NE, and the failure is invisible to host
+# testing. It is NOT broken under CPU_AND_GPU, which export() now selects for
+# fp16; see the compute-unit note there. The original text follows, and its
+# conclusion that "it is not the Neural Engine" was half right -- on device both
+# the CPU and the ANE fp16 paths are wrong, so the fix is to exclude the CPU
+# *and* the ANE rather than to give up on fp16.
+#
+# Original note:
 #
 # Measured 2026-08-20 on an iPhone 16: the fp32 build detects and draws keypoints
 # correctly; the fp16 build draws nothing at all. On macOS both builds are
@@ -105,8 +112,22 @@ def export(config: dict, out_dir: str) -> str:
     # 0.422 with landmarks 50.8 px out. On host the same fp16 build looks fine
     # (0.8613, within 0.32 px of the eager reference), so the DEVICE WARNING
     # above still stands and the iOS18 bug was a second, independent defect.
+    # fp16 is correct on device ONLY with the CPU excluded. Measured at iOS17 on
+    # an iPhone 16 against the fp32 build's 0.863:
+    #     all 0.421   cpu_only 0.411   cpu_and_ne 0.422   cpu_and_gpu 0.862
+    # so both the CPU and the Neural Engine fp16 paths return wrong scores for
+    # this graph and the GPU is the only one that does not. On macOS only the
+    # CPU path is wrong, which is why a host check passes fp16 under ALL and the
+    # device still fails -- the two platforms place ALL differently.
+    #
+    # With cpu_and_gpu, fp16 matches fp32 to 0.0008 confidence, 0.23 px box and
+    # 0.17 px landmark, at 144.0 ms against 165.1 ms and 263 MB against 389 MB.
+    compute_unit = ct.ComputeUnit.CPU_AND_GPU if precision == ct.precision.FLOAT16 else ct.ComputeUnit.ALL
+
     specs = CoreMLBackend.generate_compile_specs(
-        minimum_deployment_target=ct.target.iOS17, compute_precision=precision
+        compute_unit=compute_unit,
+        minimum_deployment_target=ct.target.iOS17,
+        compute_precision=precision,
     )
     program = to_edge_transform_and_lower(
         ep, partitioner=[CoreMLPartitioner(compile_specs=specs)]
