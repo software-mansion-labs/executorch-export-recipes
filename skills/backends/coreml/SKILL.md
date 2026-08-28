@@ -33,6 +33,62 @@ Multi-method (e.g. whisper encode+decode) passes a `{name: ep}` dict to
 `to_edge_transform_and_lower`. Reference: the lfm2.5 retrieval embedding export
 in the executorch repo uses exactly this partitioner form.
 
+## compute_unit: pick it per method, don't take the default
+
+`generate_compile_specs` defaults `compute_unit` to `ct.ComputeUnit.ALL`, and
+for a long time no export in this repo set it. That default suits a big
+convolution/attention graph and actively hurts a small one, because dispatching
+to the Neural Engine costs the same whether the program does a lot of work or
+almost none.
+
+Whisper is the clear case. Its `.pte` holds two methods with opposite shapes:
+`encode` runs a full encoder over 30s of audio, `decode` computes one token.
+Measured on an iPhone 16 (base.en, fp16), `decode` ms/step by compute unit:
+
+| compute unit | ms/step |
+| --- | --- |
+| `CPU_ONLY` | 6.7 |
+| `CPU_AND_GPU` | 15.3 |
+| `CPU_AND_NE` | 15.8 |
+| `ALL` (default) | 20.0 |
+
+`encode` is unaffected and stays on `ALL`. End to end on 14.5s of real speech
+(46 tokens), `enc-ALL / dec-CPU_ONLY` against the previously published build:
+tiny 567 -> 198 ms, base 987 -> 388 ms, small 2324 -> 1558 ms, with
+**byte-identical transcripts** at every size. This removes dispatch overhead; it
+does not change numerics.
+
+A multi-method model is partitioned per method, so give each its own specs:
+
+```python
+def compile_specs_for(compute_unit):
+    return CoreMLBackend.generate_compile_specs(
+        compute_unit=compute_unit,
+        minimum_deployment_target=ct.target.iOS18,
+        compute_precision=precision,
+    )
+
+program = to_edge_transform_and_lower(
+    {"encode": ep_encode, "decode": ep_decode},
+    partitioner={
+        "encode": [CoreMLPartitioner(compile_specs=compile_specs_for(ct.ComputeUnit.ALL))],
+        "decode": [CoreMLPartitioner(compile_specs=compile_specs_for(ct.ComputeUnit.CPU_ONLY))],
+    },
+).to_executorch()
+```
+
+Rule of thumb: any per-token autoregressive `decode` is dispatch-bound and wants
+`CPU_ONLY`; large encoders want `ALL`. Sweep rather than assume, and sweep on
+device — this is not visible from the export side.
+
+The same sweep on a single-method model can confirm the default is right.
+RF-DETR keypoint at fp16 wants `ALL` (122.7 ms) over `CPU_AND_NE` (125.0),
+`CPU_ONLY` (136.1) and `CPU_AND_GPU` (171.0). Note also that the Neural Engine
+is **fp16-only**: the same model at fp32 shows `CPU_AND_NE` (337.5) matching
+`CPU_ONLY` (352.9) and `ALL` (173.6) matching `CPU_AND_GPU` (176.7), i.e. the
+ANE contributing nothing at all. An fp32 CoreML model never reaches the ANE
+whatever compute unit it asks for.
+
 ## int8 (weight quantization)
 
 For int8 CoreML, pass `op_linear_quantizer_config` to `generate_compile_specs`:
