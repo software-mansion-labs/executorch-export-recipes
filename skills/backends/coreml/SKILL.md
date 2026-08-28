@@ -35,11 +35,15 @@ in the executorch repo uses exactly this partitioner form.
 
 ## compute_unit: pick it per method, don't take the default
 
-`generate_compile_specs` defaults `compute_unit` to `ct.ComputeUnit.ALL`, and
-for a long time no export in this repo set it. That default suits a big
-convolution/attention graph and actively hurts a small one, because dispatching
-to the Neural Engine costs the same whether the program does a lot of work or
-almost none.
+`generate_compile_specs` defaults `compute_unit` to `ct.ComputeUnit.ALL`. That
+default suits a big convolution/attention graph and actively hurts a small one,
+because dispatching to the Neural Engine costs the same whether the program does
+a lot of work or almost none.
+
+The text embedders already act on this: `all_minilm_l6_v2` and its siblings pin
+`CPU_ONLY` and record 4.1x on distiluse (33.0 -> 8.0 ms) and 3.7x on clip-text
+(18.1 -> 4.9 ms). The rule generalises to any small graph, including one method
+of a larger model.
 
 Whisper is the clear case. Its `.pte` holds two methods with opposite shapes:
 `encode` runs a full encoder over 30s of audio, `decode` computes one token.
