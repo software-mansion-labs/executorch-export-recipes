@@ -7,9 +7,13 @@ fills the GPU.
 
 Two deliberate departures from the XNNPACK export:
 
-* ``encode`` is exported at a static 30 s of audio. The Vulkan delegate has no
-  dynamic-shape support, so the range the other backends accept collapses to
-  the one padded length the runtime always feeds it.
+* ``encode`` keeps the dynamic audio length the other backends accept, even
+  though the Vulkan delegate has no dynamic-shape support. It does not need it:
+  the mel preprocessor pads and slices to a fixed ``[80, 3000]``, so every
+  tensor Vulkan sees downstream of that is static, and the symbolic length
+  lives only in the XNNPACK-delegated STFT ahead of it. Shorter audio is
+  correspondingly cheaper (54 ms at 201 samples against 62 ms at 30 s) rather
+  than being padded up to full cost.
 * Encoder self-attention is re-expressed over rank-3 tensors. Vulkan packs the
   trailing dimension into texels, so a rank-4 [1, heads, ctx, dim] attention
   wastes three quarters of every texel on the singleton batch. Folding the
@@ -36,6 +40,7 @@ import types
 from pathlib import Path
 
 import torch
+from torch.export import Dim
 
 from exporter.schema import load_and_validate_schema
 
@@ -44,6 +49,7 @@ _MODEL_DIR = _HERE.parent
 
 _SAMPLE_RATE = 16000
 _AUDIO_SAMPLES = 30 * _SAMPLE_RATE
+_MIN_AUDIO_SAMPLES = 201  # one STFT frame; matches the other backends
 
 
 def _load_custom_whisper():
@@ -190,8 +196,13 @@ def export(config: dict, out_dir: str) -> str:
 
     n_cross_state = model.dims.n_text_layer * 2 * model.dims.n_audio_state
 
+    # Matches the range the other whisper backends declare. The Vulkan blobs sit
+    # behind the preprocessor's fixed-size mel, so they never see this symbol.
+    audio_samples = Dim("T_audio", min=_MIN_AUDIO_SAMPLES, max=_AUDIO_SAMPLES)
     exported_encode = torch.export.export(
-        encoder_wrapper, (torch.randn(_AUDIO_SAMPLES),)
+        encoder_wrapper,
+        (torch.randn(_AUDIO_SAMPLES),),
+        dynamic_shapes=({0: audio_samples},),
     )
     exported_decode = torch.export.export(
         decoder_wrapper,

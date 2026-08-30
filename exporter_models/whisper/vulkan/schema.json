@@ -6,8 +6,12 @@
         "dtype": "float32",
         "shape": [
           {
-            "kind": "constant",
-            "value": 480000
+            "kind": "range",
+            "range": {
+              "min": 201,
+              "max": 480000,
+              "step": 1
+            }
           }
         ]
       }
