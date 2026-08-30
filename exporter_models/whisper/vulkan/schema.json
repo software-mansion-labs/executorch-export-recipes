@@ -27,7 +27,7 @@
           },
           {
             "kind": "constant",
-            "value": {n_audio_state}
+            "value": {n_cross_state}
           }
         ]
       }
@@ -74,7 +74,7 @@
           },
           {
             "kind": "constant",
-            "value": {n_audio_state}
+            "value": {n_cross_state}
           }
         ]
       }
