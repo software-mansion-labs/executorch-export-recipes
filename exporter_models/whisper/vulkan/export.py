@@ -28,6 +28,14 @@ frames in every block. Hoisting them into ``encode`` costs 6.5 ms there and
 saves 4.9 ms per decode step, so it breaks even after 1.34 steps and wins on
 every real transcription. Output is bit-identical.
 
+They are emitted head-major, that is ``[n_head, n_audio_ctx, head_dim]``
+flattened back into the transport shape, rather than in the natural frame-major
+order. Attention wants the head dimension outermost, and the usual
+``view().permute()`` to get there is a full transpose of 4.6 MB per block. Doing
+it frame-major meant paying that on 18.4 MB on every decode step; doing it here
+pays it once. Worth a further 1.78 ms per step against 3.44 ms in encode, so it
+breaks even after 1.93 steps. Also bit-identical.
+
 An XNNPACK partitioner is listed after the Vulkan one to catch the mel
 preprocessor: its STFT is a conv1d over the full 480000-sample waveform, whose
 width-packed texture would need 120100 texels against a 16384 device limit, so
@@ -100,23 +108,33 @@ class _EncoderWrapper(torch.nn.Module):
 
     The cross-attention keys and values are a function of the audio alone, so
     they are computed once here rather than on every decode step. They are
-    packed along the last dimension as
-    ``[k_0, v_0, k_1, v_1, ...]``, one pair per decoder block; ``_decode``
-    slices them back apart.
+    packed along the last dimension as ``[k_0, v_0, k_1, v_1, ...]``, one pair
+    per decoder block, each already laid out head-major so that
+    ``_DecoderWrapper`` can read it as ``[n_head, n_audio_ctx, head_dim]``
+    without transposing.
     """
 
-    def __init__(self, preprocessor, encoder, decoder):
+    def __init__(self, preprocessor, encoder, decoder, n_head: int):
         super().__init__()
         self._preprocessor = preprocessor
         self._encoder = encoder
         self._decoder = decoder
+        self._n_head = n_head
 
     def forward(self, waveform: torch.Tensor) -> torch.Tensor:
         states = self._encoder(self._preprocessor(waveform).unsqueeze(0))
+        _, n_ctx, n_state = states.shape
+        head_dim = n_state // self._n_head
+
         cross_kv = []
         for block in self._decoder.blocks:
-            cross_kv.append(block.cross_attn.key(states))
-            cross_kv.append(block.cross_attn.value(states))
+            for projection in (block.cross_attn.key, block.cross_attn.value):
+                projected = projection(states)
+                cross_kv.append(
+                    projected.view(n_ctx, self._n_head, head_dim)
+                    .permute(1, 0, 2)
+                    .reshape(1, n_ctx, n_state)
+                )
         return torch.cat(cross_kv, dim=-1)
 
 
@@ -125,27 +143,45 @@ class _DecoderWrapper(torch.nn.Module):
 
     This mirrors ``TextDecoder.forward`` exactly apart from the cross-attention
     inputs, which are sliced out of ``cross_kv`` rather than projected from the
-    encoder states. Self-attention keeps its own KV cache and is untouched.
+    encoder states. Because those slices arrive head-major, the attention here
+    is plain ``bmm`` over rank-3 tensors and never transposes them; only the
+    query, 384 elements, is reshaped. Self-attention keeps its own KV cache and
+    is untouched.
     """
 
-    def __init__(self, decoder):
+    def __init__(self, decoder, n_head: int, n_audio_ctx: int):
         super().__init__()
         self.decoder = decoder
+        self._n_head = n_head
+        self._n_audio_ctx = n_audio_ctx
 
     def forward(self, tokens, positions, cross_kv):
         decoder = self.decoder
+        n_head, n_ctx = self._n_head, self._n_audio_ctx
         n_state = decoder.token_embedding.embedding_dim
+        head_dim = n_state // n_head
+        scale = head_dim**-0.25
+
         x = decoder.token_embedding(tokens) + decoder.positional_embedding[positions]
         x = x.to(cross_kv.dtype)
 
         for i, block in enumerate(decoder.blocks):
             x = x + block.attn(block.attn_ln(x), positions, mask=decoder.mask)[0]
             cross_attn = block.cross_attn
+
             key = cross_kv[..., (2 * i) * n_state : (2 * i + 1) * n_state]
             value = cross_kv[..., (2 * i + 1) * n_state : (2 * i + 2) * n_state]
-            attended, _ = cross_attn.qkv_attention(
-                cross_attn.query(block.cross_attn_ln(x)), key, value, None
+            key = key.reshape(n_head, n_ctx, head_dim)
+            value = value.reshape(n_head, n_ctx, head_dim)
+
+            query = cross_attn.query(block.cross_attn_ln(x))
+            query = query.view(1, n_head, head_dim).permute(1, 0, 2)
+            scores = torch.bmm(query * scale, (key * scale).transpose(1, 2))
+            weights = torch.nn.functional.softmax(scores, dim=-1)
+            attended = (
+                torch.bmm(weights, value).permute(1, 0, 2).reshape(1, 1, n_state)
             )
+
             x = x + cross_attn.out(attended)
             x = x + block.mlp(block.mlp_ln(x))
 
@@ -191,8 +227,12 @@ def export(config: dict, out_dir: str) -> str:
         AutoProcessor.from_pretrained(f"openai/whisper-{size}")
     ).eval()
 
-    encoder_wrapper = _EncoderWrapper(preprocessor, encoder, decoder).eval()
-    decoder_wrapper = _DecoderWrapper(decoder).eval()
+    encoder_wrapper = _EncoderWrapper(
+        preprocessor, encoder, decoder, model.dims.n_text_head
+    ).eval()
+    decoder_wrapper = _DecoderWrapper(
+        decoder, model.dims.n_text_head, model.dims.n_audio_ctx
+    ).eval()
 
     n_cross_state = model.dims.n_text_layer * 2 * model.dims.n_audio_state
 
