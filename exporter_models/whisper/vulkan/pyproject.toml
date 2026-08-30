@@ -1,0 +1,47 @@
+# Per-model Vulkan export environment for whisper.
+#   uv run --project exporter_models/whisper/vulkan exporter export whisper --backend vulkan --output-dir <dir>
+#
+# NOTE (VULKAN EXPORTER SOURCE PIN):
+# executorch is pinned to software-mansion-labs/executorch, branch
+# @ms/separate-backends-1.4.1, rather than the released 1.4.1 the other whisper
+# backends use. That branch carries the Vulkan work this export depends on, all
+# of it also filed upstream:
+#
+#   * conv1d lowered as conv2d over a singleton height (pytorch/executorch#22330).
+#     Without it the encoder's conv stem takes Vulkan's conv1d kernel, which runs
+#     at ~3% of the GPU's matmul rate (#22329) and leaves the whole encode
+#     slower than XNNPACK.
+#   * broadcast size calculation for 0-dim tensors (#22332). Without it encode
+#     aborts at runtime with std::out_of_range.
+#   * local work group shape on Adreno (#22328). Without it the encoder is
+#     nondeterministic run to run on Adreno (#22327).
+#
+# Drop the pin back to a released executorch once those land.
+[project]
+name = "exporter-model-whisper-vulkan"
+version = "0"
+requires-python = "==3.10.*"
+dependencies = [
+    "exporter",
+    "torch==2.14.0.dev20260702",
+    "executorch",
+    "transformers==5.14.1",
+    "safetensors==0.8.0",
+    "numpy==2.0.0",
+    "tqdm==4.67.3",
+]
+
+[tool.uv]
+# Exports run only on this macOS arm64 host; limit resolution to it so the
+# nightly torch/torchvision +cpu-vs-plain platform split can't fail the lock.
+environments = ["sys_platform == 'darwin' and platform_machine == 'arm64'"]
+
+[tool.uv.sources]
+exporter = { path = "../../.." , editable = true }
+torch = { index = "pytorch-nightly" }
+executorch = { git = "https://github.com/software-mansion-labs/executorch", branch = "@ms/separate-backends-1.4.1" }
+
+[[tool.uv.index]]
+name = "pytorch-nightly"
+url = "https://download.pytorch.org/whl/nightly/cpu"
+explicit = true
