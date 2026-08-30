@@ -36,6 +36,19 @@ it frame-major meant paying that on 18.4 MB on every decode step; doing it here
 pays it once. Worth a further 1.78 ms per step against 3.44 ms in encode, so it
 breaks even after 1.93 steps. Also bit-identical.
 
+Two variants are exported. The default keeps the output projection in fp32.
+The quantized one takes it to int8, which is the single largest item left in a
+decode step: the projection streams the whole 384x51865 tied embedding, 79.7 MB
+of fp32, on every token, and at 43 GB/s that is genuinely bandwidth-bound, so
+only fewer bytes helps. It is worth 1.46 ms per step and 59 MB of file, and it
+costs accuracy: on 8 librispeech clips it moved WER from 10.50% to 12.00% and
+changed 4 of 8 transcripts, mostly punctuation but not only. int4 was measured
+too and rejected: 0.18 ms faster than int8, but it stopped emitting
+end-of-transcript and looped.
+
+Only the projection is quantized, not the whole model. The encoder's weights
+have to stay in a form the Vulkan partitioner will take.
+
 An XNNPACK partitioner is listed after the Vulkan one to catch the mel
 preprocessor: its STFT is a conv1d over the full 480000-sample waveform, whose
 width-packed texture would need 120100 texels against a 16384 device limit, so
@@ -138,6 +151,24 @@ class _EncoderWrapper(torch.nn.Module):
         return torch.cat(cross_kv, dim=-1)
 
 
+class _OutputProjection(torch.nn.Module):
+    """The tied-embedding output projection, as a Linear so it can be quantized.
+
+    Kept separate from ``token_embedding`` deliberately: the input lookup reads
+    one row per step and is free, while this streams the entire matrix, so only
+    this copy is worth quantizing.
+    """
+
+    def __init__(self, weight: torch.Tensor):
+        super().__init__()
+        self.proj = torch.nn.Linear(weight.shape[1], weight.shape[0], bias=False)
+        with torch.no_grad():
+            self.proj.weight.copy_(weight)
+
+    def forward(self, x):
+        return self.proj(x)
+
+
 class _DecoderWrapper(torch.nn.Module):
     """One decode step, taking the cross-attention K/V ``_EncoderWrapper`` emitted.
 
@@ -149,11 +180,12 @@ class _DecoderWrapper(torch.nn.Module):
     is untouched.
     """
 
-    def __init__(self, decoder, n_head: int, n_audio_ctx: int):
+    def __init__(self, decoder, n_head: int, n_audio_ctx: int, projection):
         super().__init__()
         self.decoder = decoder
         self._n_head = n_head
         self._n_audio_ctx = n_audio_ctx
+        self.projection = projection
 
     def forward(self, tokens, positions, cross_kv):
         decoder = self.decoder
@@ -185,9 +217,7 @@ class _DecoderWrapper(torch.nn.Module):
             x = x + cross_attn.out(attended)
             x = x + block.mlp(block.mlp_ln(x))
 
-        x = decoder.ln(x)
-        weight = torch.transpose(decoder.token_embedding.weight.to(x.dtype), 0, 1)
-        return (x @ weight).float()
+        return self.projection(decoder.ln(x)).float()
 
 
 def export(config: dict, out_dir: str) -> str:
@@ -230,8 +260,21 @@ def export(config: dict, out_dir: str) -> str:
     encoder_wrapper = _EncoderWrapper(
         preprocessor, encoder, decoder, model.dims.n_text_head
     ).eval()
+    projection = _OutputProjection(decoder.token_embedding.weight.detach().clone()).eval()
+    if config["variant"]["quantized"]:
+        from torchao.quantization import quantize_
+        from torchao.quantization.granularity import PerAxis
+        from torchao.quantization.quant_api import Int8DynamicActivationIntxWeightConfig
+
+        quantize_(
+            projection,
+            Int8DynamicActivationIntxWeightConfig(
+                weight_dtype=torch.int8, weight_granularity=PerAxis(0)
+            ),
+        )
+
     decoder_wrapper = _DecoderWrapper(
-        decoder, model.dims.n_text_head, model.dims.n_audio_ctx
+        decoder, model.dims.n_text_head, model.dims.n_audio_ctx, projection
     ).eval()
 
     n_cross_state = model.dims.n_text_layer * 2 * model.dims.n_audio_state
