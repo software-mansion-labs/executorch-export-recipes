@@ -9,8 +9,8 @@
   "license": "apache-2.0",
   "variants": [
     {
-      "file": "all_minilm_l6_v2_vulkan_fp32.pte",
-      "precision": "fp32",
+      "file": "all_minilm_l6_v2_vulkan_fp16.pte",
+      "precision": "fp16",
       "quantized": false,
       "default": true,
       "methods": {

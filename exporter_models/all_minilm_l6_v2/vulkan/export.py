@@ -6,6 +6,7 @@ from transformers import AutoModel
 from torch.export import Dim, export as torch_export
 
 from exporter.schema import load_and_validate_schema
+from exporter.vulkan import embedding_off_texture
 
 _HERE = Path(__file__).resolve().parent
 _MODEL_DIR = _HERE.parent
@@ -63,11 +64,15 @@ def export(config: dict, out_dir: str) -> str:
     ep = torch_export(module, inputs, dynamic_shapes=dynamic)
     schema_json = load_and_validate_schema(_MODEL_DIR / "schema.json")
 
-    program = to_edge_transform_and_lower(
-        {"forward": ep},
-        partitioner=[VulkanPartitioner()],
-        constant_methods={"get_model_schema": schema_json},
-    ).to_executorch()
+    # fp16: 2.05x XNNPACK on Adreno 840 against 1.30x for fp32, and half the
+    # download. The 30522-row token embedding has to stay off texture storage
+    # for fp16 to be correct at all -- see embedding_off_texture.
+    with embedding_off_texture():
+        program = to_edge_transform_and_lower(
+            {"forward": ep},
+            partitioner=[VulkanPartitioner(compile_options={"force_fp16": True})],
+            constant_methods={"get_model_schema": schema_json},
+        ).to_executorch()
 
     out_path = Path(out_dir) / variant["file"]
     out_path.parent.mkdir(parents=True, exist_ok=True)
