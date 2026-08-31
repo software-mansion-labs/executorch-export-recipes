@@ -1,0 +1,12 @@
+{
+  "hf": "https://huggingface.co/software-mansion/react-native-executorch-smolLm-2",
+  "config": "{size}/{backend}/config.json",
+  "sizes": [
+    "135m",
+    "360m",
+    "1_7b"
+  ],
+  "backends": [
+    "xnnpack"
+  ]
+}

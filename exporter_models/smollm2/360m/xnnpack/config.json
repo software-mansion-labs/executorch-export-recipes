@@ -1,25 +1,29 @@
 {
   "$schema": "https://huggingface.co/software-mansion/react-native-executorch-spec/resolve/main/config.schema.json",
-  "model": "lfm2_5_text_350m",
-  "family": "lfm2",
+  "model": "smollm2",
+  "family": "smollm",
   "capabilities": [
     "text-generation"
   ],
-  "backend": "mlx",
-  "license": "lfm-1.0",
+  "backend": "xnnpack",
+  "license": "apache-2.0",
   "variants": [
     {
-      "file": "lfm_2_5_350m_mlx_int4.pte",
-      "precision": "4w",
+      "file": "smollm2_360m_xnnpack_8da8w.pte",
+      "precision": "8da8w",
       "quantized": true,
       "default": true,
       "methods": {
+        "enable_dynamic_shape": true,
         "forward": {
           "inputs": [
             {
               "shape": [
                 1,
-                64
+                {
+                  "min": 1,
+                  "max": 2047
+                }
               ],
               "dtype": "int64"
             },
@@ -34,24 +38,24 @@
             {
               "shape": [
                 1,
-                65536
+                49152
               ],
-              "dtype": "bfloat16"
+              "dtype": "float32"
             }
           ]
         },
-        "enable_dynamic_shape": true,
         "get_bos_id": 1,
         "get_eos_ids": [
-          7
+          2
         ],
         "get_max_context_len": 2048,
-        "get_max_seq_len": 65,
-        "get_n_layers": null,
-        "get_vocab_size": 65536,
+        "get_max_seq_len": 2048,
+        "get_n_layers": 32,
+        "get_vocab_size": 49152,
         "use_kv_cache": true,
         "use_sdpa_with_kv_cache": true
       }
     }
-  ]
+  ],
+  "size": "360m"
 }

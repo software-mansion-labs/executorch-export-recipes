@@ -1,25 +1,29 @@
 {
   "$schema": "https://huggingface.co/software-mansion/react-native-executorch-spec/resolve/main/config.schema.json",
-  "model": "lfm2_5_text_1_2b",
-  "family": "lfm2",
+  "model": "qwen_2_5",
+  "family": "qwen",
   "capabilities": [
     "text-generation"
   ],
   "backend": "xnnpack",
-  "license": "lfm-1.0",
+  "license": "apache-2.0",
   "variants": [
     {
-      "file": "lfm_2_5_1_2b_xnnpack_8da4w.pte",
-      "precision": "8da4w",
-      "quantized": true,
+      "file": "qwen_2_5_1_5b_xnnpack_bf16.pte",
+      "precision": "bf16",
+      "quantized": false,
       "default": true,
       "methods": {
+        "enable_dynamic_shape": true,
         "forward": {
           "inputs": [
             {
               "shape": [
                 1,
-                2047
+                {
+                  "min": 1,
+                  "max": 2047
+                }
               ],
               "dtype": "int64"
             },
@@ -34,37 +38,40 @@
             {
               "shape": [
                 1,
-                65536
+                151936
               ],
-              "dtype": "float32"
+              "dtype": "bfloat16"
             }
           ]
         },
-        "enable_dynamic_shape": true,
-        "get_bos_id": 1,
+        "get_bos_id": 151643,
         "get_eos_ids": [
-          7
+          151645
         ],
         "get_max_context_len": 2048,
         "get_max_seq_len": 2048,
-        "get_n_layers": null,
-        "get_vocab_size": 65536,
+        "get_n_layers": 28,
+        "get_vocab_size": 151936,
         "use_kv_cache": true,
         "use_sdpa_with_kv_cache": true
       }
     },
     {
-      "file": "lfm_2_5_1_2b_xnnpack_fp16.pte",
-      "precision": "fp16",
-      "quantized": false,
-      "default": false,
+      "file": "qwen_2_5_1_5b_xnnpack_8da4w.pte",
+      "precision": "8da4w",
+      "quantized": true,
+      "default": true,
       "methods": {
+        "enable_dynamic_shape": true,
         "forward": {
           "inputs": [
             {
               "shape": [
                 1,
-                2047
+                {
+                  "min": 1,
+                  "max": 2047
+                }
               ],
               "dtype": "int64"
             },
@@ -79,24 +86,24 @@
             {
               "shape": [
                 1,
-                65536
+                151936
               ],
-              "dtype": "float16"
+              "dtype": "float32"
             }
           ]
         },
-        "enable_dynamic_shape": true,
-        "get_bos_id": 1,
+        "get_bos_id": 151643,
         "get_eos_ids": [
-          7
+          151645
         ],
         "get_max_context_len": 2048,
         "get_max_seq_len": 2048,
-        "get_n_layers": null,
-        "get_vocab_size": 65536,
+        "get_n_layers": 28,
+        "get_vocab_size": 151936,
         "use_kv_cache": true,
         "use_sdpa_with_kv_cache": true
       }
     }
-  ]
+  ],
+  "size": "1_5b"
 }
