@@ -266,12 +266,30 @@ def export(config: dict, out_dir: str) -> str:
         from torchao.quantization.granularity import PerAxis
         from torchao.quantization.quant_api import Int8DynamicActivationIntxWeightConfig
 
-        quantize_(
-            projection,
-            Int8DynamicActivationIntxWeightConfig(
-                weight_dtype=torch.int8, weight_granularity=PerAxis(0)
-            ),
+        # The variant's precision names the weight width; activations stay int8.
+        weight_dtype = {"int8": torch.int8, "int4": torch.int4}[
+            config["variant"]["precision"]
+        ]
+        quant_config = Int8DynamicActivationIntxWeightConfig(
+            weight_dtype=weight_dtype, weight_granularity=PerAxis(0)
         )
+        quantize_(projection, quant_config)
+
+        # Every other decode-side linear too. Quantizing only the logit head left
+        # the rest of the decoder in fp32, which is most of the file at every size
+        # above tiny: whole-decoder int8 takes small from 924 MB to 494 MB and
+        # tiny from 214 MB to 130 MB, with a transcript identical to fp32.
+        #
+        # cross_attn.key/value are excluded deliberately. _EncoderWrapper runs
+        # them to hoist the cross-attention K/V, so they sit in ENCODE's Vulkan
+        # partition, not in decode. Quantizing them would alter the encode this
+        # was benchmarked and verified against, and they are worth only ~1 MB.
+        def _decode_side_linear(module, fqn: str) -> bool:
+            if not isinstance(module, torch.nn.Linear):
+                return False
+            return not fqn.endswith(("cross_attn.key", "cross_attn.value"))
+
+        quantize_(decoder, quant_config, filter_fn=_decode_side_linear)
 
     decoder_wrapper = _DecoderWrapper(
         decoder, model.dims.n_text_head, model.dims.n_audio_ctx, projection
