@@ -2,7 +2,8 @@
   "hf": "https://huggingface.co/software-mansion/react-native-executorch-multi-qa-mpnet-base-dot-v1",
   "backends": [
     "xnnpack",
-    "mlx"
+    "mlx",
+    "vulkan"
   ],
   "config": "{backend}/config.json"
 }

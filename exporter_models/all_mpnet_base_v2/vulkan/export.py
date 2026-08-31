@@ -6,7 +6,7 @@ from transformers import AutoModel
 from torch.export import Dim, export as torch_export
 
 from exporter.schema import load_and_validate_schema
-from exporter.vulkan import embedding_off_texture
+from exporter.vulkan import embedding_off_texture, use_rank3_attention
 
 _HERE = Path(__file__).resolve().parent
 _MODEL_DIR = _HERE.parent
@@ -23,6 +23,8 @@ class _Embedder(torch.nn.Module):
         # eager is both the default and the only option here. Unlike the CLIP
         # and MiniLM exports there is nothing to opt out of.
         self.model = AutoModel.from_pretrained(_SOURCE, attn_implementation="eager")
+        # See the note in the MiniLM export; MPNet uses the same 4-D reshapes.
+        use_rank3_attention(self.model)
 
     def _mean_pool(self, tokens, attention_mask):
         mask = attention_mask.unsqueeze(-1).expand(tokens.size()).float()
