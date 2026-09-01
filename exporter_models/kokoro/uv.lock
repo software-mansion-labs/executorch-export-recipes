@@ -181,6 +181,7 @@ name = "exporter-model-kokoro"
 version = "0"
 source = { virtual = "." }
 dependencies = [
+    { name = "coremltools", marker = "platform_machine == 'arm64' and sys_platform == 'darwin'" },
     { name = "executorch", marker = "platform_machine == 'arm64' and sys_platform == 'darwin'" },
     { name = "exporter", marker = "platform_machine == 'arm64' and sys_platform == 'darwin'" },
     { name = "numpy", marker = "platform_machine == 'arm64' and sys_platform == 'darwin'" },
@@ -191,6 +192,7 @@ dependencies = [
 
 [package.metadata]
 requires-dist = [
+    { name = "coremltools", specifier = "==9.0" },
     { name = "executorch", specifier = "==1.4.1" },
     { name = "exporter", editable = "../../" },
     { name = "numpy", specifier = "==2.0.0" },
