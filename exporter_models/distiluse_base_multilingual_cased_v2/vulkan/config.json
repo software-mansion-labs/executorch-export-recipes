@@ -1,0 +1,49 @@
+{
+  "$schema": "https://huggingface.co/software-mansion/react-native-executorch-spec/resolve/main/config.schema.json",
+  "model": "distiluse_base_multilingual_cased_v2",
+  "family": "distiluse",
+  "capabilities": [
+    "text-embedding"
+  ],
+  "backend": "vulkan",
+  "license": "apache-2.0",
+  "tokenizer": "../tokenizer.json",
+  "tokenizer_config": "../tokenizer_config.json",
+  "variants": [
+    {
+      "file": "distiluse_base_multilingual_cased_v2_vulkan_fp16.pte",
+      "precision": "fp16",
+      "quantized": false,
+      "default": true,
+      "methods": {
+        "forward": {
+          "inputs": [
+            {
+              "shape": [
+                1,
+                126
+              ],
+              "dtype": "int64"
+            },
+            {
+              "shape": [
+                1,
+                126
+              ],
+              "dtype": "int64"
+            }
+          ],
+          "outputs": [
+            {
+              "shape": [
+                1,
+                512
+              ],
+              "dtype": "float32"
+            }
+          ]
+        }
+      }
+    }
+  ]
+}

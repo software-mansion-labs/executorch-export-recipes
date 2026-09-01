@@ -86,9 +86,9 @@ def use_rank3_attention(model) -> int:
     measured 14% faster on Adreno 840 and 9% on Mali-G76 for all-MiniLM-L6-v2
     at 254 tokens.
 
-    Handles the BERT and MPNet attention modules. Returns the number of modules
-    patched, and raises if that is zero: a transformers change that renames
-    these classes would otherwise silently cost the speedup.
+    Handles the BERT, MPNet and DistilBERT attention modules. Returns the number
+    of modules patched, and raises if that is zero: a transformers change that
+    renames these classes would otherwise silently cost the speedup.
     """
     import types
 
@@ -117,6 +117,19 @@ def use_rank3_attention(model) -> int:
         )
         return (self.o(out),)
 
+    def distilbert_forward(self, hidden_states, attention_mask=None, **kwargs):
+        # DistilBERT folds the output projection into the attention module
+        # itself, so out_lin is applied here rather than by a separate
+        # BertSelfOutput. The second return value is attn_weights, which the
+        # block discards.
+        _, tokens, _ = hidden_states.shape
+        out = _bmm_attention(
+            self.q_lin(hidden_states), self.k_lin(hidden_states), self.v_lin(hidden_states),
+            self.n_heads, self.attention_head_size, tokens, self.scaling,
+            None if attention_mask is None else attention_mask[0],
+        )
+        return self.out_lin(out), None
+
     patched = 0
     for module in model.modules():
         name = type(module).__name__
@@ -125,6 +138,9 @@ def use_rank3_attention(model) -> int:
             patched += 1
         elif name == "MPNetSelfAttention":
             module.forward = types.MethodType(mpnet_forward, module)
+            patched += 1
+        elif name == "DistilBertSelfAttention":
+            module.forward = types.MethodType(distilbert_forward, module)
             patched += 1
     if patched == 0:
         raise RuntimeError(
