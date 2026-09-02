@@ -6,7 +6,11 @@ from transformers import AutoModel
 from torch.export import Dim, export as torch_export
 
 from exporter.schema import load_and_validate_schema
-from exporter.vulkan import embedding_off_texture, use_rank3_attention
+from exporter.vulkan import (
+    embedding_off_texture,
+    quantize_weight_only_int8,
+    use_rank3_attention,
+)
 
 _HERE = Path(__file__).resolve().parent
 _MODEL_DIR = _HERE.parent
@@ -63,6 +67,12 @@ def export(config: dict, out_dir: str) -> str:
     )
     dim = Dim("tokens", min=1, max=max_tokens)
     dynamic = {"input_ids": {1: dim}, "attention_mask": {1: dim}}
+
+    if variant["quantized"]:
+        # int8 weights, per output channel. Two thirds the file (218 -> 133 MB)
+        # and faster than fp16 on both GPUs tested, at cosine 0.998 against the
+        # fp32 reference instead of 0.99997.
+        module = quantize_weight_only_int8(module, inputs, dynamic)
 
     ep = torch_export(module, inputs, dynamic_shapes=dynamic)
     schema_json = load_and_validate_schema(_MODEL_DIR / "schema.json")

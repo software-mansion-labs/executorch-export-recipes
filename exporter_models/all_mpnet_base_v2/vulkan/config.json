@@ -20,6 +20,21 @@
           "outputs": [{ "shape": [1, 768], "dtype": "float32" }]
         }
       }
+    },
+    {
+      "file": "all_mpnet_base_v2_vulkan_int8.pte",
+      "precision": "int8",
+      "quantized": true,
+      "default": false,
+      "methods": {
+        "forward": {
+          "inputs": [
+            { "shape": [1, 382], "dtype": "int64" },
+            { "shape": [1, 382], "dtype": "int64" }
+          ],
+          "outputs": [{ "shape": [1, 768], "dtype": "float32" }]
+        }
+      }
     }
   ]
 }

@@ -148,3 +148,102 @@ def use_rank3_attention(model) -> int:
             "changed and the rewrite would silently be a no-op"
         )
     return patched
+
+
+@contextmanager
+def _scalars_keep_dtype():
+    """Stops the Vulkan quantizer lifting integer scalars as float32.
+
+    `_convert_scalars_to_attrs` rewrites every scalar operand of `add`/`mul`
+    with `torch.tensor(float(arg))`, so an int64 position-id add becomes a
+    float32 buffer and the `embedding` that consumes it raises
+
+        Expected tensor for argument #1 'indices' to have one of the following
+        scalar types: Long, Int; but got torch.FloatTensor
+
+    Keeping the node's own output dtype is the fix. Remove this once
+    pytorch/executorch#22372 lands and the pin moves past it.
+    """
+    import torch
+    from torchao.quantization.pt2e.utils import get_new_attr_name_with_prefix
+    from executorch.backends.vulkan.quantizer import vulkan_quantizer as q
+    from executorch.backends.vulkan.quantizer import vulkan_quantizer_utils as u
+
+    def _convert_scalars_to_attrs(model):
+        for n in model.graph.nodes:
+            if n.op != "call_function" or n.target not in [
+                torch.ops.aten.add.Tensor,
+                torch.ops.aten.mul.Tensor,
+            ]:
+                continue
+            new_args = []
+            for arg in n.args:
+                if isinstance(arg, torch.fx.Node):
+                    new_args.append(arg)
+                    continue
+                name = get_new_attr_name_with_prefix("_tensor_constant_")(model)
+                scalar_tensor = torch.tensor(arg, dtype=n.meta["val"].dtype)
+                model.register_buffer(name, scalar_tensor)
+                with model.graph.inserting_before(n):
+                    node = model.graph.create_node("get_attr", name, (), {})
+                    node.meta["val"] = n.meta["val"].fake_mode.from_tensor(
+                        scalar_tensor, static_shapes=True
+                    )
+                    new_args.append(node)
+            n.args = tuple(new_args)
+        model.recompile()
+        return model
+
+    originals = (u._convert_scalars_to_attrs, q._convert_scalars_to_attrs)
+    u._convert_scalars_to_attrs = _convert_scalars_to_attrs
+    q._convert_scalars_to_attrs = _convert_scalars_to_attrs
+    try:
+        yield
+    finally:
+        u._convert_scalars_to_attrs, q._convert_scalars_to_attrs = originals
+
+
+def quantize_weight_only_int8(module, inputs, dynamic_shapes):
+    """Quantizes every `nn.Linear` weight to int8, per output channel.
+
+    Weight only, deliberately. `VulkanQuantizer`'s dynamic mode scales
+    activations per tensor (`linear_q8ta_q8csw` takes one input scale), which a
+    transformer encoder does not survive: mean cosine against the fp32 model
+    drops to 0.91 on all-mpnet-base-v2, against 0.9993 for weight only. See
+    pytorch/executorch#22431.
+
+    The `.pte` this produces needs pytorch/executorch#22430 in the runtime;
+    before that fix `aten._weight_int8pack_mm` dispatched to `linear_qcs8w_*`
+    shaders that no longer exist and every execute aborted.
+
+    Returns a graph module that `torch.export` re-exports with the same dynamic
+    shapes it was given.
+    """
+    import torch
+    from executorch.backends.vulkan.quantizer.vulkan_quantizer import (
+        get_symmetric_quantization_config,
+        VulkanQuantizer,
+    )
+    from torchao.quantization.pt2e.quantize_pt2e import convert_pt2e, prepare_pt2e
+
+    quantizer = VulkanQuantizer().set_global(
+        get_symmetric_quantization_config(is_dynamic=False, weight_bits=8)
+    )
+    with _scalars_keep_dtype():
+        # Export with the dynamic dims already in place: a static export here
+        # bakes the bound into the converted graph and the re-export then
+        # rejects the Dim.
+        prepared = prepare_pt2e(
+            torch.export.export(module, inputs, dynamic_shapes=dynamic_shapes).module(),
+            quantizer,
+        )
+        # Only the per-channel weight observers need feeding; activations are
+        # untouched. Two lengths keep the token dim from re-specializing.
+        max_tokens = inputs[0].shape[-1]
+        torch.manual_seed(0)
+        for length in (max_tokens, max(1, max_tokens // 3)):
+            prepared(
+                torch.randint(4, 30000, (1, length), dtype=torch.int64),
+                torch.ones(1, length, dtype=torch.int64),
+            )
+        return convert_pt2e(prepared)
