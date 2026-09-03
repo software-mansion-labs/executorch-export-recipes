@@ -1,0 +1,26 @@
+{
+  "$schema": "https://huggingface.co/software-mansion/react-native-executorch-spec/resolve/main/config.schema.json",
+  "model": "clip_vit_base_patch32_vision",
+  "family": "clip",
+  "capabilities": [
+    "image-embedding"
+  ],
+  "backend": "vulkan",
+  "license": "mit",
+  "variants": [
+    {
+      "file": "clip_vit_base_patch32_image_vulkan_fp16.pte",
+      "precision": "fp16",
+      "quantized": false,
+      "default": true,
+      "methods": {
+        "forward": {
+          "inputs": [
+            { "shape": [1, 3, 224, 224], "dtype": "float32" }
+          ],
+          "outputs": [{ "shape": [1, 512], "dtype": "float32" }]
+        }
+      }
+    }
+  ]
+}

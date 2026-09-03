@@ -1,0 +1,82 @@
+{
+  "$schema": "https://huggingface.co/software-mansion/react-native-executorch-spec/resolve/main/config.schema.json",
+  "model": "multi_qa_mpnet_base_dot_v1",
+  "family": "sbert",
+  "capabilities": [
+    "text-embedding"
+  ],
+  "backend": "vulkan",
+  "license": "apache-2.0",
+  "variants": [
+    {
+      "file": "multi_qa_mpnet_base_dot_v1_vulkan_fp16.pte",
+      "precision": "fp16",
+      "quantized": false,
+      "default": true,
+      "methods": {
+        "forward": {
+          "inputs": [
+            {
+              "shape": [
+                1,
+                510
+              ],
+              "dtype": "int64"
+            },
+            {
+              "shape": [
+                1,
+                510
+              ],
+              "dtype": "int64"
+            }
+          ],
+          "outputs": [
+            {
+              "shape": [
+                1,
+                768
+              ],
+              "dtype": "float32"
+            }
+          ]
+        }
+      }
+    },
+    {
+      "file": "multi_qa_mpnet_base_dot_v1_vulkan_int8.pte",
+      "precision": "int8",
+      "quantized": true,
+      "methods": {
+        "forward": {
+          "inputs": [
+            {
+              "shape": [
+                1,
+                510
+              ],
+              "dtype": "int64"
+            },
+            {
+              "shape": [
+                1,
+                510
+              ],
+              "dtype": "int64"
+            }
+          ],
+          "outputs": [
+            {
+              "shape": [
+                1,
+                768
+              ],
+              "dtype": "float32"
+            }
+          ]
+        }
+      },
+      "default": false
+    }
+  ]
+}

@@ -1,0 +1,108 @@
+{
+  "encode": {
+    "inputs": [
+      {
+        "kind": "Tensor",
+        "dtype": "float32",
+        "shape": [
+          {
+            "kind": "range",
+            "range": {
+              "min": 201,
+              "max": 480000,
+              "step": 1
+            }
+          }
+        ]
+      }
+    ],
+    "outputs": [
+      {
+        "kind": "Tensor",
+        "dtype": "float32",
+        "shape": [
+          {
+            "kind": "constant",
+            "value": 1
+          },
+          {
+            "kind": "constant",
+            "value": 1500
+          },
+          {
+            "kind": "constant",
+            "value": {n_cross_state}
+          }
+        ]
+      }
+    ],
+    "runtimeConstraints": []
+  },
+  "decode": {
+    "inputs": [
+      {
+        "kind": "Tensor",
+        "dtype": "int64",
+        "shape": [
+          {
+            "kind": "constant",
+            "value": 1
+          },
+          {
+            "kind": "constant",
+            "value": 1
+          }
+        ]
+      },
+      {
+        "kind": "Tensor",
+        "dtype": "int64",
+        "shape": [
+          {
+            "kind": "constant",
+            "value": 1
+          }
+        ]
+      },
+      {
+        "kind": "Tensor",
+        "dtype": "float32",
+        "shape": [
+          {
+            "kind": "constant",
+            "value": 1
+          },
+          {
+            "kind": "constant",
+            "value": 1500
+          },
+          {
+            "kind": "constant",
+            "value": {n_cross_state}
+          }
+        ]
+      }
+    ],
+    "outputs": [
+      {
+        "kind": "Tensor",
+        "dtype": "float32",
+        "shape": [
+          {
+            "kind": "constant",
+            "value": 1
+          },
+          {
+            "kind": "constant",
+            "value": 1
+          },
+          {
+            "kind": "constant",
+            "value": {n_vocab}
+          }
+        ]
+      }
+    ],
+    "runtimeConstraints": []
+  }
+}

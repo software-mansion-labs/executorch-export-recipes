@@ -6,7 +6,8 @@
   "backends": [
     "xnnpack",
     "coreml",
-    "mlx"
+    "mlx",
+    "vulkan"
   ],
   "config": "{backend}/config.json"
 }
