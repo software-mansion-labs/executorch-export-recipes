@@ -145,17 +145,34 @@ def export(config: dict, out_dir: str) -> str:
         "decode": exported_decode,
     }
 
-    specs = CoreMLBackend.generate_compile_specs(
-        minimum_deployment_target=ct.target.iOS18,
-        compute_precision=precision,
-    )
+    def compile_specs_for(compute_unit):
+        return CoreMLBackend.generate_compile_specs(
+            compute_unit=compute_unit,
+            minimum_deployment_target=ct.target.iOS18,
+            compute_precision=precision,
+        )
 
+    # The two methods want opposite hardware and are partitioned separately, so they
+    # get separate compile specs. `encode` is a full convolution-and-attention stack
+    # over 30s of audio and belongs on the Neural Engine, which ALL selects. `decode`
+    # is one token's worth of work whose cost on device is dispatch, not arithmetic:
+    # measured on an iPhone 16, base.en decode runs at 20.0 ms/step under ALL and
+    # 6.7 ms/step pinned to the CPU, a 3x difference that turns a 987 ms transcribe
+    # of 14.5s of speech into 388 ms with a byte-identical transcript. The same holds
+    # at tiny (2.86x) and small (1.49x). CPU_AND_GPU recovers only part of it
+    # (15.3 ms/step) and CPU_AND_NE almost none (15.8), so the win is specifically in
+    # not dispatching to an accelerator at all.
+    #
     # take_over_mutable_buffer=False: critical for Whisper — the KV cache buffers are updated
     # via in-place scatter ops (self.k_cache[positions] = ...). If CoreML takes ownership of
     # those buffers it tries to lower the scatter as a MIL in-place op, which is invalid and
     # produces an InvalidProgram error at runtime. Leaving them as CPU buffers avoids this.
-    encode_partitioner = CoreMLPartitioner(compile_specs=specs, take_over_mutable_buffer=False)
-    decode_partitioner = CoreMLPartitioner(compile_specs=specs, take_over_mutable_buffer=False)
+    encode_partitioner = CoreMLPartitioner(
+        compile_specs=compile_specs_for(ct.ComputeUnit.ALL), take_over_mutable_buffer=False
+    )
+    decode_partitioner = CoreMLPartitioner(
+        compile_specs=compile_specs_for(ct.ComputeUnit.CPU_ONLY), take_over_mutable_buffer=False
+    )
 
     executorch_program = to_edge_transform_and_lower(
         methods,

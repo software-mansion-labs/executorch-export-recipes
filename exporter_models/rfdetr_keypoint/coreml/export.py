@@ -47,8 +47,15 @@ def _load_model():
     return mod
 
 
-# DEVICE WARNING: fp16 is broken for this model on iPhone, and the failure is
-# invisible to host testing.
+# DEVICE WARNING (RESOLVED 2026-08-28): fp16 is broken for this model on iPhone
+# under ALL, CPU_ONLY and CPU_AND_NE, and the failure is invisible to host
+# testing. It is NOT broken under CPU_AND_GPU, which export() now selects for
+# fp16; see the compute-unit note there. The original text follows, and its
+# conclusion that "it is not the Neural Engine" was half right -- on device both
+# the CPU and the ANE fp16 paths are wrong, so the fix is to exclude the CPU
+# *and* the ANE rather than to give up on fp16.
+#
+# Original note:
 #
 # Measured 2026-08-20 on an iPhone 16: the fp32 build detects and draws keypoints
 # correctly; the fp16 build draws nothing at all. On macOS both builds are
@@ -81,8 +88,52 @@ def export(config: dict, out_dir: str) -> str:
     with torch.inference_mode():
         ep = torch_export(wrapper, args=example, strict=False)
 
+    # DO NOT set iOS18 here. It silently degrades this model.
+    #
+    # Swept on host against the eager reference (max person score, person2.jpg):
+    #     target unset  0.8650      iOS16  0.8650
+    #     iOS17         0.8650      iOS18  0.3056
+    # Boxes are unaffected at every target -- they are anchored by the decoder's
+    # reference points -- so only scores and landmarks move, which is why a
+    # visual check of the boxes passes and the model still looks plausible.
+    #
+    # This reproduces under the macOS ExecuTorch runtime, so it needs no device:
+    #     from executorch.runtime import Runtime
+    #     method = Runtime.get().load_program(pte).load_method("forward")
+    #     _, scores, _ = method.execute([x])          # x must be .contiguous()
+    # The published fp32 artifact scores 0.8650 through that same path and is
+    # ~150 KB larger than an iOS18 build, which is the size tell. It predates
+    # 171c4fd (2026-07-30), where iOS18 was added across 31 export scripts.
+    #
+    # iOS17 is a floor, not a ceiling: the artifact still runs on iOS 18+.
+    #
+    # This does NOT rehabilitate fp16. Retested at iOS17 on an iPhone 16: fp32
+    # scores 0.863, matching the published artifact exactly, while fp16 scores
+    # 0.422 with landmarks 50.8 px out. On host the same fp16 build looks fine
+    # (0.8613, within 0.32 px of the eager reference), so the DEVICE WARNING
+    # above still stands and the iOS18 bug was a second, independent defect.
+    # fp16 is correct on device ONLY with the CPU excluded. Measured at iOS17 on
+    # an iPhone 16 against the fp32 build's 0.863:
+    #     all 0.421   cpu_only 0.411   cpu_and_ne 0.422   cpu_and_gpu 0.862
+    # so both the CPU and the Neural Engine fp16 paths return wrong scores for
+    # this graph and the GPU is the only one that does not. On macOS only the
+    # CPU path is wrong, which is why a host check passes fp16 under ALL and the
+    # device still fails -- the two platforms place ALL differently.
+    #
+    # With cpu_and_gpu, fp16 matches fp32 to 0.0008 confidence, 0.23 px box and
+    # 0.17 px landmark, at 144.0 ms against 165.1 ms and 263 MB against 389 MB.
+    #
+    # Only fp16 is published now. It was checked against fp32 across 13 real
+    # photos and 40 detections first: visible landmarks agreed to 1.04 px, boxes
+    # to 0.653 px and scores to 0.072, with no detection crossing the threshold.
+    # The fp32 path below still works if that ever needs revisiting; add the
+    # variant back to config.json to build it.
+    compute_unit = ct.ComputeUnit.CPU_AND_GPU if precision == ct.precision.FLOAT16 else ct.ComputeUnit.ALL
+
     specs = CoreMLBackend.generate_compile_specs(
-        minimum_deployment_target=ct.target.iOS18, compute_precision=precision
+        compute_unit=compute_unit,
+        minimum_deployment_target=ct.target.iOS17,
+        compute_precision=precision,
     )
     program = to_edge_transform_and_lower(
         ep, partitioner=[CoreMLPartitioner(compile_specs=specs)]
