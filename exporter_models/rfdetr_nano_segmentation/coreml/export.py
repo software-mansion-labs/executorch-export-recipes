@@ -66,9 +66,49 @@ def _lower(exported, precision: str):
     # int8 was also measurably less accurate: confident detections (score > 0.3)
     # agreed with fp16 on only 71.9% of boxes at IoU 0.9 for the detector. fp16
     # costs about 2x the file size (27.7 -> 54.7 MB detector).
+    # DEVICE WARNING: fp16 is correct ONLY on compute_unit=CPU_AND_GPU. Both the
+    # ANE and the CPU-only fp16 paths produce wrong geometry, and neither failure
+    # is visible on host.
+    #
+    # Measured 2026-09-03 on an iPhone 16 (iOS 26.6.1), instance segmentation in
+    # the CV demo, same image across all four builds. See
+    # software-mansion/react-native-executorch#1406.
+    #
+    #   fp16, ComputeUnit.ALL        masks and boxes shifted right
+    #   fp16, ComputeUnit.CPU_AND_GPU  correct            <- shipped
+    #   fp16, ComputeUnit.CPU_ONLY   boxes and masks are nonsense, though the
+    #                                class and score stay correct
+    #   fp32, ComputeUnit.ALL        correct
+    #
+    # ALL lets Core ML reach the ANE, so the shift is the ANE's fp16 path. The
+    # CPU_ONLY failure is a separate bug: all three heads read the same decoder
+    # embeddings, so correct logits alongside garbage geometry puts it in the box
+    # and mask heads rather than in the shared trunk.
+    #
+    # On host all builds are effectively exact against the eager reference, so a
+    # host-side check passes every one of them. Box-centre deltas over one image's
+    # confident detections, in model-input pixels (312):
+    #   coreml fp16   dx -0.018 px (max 0.099), dy +0.038 px
+    #   coreml fp32   dx  0.000 px
+    #   xnnpack fp32  dx  0.000 px
+    #
+    # Ruled out before reaching compute units: grid_sample's align_corners
+    # convention (bit-exact vs torch at fp32 and fp16, on CPU, GPU and ANE), an
+    # input-resolution mismatch (all variants are [1, 3, 312, 312]), and the TS
+    # post-processing (shared by both arms, so it would shift both equally). The
+    # whole graph is one Core ML delegate, so nothing falls back to CPU.
+    #
+    # NOTE for rfdetr_keypoint: its DEVICE WARNING concludes "it is NOT the ANE"
+    # because fp16 on CPU_ONLY failed there too. That inference does not hold now
+    # that CPU_ONLY is known to have its own fp16 bug. Keypoint was never tried on
+    # CPU_AND_GPU and may not need fp32 either; by its own numbers fp16 was 4.0x
+    # faster.
     quant = {"mode": "linear_symmetric", "dtype": "int8", "granularity": "per_channel"}
     specs = CoreMLBackend.generate_compile_specs(
         minimum_deployment_target=ct.target.iOS18,
+        # Excludes the ANE. See the DEVICE WARNING above: this is not a tuning
+        # knob, the ANE's fp16 path is wrong for this graph.
+        compute_unit=ct.ComputeUnit.CPU_AND_GPU,
         compute_precision=(
             ct.precision.FLOAT16 if precision == "fp16" else ct.precision.FLOAT32
         ),
