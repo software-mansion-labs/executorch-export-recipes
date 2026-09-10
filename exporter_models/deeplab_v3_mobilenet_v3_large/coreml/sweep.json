@@ -1,0 +1,148 @@
+{
+  "$schema": "https://huggingface.co/software-mansion/react-native-executorch-spec/resolve/main/config.schema.json",
+  "model": "deeplab_v3",
+  "family": "deeplab",
+  "capabilities": [
+    "semantic-segmentation"
+  ],
+  "backend": "coreml",
+  "license": "bsd-3-clause",
+  "variants": [
+    {
+      "file": "deeplab_v3_mobilenet_v3_large_coreml_fp16_all.pte",
+      "precision": "fp16",
+      "quantized": false,
+      "default": true,
+      "size": "mobilenet_v3_large",
+      "methods": {
+        "forward": {
+          "inputs": [
+            {
+              "shape": [
+                1,
+                3,
+                520,
+                520
+              ],
+              "dtype": "float32"
+            }
+          ],
+          "outputs": [
+            {
+              "shape": [
+                1,
+                21,
+                520,
+                520
+              ],
+              "dtype": "float32"
+            }
+          ]
+        }
+      },
+      "compute_unit": "ALL"
+    },
+    {
+      "file": "deeplab_v3_mobilenet_v3_large_coreml_fp16_cpu_only.pte",
+      "precision": "fp16",
+      "quantized": false,
+      "default": false,
+      "size": "mobilenet_v3_large",
+      "methods": {
+        "forward": {
+          "inputs": [
+            {
+              "shape": [
+                1,
+                3,
+                520,
+                520
+              ],
+              "dtype": "float32"
+            }
+          ],
+          "outputs": [
+            {
+              "shape": [
+                1,
+                21,
+                520,
+                520
+              ],
+              "dtype": "float32"
+            }
+          ]
+        }
+      },
+      "compute_unit": "CPU_ONLY"
+    },
+    {
+      "file": "deeplab_v3_mobilenet_v3_large_coreml_fp16_cpu_and_gpu.pte",
+      "precision": "fp16",
+      "quantized": false,
+      "default": false,
+      "size": "mobilenet_v3_large",
+      "methods": {
+        "forward": {
+          "inputs": [
+            {
+              "shape": [
+                1,
+                3,
+                520,
+                520
+              ],
+              "dtype": "float32"
+            }
+          ],
+          "outputs": [
+            {
+              "shape": [
+                1,
+                21,
+                520,
+                520
+              ],
+              "dtype": "float32"
+            }
+          ]
+        }
+      },
+      "compute_unit": "CPU_AND_GPU"
+    },
+    {
+      "file": "deeplab_v3_mobilenet_v3_large_coreml_fp16_cpu_and_ne.pte",
+      "precision": "fp16",
+      "quantized": false,
+      "default": false,
+      "size": "mobilenet_v3_large",
+      "methods": {
+        "forward": {
+          "inputs": [
+            {
+              "shape": [
+                1,
+                3,
+                520,
+                520
+              ],
+              "dtype": "float32"
+            }
+          ],
+          "outputs": [
+            {
+              "shape": [
+                1,
+                21,
+                520,
+                520
+              ],
+              "dtype": "float32"
+            }
+          ]
+        }
+      },
+      "compute_unit": "CPU_AND_NE"
+    }
+  ]
+}
