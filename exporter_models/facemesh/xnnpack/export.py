@@ -1,3 +1,22 @@
+"""XNNPACK export: fp32, and only fp32.
+
+This is the one backend that has to run everywhere, so it is also the one where
+narrowing the weights is tempting. It does not pay here, and the measurements
+are in NOTES.md: int8 runs at 0.78x fp32 on a Galaxy S26 Ultra and 0.80x on an
+iPhone 16 Pro, while drifting 0.62 px mean / 6.3 px max and moving the
+face-presence score by up to 0.494.
+
+The reason is the shape of the graph rather than anything about the quantizer.
+The whole model is ~0.75 ms of small depthwise convolutions at 192x192, so it is
+bound by per-op overhead and not by arithmetic width; narrowing the arithmetic
+saves nothing and the quantize/dequantize boundaries it adds cost real time.
+fp16 is not an option either — XNNPACK computes in fp32 regardless, so it would
+buy file size and lose accuracy.
+
+The 2.4 MB that fp32 costs is the right trade for a model this small. If you
+want it smaller, Core ML fp16 already ships at 1.5 MB on iOS.
+"""
+
 import importlib.util
 import sys
 from pathlib import Path

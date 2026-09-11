@@ -40,7 +40,15 @@ def export(config: dict, out_dir: str) -> str:
         "fp16": ct.precision.FLOAT16,
         "fp32": ct.precision.FLOAT32,
     }[variant["precision"]]
+    # ALL, stated rather than defaulted. It is also the default, but the right
+    # compute unit for this graph is a measurement and not an assumption: on an
+    # iPhone 16 Pro, ALL (0.610 ms) tracks CPU_AND_NE (0.604 ms), so it does
+    # reach the Neural Engine here, while CPU_ONLY costs 2.15x-vs-2.52x and
+    # CPU_AND_GPU (2.343 ms) is the one arm slower than plain XNNPACK. Anyone
+    # re-tuning this should re-measure rather than trust the default. See the
+    # compute-unit table in NOTES.md.
     specs = CoreMLBackend.generate_compile_specs(
+        compute_unit=ct.ComputeUnit.ALL,
         minimum_deployment_target=ct.target.iOS18,
         compute_precision=precision,
     )
