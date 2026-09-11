@@ -98,8 +98,35 @@ eager on the same input rather than assumed: vulkan fp16 is correct to 0.21 px
 max, so it loses on dispatch overhead and not on a defect — a sub-millisecond
 graph never repays a GPU handoff. **Android ships xnnpack fp32 only.**
 
-Core ML compute units on the host (`exports/facemesh_coreml_sweep.py`, 25
-held-out faces, median of 50 warm runs on an M-series Mac):
+iPhone 16 Pro (iPhone17,3), through the RNE `apps/benchmarks` harness on the
+physical device: 3 runs of 40 iterations per arm, median of the run medians.
+This measures the whole `detectKeypointsWorklet` — letterbox, execute, decode —
+so it is not comparable with the Android `executor_runner` figures above, only
+across its own rows.
+
+| arm | median | vs xnnpack fp32 | load |
+| --- | --- | --- | --- |
+| coreml fp16 `CPU_AND_NE` | 0.604 ms | 2.55x | 44 ms |
+| coreml fp16 `ALL`        | 0.610 ms | 2.52x | 48 ms |
+| coreml fp16 `CPU_ONLY`   | 0.715 ms | 2.15x | 24 ms |
+| xnnpack fp32             | 1.538 ms | 1.00x |  6 ms |
+| xnnpack int8             | 1.918 ms | 0.80x |  3 ms |
+| coreml fp16 `CPU_AND_GPU`| 2.343 ms | 0.66x | 31 ms |
+
+**`ALL` is the right compute unit, so the export pins nothing.** It matches
+`CPU_AND_NE` to within the spread, which is what "`ALL` resolves to the Neural
+Engine" looks like from the outside. Two things to avoid: `CPU_AND_GPU`, the
+only arm slower than plain XNNPACK, and any assumption that `CPU_ONLY` is the
+safe default — it is the slowest of the three good ones. Core ML pays ~40 ms
+more at load for its compile; on a 1.5 MB model that is cheap against 0.9 ms
+saved per frame.
+
+int8 loses on iOS too, by the same 0.8x it loses by on Android, which is what
+the rejection above rests on: two different CPUs, same verdict.
+
+For reference, the same compute-unit sweep on an M-series host
+(`exports/facemesh_coreml_sweep.py`, 25 held-out faces, median of 50 warm runs)
+ranks them the same way and adds accuracy:
 
 | compute unit | xy mean | xy max | ms |
 | --- | --- | --- | --- |
@@ -108,13 +135,17 @@ held-out faces, median of 50 warm runs on an M-series Mac):
 | `CPU_AND_GPU` | 0.033 | 0.100 | 0.834 |
 | `CPU_AND_NE` | 0.038 | 0.122 | 0.350 |
 
-`ALL` and `CPU_AND_NE` agree to the last digit, so `ALL` resolves to the Neural
-Engine here. `CPU_ONLY` is both the slowest and the least accurate, which is the
-known macOS fp16 CPU path. This is a shortlist, not the answer: the compute unit
-has to be confirmed on an iPhone.
+**Still unverified: Core ML numerics on the device's own ANE.** The harness
+records timings, not outputs, and the accuracy column above is a host figure.
+The host ANE path is accurate to 0.12 px and this graph has none of the
+rank-reducing-op shape that broke RF-DETR keypoint at fp16, so the prior is
+good — but it is a prior, not a measurement.
 
-No MLX export: the graph is 2.4 MB of convolutions at 192x192, and the Android
-result above is the same lesson — dispatch overhead dominates at this size.
+Raw data: `~/rne-benchmarks/facemesh-android-SM-S948B.tsv` and
+`~/rne-benchmarks/facemesh-ios-iPhone17-3.jsonl`.
+
+No MLX export: the graph is 2.4 MB of convolutions at 192x192, and Vulkan above
+is the same lesson — dispatch overhead dominates at this size.
 
 ## Blocked until ExecuTorch 1.4.1
 
