@@ -30,6 +30,7 @@ import torch
 import torch.nn.functional as F
 from transformers import AutoModel
 from torch.export import Dim, export as torch_export
+import torch.fx.experimental._config as fx_config
 
 from exporter.schema import load_and_validate_schema
 
@@ -60,6 +61,16 @@ class _ClipTextEncoder(torch.nn.Module):
         return F.normalize(projected, p=2, dim=1)
 
 
+# Size-oblivious, so the `min=1` on the token dim survives lowering. Without it
+# `to_edge_transform_and_lower` widens the range to 2..max (torch.export itself
+# keeps 1; the lift happens in to_edge), and the compiled Core ML model then
+# rejects every single-word query with Error::DelegateInvalidHandle. That also
+# put the artifact at odds with schema.json, which declares min 1. The decorator
+# has to span the whole export, not just torch_export, because to_edge is where
+# the widening happens; it restores the flag on return, so a batch export that
+# runs several models in one process stays isolated.
+# See react-native-executorch#1164.
+@fx_config.patch(backed_size_oblivious=True)
 def export(config: dict, out_dir: str) -> str:
     import coremltools as ct
     from executorch.backends.apple.coreml.compiler import CoreMLBackend
