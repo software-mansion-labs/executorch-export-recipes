@@ -11,6 +11,11 @@ requires-python = "==3.10.*"
 dependencies = [
     "exporter",
     "torch==2.14.0",
+    # Only the scoring scripts under exports/ use these: torchvision for the
+    # image transforms, pyarrow to read the CelebA shard `_facemesh/faces.py`
+    # draws its sample faces from. `export()` itself needs neither.
+    "torchvision==0.29.0",
+    "pyarrow==22.0.0",
     "executorch==1.4.1",
     "coremltools==9.0",
     "safetensors==0.8.0",

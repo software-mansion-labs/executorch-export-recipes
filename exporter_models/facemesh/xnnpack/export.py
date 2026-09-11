@@ -32,6 +32,7 @@ def export(config: dict, out_dir: str) -> str:
 
     model = fm.build()
     inputs = (torch.randn(*shape, dtype=torch.float32),)
+
     ep = torch_export(model, inputs, strict=True)
     program = lower(ep, config["backend"])
 

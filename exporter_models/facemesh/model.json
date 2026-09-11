@@ -2,5 +2,8 @@
   "hf": "https://huggingface.co/software-mansion/react-native-executorch-facemesh",
   "repo": "software-mansion/react-native-executorch-facemesh",
   "config": "{backend}/config.json",
-  "backends": ["xnnpack", "coreml"]
+  "backends": [
+    "xnnpack",
+    "coreml"
+  ]
 }
