@@ -6,6 +6,7 @@
     "3b"
   ],
   "backends": [
-    "xnnpack"
+    "xnnpack",
+    "mlx"
   ]
 }
