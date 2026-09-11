@@ -45,6 +45,7 @@ def _variant_config(variant: Variant) -> dict:
         "components": variant.components,
         "precision": variant.precision,
         "quantized": variant.quantized,
+        "quantize": variant.quantize,
         "methods": {
             name: {
                 "inputs": [{"shape": t.shape, "dtype": t.dtype} for t in m.inputs],

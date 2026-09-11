@@ -32,6 +32,7 @@ from transformers import AutoModel
 from torch.export import Dim, export as torch_export
 import torch.fx.experimental._config as fx_config
 
+from exporter import coreml as coreml_helpers
 from exporter.schema import load_and_validate_schema
 
 _HERE = Path(__file__).resolve().parent
@@ -79,9 +80,13 @@ def export(config: dict, out_dir: str) -> str:
 
     variant = config["variant"]
     max_tokens = variant["methods"]["forward"]["inputs"][0]["shape"][-1]
-    precision = {"fp16": ct.precision.FLOAT16, "fp32": ct.precision.FLOAT32}[
-        variant["precision"]
-    ]
+    # int8 names a weight compression, not a compute precision: those weights are
+    # dequantized into an fp16 graph, so the compute precision is fp16 either way.
+    precision = {
+        "fp16": ct.precision.FLOAT16,
+        "fp32": ct.precision.FLOAT32,
+        "int8": ct.precision.FLOAT16,
+    }[variant["precision"]]
 
     module = _ClipTextEncoder().eval()
     inputs = (
@@ -106,15 +111,33 @@ def export(config: dict, out_dir: str) -> str:
     #   paraphrase-L12  26.9 ms -> 4.2 ms   6.4x
     #   distiluse       33.0 ms -> 8.0 ms   4.1x
     #   clip-text       18.1 ms -> 4.9 ms   3.7x
-    specs = CoreMLBackend.generate_compile_specs(
-        compute_unit=ct.ComputeUnit.CPU_ONLY,
-        minimum_deployment_target=ct.target.iOS18, compute_precision=precision
+    # Weight-only int8, per-channel, including the embedding table (see
+    # exporter.coreml). Measured on an iPhone 16, CPU_ONLY, 3 warmup + 20 timed:
+    # latency is unchanged, peak memory falls, and the file halves.
+    quantize = variant.get("quantize")
+    qconfig = (
+        {
+            "mode": "linear_symmetric",
+            "dtype": quantize,
+            "granularity": "per_channel",
+            "weight_threshold": 512,
+        }
+        if quantize
+        else None
     )
-    program = to_edge_transform_and_lower(
-        {"forward": ep},
-        partitioner=[CoreMLPartitioner(compile_specs=specs)],
-        constant_methods={"get_model_schema": schema_json},
-    ).to_executorch()
+    specs = coreml_helpers.compile_specs(
+        compute_unit=ct.ComputeUnit.CPU_ONLY,
+        minimum_deployment_target=ct.target.iOS18, compute_precision=precision,
+        op_linear_quantizer_config=qconfig,
+        quantize_embedding_tables=bool(quantize),
+    
+    )
+    with coreml_helpers.quantized_embedding_tables(bool(quantize)):
+        program = to_edge_transform_and_lower(
+            {"forward": ep},
+            partitioner=[CoreMLPartitioner(compile_specs=specs)],
+            constant_methods={"get_model_schema": schema_json},
+        ).to_executorch()
 
     out_path = Path(out_dir) / variant["file"]
     out_path.parent.mkdir(parents=True, exist_ok=True)

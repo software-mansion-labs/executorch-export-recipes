@@ -37,6 +37,10 @@ class Variant:
     default: bool
     methods: dict[str, Method] = field(default_factory=dict)
     components: dict[str, str] | None = None
+    # Post-conversion weight compression, currently Core ML only: "int8" applies
+    # op_linear_quantizer_config per-channel. None leaves weights at the compute
+    # precision. Distinct from `precision`, which is the compute precision.
+    quantize: str | None = None
     # LLM runner constants declared in the config as non-IO method entries
     # (get_bos_id, get_eos_ids, get_max_seq_len, use_kv_cache, ...). Values are
     # int / list / bool / null. Embedded into the .pte at export time.
@@ -133,6 +137,7 @@ def load_spec(data: dict) -> Spec:
                 default=_require(rv, "default", bool),
                 methods=methods,
                 components=rv.get("components"),
+                quantize=rv.get("quantize"),
                 constants=constants,
             )
         )
