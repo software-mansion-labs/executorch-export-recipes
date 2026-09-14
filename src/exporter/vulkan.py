@@ -203,7 +203,7 @@ def _scalars_keep_dtype():
         u._convert_scalars_to_attrs, q._convert_scalars_to_attrs = originals
 
 
-def quantize_weight_only_int8(module, inputs, dynamic_shapes):
+def quantize_weight_only_int8(module, inputs, dynamic_shapes, filter_fn=None):
     """Quantizes every `nn.Linear` weight to int8, per output channel.
 
     Weight only, deliberately. `VulkanQuantizer`'s dynamic mode scales
@@ -215,6 +215,10 @@ def quantize_weight_only_int8(module, inputs, dynamic_shapes):
     The `.pte` this produces needs pytorch/executorch#22430 in the runtime;
     before that fix `aten._weight_int8pack_mm` dispatched to `linear_qcs8w_*`
     shaders that no longer exist and every execute aborted.
+
+    `filter_fn` takes an fx `Node` and returns whether to quantize it, for
+    models where some linears must stay in float (LFM2's short-conv projections
+    scramble the embedding when quantized). Default is every linear.
 
     Returns a graph module that `torch.export` re-exports with the same dynamic
     shapes it was given.
@@ -229,6 +233,8 @@ def quantize_weight_only_int8(module, inputs, dynamic_shapes):
     quantizer = VulkanQuantizer().set_global(
         get_symmetric_quantization_config(is_dynamic=False, weight_bits=8)
     )
+    if filter_fn is not None:
+        quantizer.set_filter_function(filter_fn)
     with _scalars_keep_dtype():
         # Export with the dynamic dims already in place: a static export here
         # bakes the bound into the converted graph and the re-export then
