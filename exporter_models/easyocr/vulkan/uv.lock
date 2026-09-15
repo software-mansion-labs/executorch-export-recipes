@@ -150,8 +150,8 @@ wheels = [
 
 [[package]]
 name = "executorch"
-version = "1.4.1+3dfbc67"
-source = { git = "https://github.com/software-mansion-labs/executorch?branch=%40ms%2Fseparate-backends-1.4.1#3dfbc67b9e053a675a9e713c5693e53d60c43b94" }
+version = "1.4.1+67ccaf9"
+source = { git = "https://github.com/software-mansion-labs/executorch?branch=%40ms%2Fseparate-backends-1.4.1#67ccaf9f5f87710920039748ed6cbc936f4ab63a" }
 dependencies = [
     { name = "coremltools", marker = "platform_machine == 'arm64' and sys_platform == 'darwin'" },
     { name = "expecttest", marker = "platform_machine == 'arm64' and sys_platform == 'darwin'" },

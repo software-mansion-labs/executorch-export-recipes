@@ -122,8 +122,8 @@ wheels = [
 
 [[package]]
 name = "executorch"
-version = "1.4.1+183327c"
-source = { git = "https://github.com/software-mansion-labs/executorch?branch=%40ms%2Fseparate-backends-1.4.1#183327caa0389edacbf9b720349418d55e524243" }
+version = "1.4.1+67ccaf9"
+source = { git = "https://github.com/software-mansion-labs/executorch?branch=%40ms%2Fseparate-backends-1.4.1#67ccaf9f5f87710920039748ed6cbc936f4ab63a" }
 dependencies = [
     { name = "coremltools", marker = "platform_machine == 'arm64' and sys_platform == 'darwin'" },
     { name = "expecttest", marker = "platform_machine == 'arm64' and sys_platform == 'darwin'" },
@@ -191,7 +191,7 @@ requires-dist = [
     { name = "executorch", git = "https://github.com/software-mansion-labs/executorch?branch=%40ms%2Fseparate-backends-1.4.1" },
     { name = "exporter", editable = "../../../" },
     { name = "safetensors", specifier = "==0.8.0" },
-    { name = "torch", specifier = "==2.14.0.dev20260702", index = "https://download.pytorch.org/whl/nightly/cpu" },
+    { name = "torch", url = "https://download.pytorch.org/whl/nightly/cpu/torch-2.14.0.dev20260702-cp310-cp310-macosx_14_0_arm64.whl" },
     { name = "transformers", specifier = "==5.14.1" },
 ]
 
@@ -771,7 +771,7 @@ wheels = [
 [[package]]
 name = "torch"
 version = "2.14.0.dev20260702"
-source = { registry = "https://download.pytorch.org/whl/nightly/cpu" }
+source = { url = "https://download.pytorch.org/whl/nightly/cpu/torch-2.14.0.dev20260702-cp310-cp310-macosx_14_0_arm64.whl" }
 dependencies = [
     { name = "filelock", marker = "platform_machine == 'arm64' and sys_platform == 'darwin'" },
     { name = "fsspec", marker = "platform_machine == 'arm64' and sys_platform == 'darwin'" },
@@ -782,8 +782,30 @@ dependencies = [
     { name = "typing-extensions", marker = "platform_machine == 'arm64' and sys_platform == 'darwin'" },
 ]
 wheels = [
-    { url = "https://download-r2.pytorch.org/whl/nightly/cpu/torch-2.14.0.dev20260702-cp310-cp310-macosx_14_0_arm64.whl", upload-time = "2026-07-02T10:57:29Z" },
+    { url = "https://download.pytorch.org/whl/nightly/cpu/torch-2.14.0.dev20260702-cp310-cp310-macosx_14_0_arm64.whl", hash = "sha256:8b86766f4918e753debd7f8452ebab046c6b33de74d4069a1a8a709b62ba1b2b" },
 ]
+
+[package.metadata]
+requires-dist = [
+    { name = "cuda-bindings", marker = "python_full_version < '3.15' and sys_platform == 'linux'", specifier = ">=13.0.3,<14" },
+    { name = "cuda-toolkit", extras = ["cublas", "cudart", "cufft", "cufile", "cupti", "curand", "cusolver", "cusparse", "nvjitlink", "nvrtc", "nvtx"], marker = "sys_platform == 'linux'", specifier = "==13.0.3" },
+    { name = "filelock" },
+    { name = "fsspec", specifier = ">=0.8.5" },
+    { name = "jinja2" },
+    { name = "networkx", specifier = ">=2.5.1" },
+    { name = "nvidia-cudnn-cu13", marker = "sys_platform == 'linux'", specifier = "==9.23.1.3" },
+    { name = "nvidia-cusparselt-cu13", marker = "sys_platform == 'linux'", specifier = "==0.8.1" },
+    { name = "nvidia-nccl-cu13", marker = "sys_platform == 'linux'", specifier = "==2.30.7" },
+    { name = "nvidia-nvshmem-cu13", marker = "sys_platform == 'linux'", specifier = "==3.4.5" },
+    { name = "opt-einsum", marker = "extra == 'opt-einsum'", specifier = ">=3.3" },
+    { name = "optree", marker = "extra == 'optree'", specifier = ">=0.13.0" },
+    { name = "pyyaml", marker = "extra == 'pyyaml'" },
+    { name = "setuptools", specifier = ">=77.0.3" },
+    { name = "sympy", specifier = ">=1.13.3" },
+    { name = "triton", marker = "python_full_version < '3.15' and sys_platform == 'linux'", specifier = "==3.8.0+git43422b04" },
+    { name = "typing-extensions", specifier = ">=4.10.0" },
+]
+provides-extras = ["optree", "opt-einsum", "pyyaml"]
 
 [[package]]
 name = "torchao"
