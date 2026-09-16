@@ -26,6 +26,7 @@ dependencies = [
     "safetensors==0.8.0",
     "coremltools==9.0",
     "rfdetr==1.8.2",
+    "torchvision==0.29.0.dev20260702",
     "numpy==2.0.0",
 ]
 
@@ -39,6 +40,7 @@ override-dependencies = ["torch==2.14.0.dev20260702"]
 executorch = { git = "https://github.com/software-mansion-labs/executorch", branch = "@ms/separate-backends-1.4.1" }
 exporter = { path = "../../..", editable = true }
 torch = { url = "https://download.pytorch.org/whl/nightly/cpu/torch-2.14.0.dev20260702-cp310-cp310-macosx_14_0_arm64.whl" }
+torchvision = { url = "https://download.pytorch.org/whl/nightly/cpu/torchvision-0.29.0.dev20260702-cp310-cp310-macosx_14_0_arm64.whl" }
 
 [[tool.uv.index]]
 name = "pytorch-nightly"

@@ -247,6 +247,7 @@ dependencies = [
     { name = "rfdetr", marker = "platform_machine == 'arm64' and sys_platform == 'darwin'" },
     { name = "safetensors", marker = "platform_machine == 'arm64' and sys_platform == 'darwin'" },
     { name = "torch", marker = "platform_machine == 'arm64' and sys_platform == 'darwin'" },
+    { name = "torchvision", marker = "platform_machine == 'arm64' and sys_platform == 'darwin'" },
     { name = "transformers", marker = "platform_machine == 'arm64' and sys_platform == 'darwin'" },
 ]
 
@@ -259,6 +260,7 @@ requires-dist = [
     { name = "rfdetr", specifier = "==1.8.2" },
     { name = "safetensors", specifier = "==0.8.0" },
     { name = "torch", url = "https://download.pytorch.org/whl/nightly/cpu/torch-2.14.0.dev20260702-cp310-cp310-macosx_14_0_arm64.whl" },
+    { name = "torchvision", url = "https://download.pytorch.org/whl/nightly/cpu/torchvision-0.29.0.dev20260702-cp310-cp310-macosx_14_0_arm64.whl" },
     { name = "transformers", specifier = "==5.14.1" },
 ]
 
@@ -1024,16 +1026,26 @@ wheels = [
 
 [[package]]
 name = "torchvision"
-version = "0.29.0"
-source = { registry = "https://pypi.org/simple" }
+version = "0.29.0.dev20260702"
+source = { url = "https://download.pytorch.org/whl/nightly/cpu/torchvision-0.29.0.dev20260702-cp310-cp310-macosx_14_0_arm64.whl" }
 dependencies = [
     { name = "numpy", marker = "platform_machine == 'arm64' and sys_platform == 'darwin'" },
     { name = "pillow", marker = "platform_machine == 'arm64' and sys_platform == 'darwin'" },
     { name = "torch", marker = "platform_machine == 'arm64' and sys_platform == 'darwin'" },
 ]
 wheels = [
-    { url = "https://files.pythonhosted.org/packages/05/65/cc2c08a1b4baa5787e76e887b473f18403c2d943bdd7d1ffa60f41bfae3f/torchvision-0.29.0-cp310-cp310-macosx_14_0_arm64.whl", hash = "sha256:ce3b58631f0b7c8828e8675301bff5cb0623aaed704e3ac91079e89607753205", size = 1813728, upload-time = "2026-09-02T13:46:52.886Z" },
+    { url = "https://download.pytorch.org/whl/nightly/cpu/torchvision-0.29.0.dev20260702-cp310-cp310-macosx_14_0_arm64.whl", hash = "sha256:90396002442687648b9527834831979ab5ec41a4cb315caf6f63b5d742a26e8b" },
 ]
+
+[package.metadata]
+requires-dist = [
+    { name = "gdown", marker = "extra == 'gdown'", specifier = ">=4.7.3" },
+    { name = "numpy" },
+    { name = "pillow", specifier = ">=5.3.0,!=8.3.*" },
+    { name = "scipy", marker = "extra == 'scipy'" },
+    { name = "torch", specifier = "==2.14.0.dev20260702" },
+]
+provides-extras = ["gdown", "scipy"]
 
 [[package]]
 name = "tqdm"
