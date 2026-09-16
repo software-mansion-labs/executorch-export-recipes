@@ -86,3 +86,30 @@ roughly 15-20% of the device's fp16 peak. Neither used cooperative matrix
 instructions. So there is no win in respelling pointwise conv1d as a matmul
 (that was measured and rejected); the multiple that is left lives in the tiled
 GEMM shader itself and would benefit every Vulkan model, not just this one.
+
+## Vulkan: do not re-export from the current tree (2026-09-16)
+
+The published `v0.10.0` Vulkan artifacts already contain the gather/partition
+win. Delegate counts are identical between the live files and a fresh export
+off fork `7ba02ad`:
+
+| component | published v0.10.0 | fresh export |
+|---|---|---|
+| duration_predictor | 6 | 6 |
+| text_encoder | 10 | 10 |
+| vector_estimator | 2 | 2 |
+| vocoder | 3 | 3 |
+
+The earlier 29 -> 2 / 13 -> 3 A/B compared AOT pin `183327c` against
+`8d046240`; the shipped files were exported with the later pin, so that win is
+already live. `vocoder` is byte-identical to a fresh build.
+
+The only functional difference in the other three is the `get_model_schema`
+contract: shipped files allow `max: 512` tokens, a fresh export emits
+`max: 256`, because `3cc037a` (the MLX export commit) narrowed the shared
+`schema.json`. RNE reads its contract from `get_model_schema`, so republishing
+would reject inputs between 257 and 512 tokens that work today.
+
+Re-exporting Vulkan supertonic is therefore a capability regression with no
+measured gain. Supertonic's remaining upside is in the runtime libs, so measure
+it as part of the libs sweep (baseline vs candidate), not as an export A/B.
