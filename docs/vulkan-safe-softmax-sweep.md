@@ -22,10 +22,20 @@ three "parsed clean" - a stub file has no ops in it either.
 
 ## Result: 2 of 36
 
-| model | guard | note |
-|---|---|---|
-| sdxs_512_dreamshaper | 24 | one per UNet attention block, and the UNet runs once per diffusion step |
-| rfdetr_nano_detector | 14 | the third RF-DETR model; keypoint and segmentation are already fixed |
+| model | guard | measured after the fix | shipped |
+|---|---|---|---|
+| rfdetr_nano_detector | 14 | 534.9 -> 500.9 ms, **6.34%**, 5/5 rounds | yes |
+| sdxs_512_dreamshaper | 24 | denoise 0.02% (2/5), encode 1.06% (5/5) | no |
+
+**sdxs was measured and rejected.** The prediction that 24 guards times a
+per-diffusion-step UNet would compound was wrong. `denoise` gained 0.02% across
+2 of 5 rounds against a 120 ms round-to-round spread, i.e. nothing; `encode`
+gained 2.4 ms once per generation. The guard costs in proportion to the
+attention matrix, and sdxs attends over a 64x64 latent, so it is negligible
+beside the UNet convolutions. RF-DETR attends over 577-2308 tokens, which is why
+all three RF-DETR models land at 4-6%. **Guard count is not a proxy for gain;
+attention size is.** The export keeps the change so it lands free on the next
+re-export, but an 880 MB artifact was not republished for it.
 
 Everything else is clean, for two different reasons:
 
