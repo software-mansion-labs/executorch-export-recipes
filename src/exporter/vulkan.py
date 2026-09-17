@@ -253,3 +253,50 @@ def quantize_weight_only_int8(module, inputs, dynamic_shapes, filter_fn=None):
                 torch.ones(1, length, dtype=torch.int64),
             )
         return convert_pt2e(prepared)
+
+
+def _plain_softmax(x, dim, dtype=None):
+    """``aten._safe_softmax`` without its masked-row guard."""
+    import torch
+
+    return torch.softmax(x, dim=dim, dtype=dtype)
+
+
+def attention_decompositions_without_masked_row_guard() -> dict:
+    """Decomposition table that drops the dead masked-row guard from attention.
+
+    Since PyTorch 2.5 the SDPA decomposition emits ``aten._safe_softmax``, which
+    follows the softmax with a guard that zeroes any row whose scores were all
+    ``-inf``::
+
+        masked_rows = (scores == -inf).all(dim, keepdim=True)
+        out = where(masked_rows, zeros, softmax(scores))
+
+    A model that attends over a fixed-size input and passes no attention mask
+    can never produce such a row, so the guard never fires. It is not free: the
+    compare, the two logical_nots, the reduction, the zeros and the select all
+    run over the full attention matrix. Removing it measured 5.96% of GPU time
+    on rfdetr_keypoint and 4.35% on rfdetr_nano_segmentation (Mali-G76), with
+    bit-identical outputs.
+
+    The override has to travel with the decomposition that *produces* the guard:
+    SDPA is still a single node after ``run_decompositions``, so a table keyed on
+    ``_safe_softmax`` alone never fires and yields a byte-identical file.
+
+    ONLY valid for a model that cannot produce an all -inf attention row. Do not
+    use it for anything that attends over padding.
+
+    :returns: a table to hand to ``ExportedProgram.run_decompositions``.
+    """
+    import torch
+    from torch._decomp import core_aten_decompositions
+
+    core = core_aten_decompositions()
+    attention_ops = [
+        torch.ops.aten.scaled_dot_product_attention.default,
+        torch.ops.aten._scaled_dot_product_attention_math.default,
+        torch.ops.aten._scaled_dot_product_flash_attention_for_cpu.default,
+    ]
+    table = {op: core[op] for op in attention_ops if op in core}
+    table[torch.ops.aten._safe_softmax.default] = _plain_softmax
+    return table

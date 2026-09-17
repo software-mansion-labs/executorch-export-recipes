@@ -6,6 +6,8 @@ import torch
 import torch.nn as nn
 from torch.export import export as torch_export
 
+from exporter.vulkan import attention_decompositions_without_masked_row_guard
+
 _HERE = Path(__file__).resolve().parent
 _MODEL_DIR = _HERE.parent
 
@@ -93,7 +95,11 @@ def export(config: dict, out_dir: str) -> str:
         # Re-trace so every fake tensor shares one FakeTensorMode. strict=False
         # leaves the batch norm parameters under a second mode, and Vulkan's
         # FuseBatchNormPass then trips detect_fake_mode.
-        ep = ep.run_decompositions({})
+        # RF-DETR attends over a fixed-size image with no mask, so SDPA's
+        # masked-row guard is dead weight over the full attention matrix.
+        ep = ep.run_decompositions(
+            attention_decompositions_without_masked_row_guard()
+        )
 
     # Fold the arange-built positional grids. They are recomputed every
     # inference otherwise, and they also form a tiny delegate partition that

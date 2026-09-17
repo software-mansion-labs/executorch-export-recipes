@@ -2,6 +2,8 @@ import importlib.util
 import sys
 from pathlib import Path
 
+from exporter.vulkan import attention_decompositions_without_masked_row_guard
+
 _HERE = Path(__file__).resolve().parent
 _MODEL_DIR = _HERE.parent
 
@@ -29,6 +31,14 @@ def export(config: dict, out_dir: str) -> str:
     methods = pipeline.load_methods()
     inputs = pipeline.example_inputs(variant["methods"])
     programs = pipeline.exported_programs(methods, inputs)
+
+    # The UNet attends over a fixed-size latent with no mask, so SDPA's
+    # masked-row guard can never fire. It is applied here rather than in
+    # _pipeline.py because that module is shared with the other backends.
+    decompositions = attention_decompositions_without_masked_row_guard()
+    programs = {
+        name: ep.run_decompositions(decompositions) for name, ep in programs.items()
+    }
 
     # fp16, and NOTES.md's quantization warning does not apply to it. The ~14.6x
     # scheduler amplification does sink int8, but measured against the shipped
