@@ -18,6 +18,28 @@ def _load_model():
     return mod
 
 
+def _plain_softmax(x, dim, dtype=None):
+    """Replaces ``aten._safe_softmax`` with an ordinary softmax.
+
+    Since PyTorch 2.5 the SDPA decomposition emits ``_safe_softmax``, which
+    follows the softmax with a guard that zeroes any row whose scores were all
+    ``-inf``::
+
+        masked_rows = (scores == -inf).all(dim, keepdim=True)
+        out = where(masked_rows, zeros, softmax(scores))
+
+    RF-DETR attends over a fixed-size image with no padding and passes no
+    attention mask, so no row can be fully masked and the guard can never fire.
+    It is not free: the comparison, the two logical_nots, the reduction, the
+    zeros and the select all run over the full attention matrix, which measured
+    6.3% of GPU time on this model.
+
+    Only valid for a model that cannot produce an all -inf row. Do not lift this
+    into an export that attends over padding.
+    """
+    return torch.softmax(x, dim=dim, dtype=dtype)
+
+
 def _detach_propagated_constants(ep):
     """Detaches the tensors `constant_prop_pass` leaves attached to autograd.
 
@@ -55,7 +77,21 @@ def export(config: dict, out_dir: str) -> str:
         # Re-trace so every fake tensor shares one FakeTensorMode. strict=False
         # leaves the batch norm parameters under a second mode, and Vulkan's
         # FuseBatchNormPass then trips detect_fake_mode.
-        ep = ep.run_decompositions({})
+        # SDPA is still one node here and the guard only appears once it is
+        # decomposed, so the override has to travel with the decomposition that
+        # produces it. Taking just the attention entries out of the core table
+        # leaves everything else on the path it took before.
+        from torch._decomp import core_aten_decompositions
+
+        core = core_aten_decompositions()
+        attention_ops = [
+            torch.ops.aten.scaled_dot_product_attention.default,
+            torch.ops.aten._scaled_dot_product_attention_math.default,
+            torch.ops.aten._scaled_dot_product_flash_attention_for_cpu.default,
+        ]
+        decompositions = {op: core[op] for op in attention_ops if op in core}
+        decompositions[torch.ops.aten._safe_softmax.default] = _plain_softmax
+        ep = ep.run_decompositions(decompositions)
 
     # Fold the arange-built positional grids. Without this the keypoint export
     # does not lower at all, and they would be recomputed every inference.
