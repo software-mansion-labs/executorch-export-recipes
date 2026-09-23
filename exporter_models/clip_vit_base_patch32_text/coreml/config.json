@@ -9,6 +9,42 @@
   "license": "mit",
   "variants": [
     {
+      "file": "clip_vit_base_patch32_text_coreml_int8.pte",
+      "precision": "int8",
+      "quantized": true,
+      "default": true,
+      "methods": {
+        "forward": {
+          "inputs": [
+            {
+              "shape": [
+                1,
+                74
+              ],
+              "dtype": "int64"
+            },
+            {
+              "shape": [
+                1,
+                74
+              ],
+              "dtype": "int64"
+            }
+          ],
+          "outputs": [
+            {
+              "shape": [
+                1,
+                512
+              ],
+              "dtype": "float32"
+            }
+          ]
+        }
+      },
+      "quantize": "int8"
+    },
+    {
       "file": "clip_vit_base_patch32_text_coreml_fp16.pte",
       "precision": "fp16",
       "quantized": false,
