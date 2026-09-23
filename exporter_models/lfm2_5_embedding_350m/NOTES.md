@@ -9,7 +9,42 @@
 > variable-length input (this supersedes the "static seq 512" workaround below).
 > Config seq is `511` (forward adds the CLS token → 512 total). Verified: fp32
 > cosine 0.9999 vs the sentence-transformers reference; xnnpack 8da4w verified on
-> a physical Android device. MLX int4 exports but is **not** yet verified on iOS.
+> a physical Android device.
+
+## MLX must be exported with the runtime-locked fork (Error::InvalidProgram)
+
+The MLX delegate serializes its graph as a FlatBuffer union, and the union member
+order *is* the wire format. The fork the shipped `MLXBackend` runtime is built
+from (software-mansion-labs/executorch @ `@ms/separate-backends-1.4.1`) carries
+`CumMaxNode` at union value 112, which upstream does not have, so every op from
+there on is shifted by one against the PyPI `executorch` wheel this model's
+`pyproject.toml` pins for xnnpack/coreml. Both sides write schema version `"1"`,
+so nothing catches the skew.
+
+The `.pte` published at HF tag `v0.10.0` was built with the wheel: its 92
+quantized matmuls carry union value 121, which the runtime reads as
+`ArgPartitionNode`, and loading dies in `MLXBackend::init` with
+`Error::InvalidProgram` ("Load method 'forward' failed"). Found on an iPhone 17
+in the v0.10.0 estate sweep — the only failure out of 191 variants.
+
+`mlx/export.py` now calls `exporter.backends.require_mlx_runtime_fork()`, which
+refuses to export unless union value 112 is `CumMaxNode`.
+
+To export MLX, overlay the fork's AOT package into this model's env (a full
+`uv` source build of the fork is not resolvable here):
+
+```
+git -C <executorch-fork> archive @ms/separate-backends-1.4.1 backends/mlx | tar -x -C /tmp/forkmlx
+B=exporter_models/lfm2_5_embedding_350m/.venv/lib/python3.10/site-packages/executorch/backends
+mv $B/mlx $B/mlx.wheel.bak && cp -R /tmp/forkmlx/backends/mlx $B/mlx
+(cd $B/mlx/serialization && python generate.py)   # needs flatc on PATH
+uv run --no-sync --project exporter_models/lfm2_5_embedding_350m \
+  exporter export lfm2_5_embedding_350m --backend mlx --output-dir <dir>
+```
+
+Verify the result with the fork's inspector: the 92 quantized linears must
+decode as `QuantizedMatmulNode` (group_size 64, bits 4, affine), not
+`ArgPartitionNode`.
 
 ## transformers >= 5.x short-conv `seq_idx` (export bind failure)
 
