@@ -101,3 +101,92 @@ Building inputs for the check: use the real predicted durations over the longest
 token prefix that fits in D frames, topped up to hit D exactly. Rescaling all 128
 tokens into D < 128 frames needs per-token counts below 1 and silently produces
 garbage indices.
+
+## Vulkan: evaluated, not viable yet
+
+No `vulkan/export.py` is committed. Both modules were lowered and the duration
+predictor was run on a Galaxy S26 Ultra (Adreno 840), but the result does not
+justify an exporter yet. This section records the recipe and the numbers so the
+work is not repeated from scratch.
+
+### What it takes to lower at all
+
+Four things, in the order they bite:
+
+1. **`attn_implementation = "eager"` on the PLBERT.** SDPA builds its additive
+   mask with `-inf`, and the Vulkan serializer writes floats through flatc's
+   JSON, which has no spelling for a non-finite value, so the export dies with
+   `cannot parse value starting with: -`. Setting it post-hoc works:
+
+   ```python
+   model.bert.config._attn_implementation = "eager"
+   for m in model.bert.modules():
+       if hasattr(m, "config"):
+           m.config._attn_implementation = "eager"
+   ```
+
+   It is also worth a lot on its own: the predictor goes from 25 Vulkan
+   subgraphs to 2. Same finding as `all_minilm_l6_v2`.
+2. **`aten.constant_pad_nd` blocklisted.** `_padded_lstm` pads by
+   `target - seq_len`, which on a dynamic axis is a SymInt, so the AOT emits a
+   ValueList where Vulkan's `Pad.cpp` calls `get_int_list` and requires a
+   literal IntList. The runtime aborts at prepack with `Expected value to have
+   type IntList, got VALUELIST`. Unlike `Split.cpp`, `View.cpp` and
+   `Expand.cpp`, which all use `extract_int_or_symint_list`, `Pad.cpp` was
+   missed. A real fix is more than swapping the extractor, because the pad
+   offsets are baked into a params buffer at build time and would have to be
+   refreshed on resize, so these four pads stay on the host.
+3. **pytorch/executorch#22504** — `AdaLayerNorm` calls `F.layer_norm` with no
+   affine parameters, and Vulkan threw on a missing weight. PR #22506.
+4. **pytorch/executorch#22505** — the int32 `aten.eq` shader is generated under
+   a name the dispatcher never asks for. PR #22507.
+
+### Why it is not viable yet
+
+The duration predictor lowers cleanly and is **slower than XNNPACK**: 98.0 ms
+against 79.7 ms per execution at the 128-token bound, 20 executions each on a
+cooled device. It is dominated by the 128-step unrolled LSTM, which is 17750
+ops in a single delegate, and a sequential chain of tiny matmuls is the worst
+case for a GPU.
+
+The synthesizer lowers but **fragments into 75 delegates**, and the host
+staging that implies is 218 MB of planned buffer (against 0.7 MB for the
+predictor's 6 delegates). Running it at the upper bound rebooted the device
+twice. Check `non_const_buffer_sizes` and the delegate count on any future
+attempt BEFORE running it.
+
+The fragmentation is not intrinsic. It comes from ops Vulkan does not
+implement:
+
+| cause | splits |
+| --- | --- |
+| `aten.var.correction` (AdaIN's instance norm) | 70 |
+| `aten.reciprocal` | 48 |
+| `aten.floor` (the phase wrap in `_segmented_wrapped_phase`) | 19 |
+| no valid representation, i.e. texture limits on `120*frames+1` shapes | 25 |
+| `aten.convolution` rejected | 7 |
+
+The first three are trivial elementwise and reduction ops and account for 137
+of the 160 unimplemented-op splits. The texture-limit group needs buffer
+storage for audio-length 1D tensors. Adding those three ops is the prerequisite
+for a second attempt; qwen3 went from 57 delegates to 1 and from a loss to a
+2.7x prefill win once its one split cause was removed, so the same collapse is
+plausible here, but it is unmeasured.
+
+## AdaIN is 15% of the synthesizer, and `var_mean` does not fix it
+
+Profiling the published XNNPACK synthesizer with etdump put `mean` + `var`
+inside `CustomInstanceNorm1d` at 172 ms of 1105 ms, which is 77% of all
+non-delegated time. Replacing the two reductions with a single
+`torch.var_mean(x, dim=[2], correction=0, keepdim=True)` is the obvious fix and
+**does not export**:
+
+```
+Operator torch._ops.aten.var_mean.correction is not in Core ATen opset
+```
+
+`to_edge` refuses it outright. Getting past that needs
+`EdgeCompileConfig(_core_aten_ops_exception_list=[torch.ops.aten.var_mean.correction])`
+AND a `var_mean.correction_out` kernel linked into the RNE runtime, which is
+unverified. The change is not in the tree; `CustomInstanceNorm1d` still uses
+separate `mean` and `var`.

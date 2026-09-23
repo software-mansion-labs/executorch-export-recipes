@@ -1,4 +1,4 @@
-# lfm2_5_embedding_350m (xnnpack) notes
+# lfm2_5_embedding_350m
 
 > **Update (react-native-executorch flow):** `xnnpack/export.py` and
 > `mlx/export.py` now target the RNE `createTextEmbedder` contract: forward
@@ -82,3 +82,31 @@ No Core ML `.pte` is published for this model. The exporter and its
 `--backend coreml` actually runs and the finding can be re-tested. (It was
 previously dropped from that list, which made the exporter unreachable and this
 paragraph impossible to act on.)
+
+## Vulkan: exporter kept, nothing published
+
+`vulkan/export.py` and `vulkan/config.json` produce two working, verified
+artifacts (fp16 and int8), but no `.pte` is published. Both correctness gates
+passed -- nearest-neighbour ranking is identical to fp32 -- so this is purely a
+performance verdict. `vulkan` stays in `model.json` backends so
+`--backend vulkan` runs and the finding can be re-tested.
+
+Measured 2026-09-02 on Adreno 840 (S26 Ultra) and Mali-G76 (S10+), 511 tokens:
+
+| build | Adreno 840 | Mali-G76 | size | cosine vs fp32 |
+|---|---|---|---|---|
+| Vulkan int8 | **330.9 ms** (1.09x faster) | **28,931 ms** (5.4x slower) | 443 MB | 0.999648 |
+| XNNPACK 8da4w (shipped) | 362.3 ms | 5,385 ms | 575 MB | - |
+| Vulkan fp16 | 466.3 ms (1.29x slower) | 5,535 ms (1.03x slower) | 676 MB | 0.999985 |
+
+The two variants fail on opposite devices, so neither is shippable as a default:
+
+- int8 is the only build that beats XNNPACK anywhere (Adreno, 1.09x) and is 5.4x
+  slower on Mali. This is the same regression that kept int8 out as the mpnet
+  default (5-8x there). Two models now, so treat "ET Vulkan int8 tiled kernels
+  are Adreno-tuned and pathological on Mali" as a rule rather than a quirk.
+- fp16 is safe on Mali (1.03x, parity) but never wins anywhere.
+
+Do not shorthand this as "Vulkan loses on Mali": only **int8** does. fp16 on Mali
+is fine, which matters because MiniLM fp16 won 2.4x there. Test both precisions
+on both GPUs before any verdict.

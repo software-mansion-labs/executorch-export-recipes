@@ -1,0 +1,82 @@
+{
+  "$schema": "https://huggingface.co/software-mansion/react-native-executorch-spec/resolve/main/config.schema.json",
+  "model": "lfm2_5_embedding_350m",
+  "family": "lfm2",
+  "capabilities": [
+    "text-embedding"
+  ],
+  "backend": "vulkan",
+  "license": "other",
+  "variants": [
+    {
+      "file": "lfm_2_5_embedding_350m_vulkan_fp16.pte",
+      "precision": "fp16",
+      "quantized": false,
+      "default": true,
+      "methods": {
+        "forward": {
+          "inputs": [
+            {
+              "shape": [
+                1,
+                511
+              ],
+              "dtype": "int64"
+            },
+            {
+              "shape": [
+                1,
+                511
+              ],
+              "dtype": "int64"
+            }
+          ],
+          "outputs": [
+            {
+              "shape": [
+                1,
+                1024
+              ],
+              "dtype": "float32"
+            }
+          ]
+        }
+      }
+    },
+    {
+      "file": "lfm_2_5_embedding_350m_vulkan_int8.pte",
+      "precision": "int8",
+      "quantized": true,
+      "default": false,
+      "methods": {
+        "forward": {
+          "inputs": [
+            {
+              "shape": [
+                1,
+                511
+              ],
+              "dtype": "int64"
+            },
+            {
+              "shape": [
+                1,
+                511
+              ],
+              "dtype": "int64"
+            }
+          ],
+          "outputs": [
+            {
+              "shape": [
+                1,
+                1024
+              ],
+              "dtype": "float32"
+            }
+          ]
+        }
+      }
+    }
+  ]
+}

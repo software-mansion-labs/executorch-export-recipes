@@ -37,7 +37,13 @@ def export(config: dict, out_dir: str) -> str:
     ep = torch_export(model, inputs)
     program = to_edge_transform_and_lower(
         ep,
-        partitioner=[VulkanPartitioner()],
+        partitioner=[
+            VulkanPartitioner(
+                compile_options={"force_fp16": True}
+                if variant["precision"] == "fp16"
+                else {}
+            )
+        ],
     ).to_executorch()
 
     out_path = Path(out_dir) / variant["file"]

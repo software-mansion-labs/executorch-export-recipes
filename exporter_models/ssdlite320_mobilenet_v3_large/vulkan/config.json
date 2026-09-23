@@ -1,0 +1,53 @@
+{
+  "$schema": "https://huggingface.co/software-mansion/react-native-executorch-spec/resolve/main/config.schema.json",
+  "model": "ssdlite320_mobilenet_v3_large",
+  "family": "ssdlite",
+  "capabilities": [
+    "object-detection"
+  ],
+  "backend": "vulkan",
+  "license": "bsd-3-clause",
+  "variants": [
+    {
+      "file": "ssdlite320_mobilenet_v3_large_vulkan_fp16.pte",
+      "precision": "fp16",
+      "methods": {
+        "forward": {
+          "inputs": [
+            {
+              "shape": [
+                3,
+                320,
+                320
+              ],
+              "dtype": "float32"
+            }
+          ],
+          "outputs": [
+            {
+              "shape": [
+                300,
+                4
+              ],
+              "dtype": "float32"
+            },
+            {
+              "shape": [
+                300
+              ],
+              "dtype": "float32"
+            },
+            {
+              "shape": [
+                300
+              ],
+              "dtype": "float32"
+            }
+          ]
+        }
+      },
+      "quantized": false,
+      "default": true
+    }
+  ]
+}

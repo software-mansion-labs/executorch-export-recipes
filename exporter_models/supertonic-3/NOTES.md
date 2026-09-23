@@ -30,3 +30,86 @@ command above actually runs and the finding can be re-tested against a future
 coremltools. (It was previously dropped from that list, which made the command
 above fail with a SpecError before it ever reached coremltools.) Related:
 apple/coremltools#2825 and `docs/coremltools-2825-repro.md`.
+
+## Vulkan: shipped (fp16, Android)
+
+`vulkan/export.py` reuses the XNNPACK model plumbing and swaps in
+`VulkanPartitioner(force_fp16=True)`. On a Galaxy S26 Ultra (Adreno 840),
+median ms per execution at T=512 / L=1000:
+
+| sub-model | vulkan fp16 | xnnpack fp32 | speedup |
+| --- | --- | --- | --- |
+| duration_predictor | 18.7 | 33.2 | 1.78x |
+| text_encoder | 72.3 | 140.9 | 1.95x |
+| vector_estimator | 682.5 | 1253.7 | 1.84x |
+| vocoder | 865.8 | 1284.3 | 1.48x |
+
+2.12x end to end at the default 8 flow-matching steps, where `vector_estimator`
+is 84% of the total. Outputs match the fp32 CPU references at cosine 1.000000,
+0.999414, 0.999994 and 0.999977.
+
+Getting there needed four ExecuTorch fixes, all upstreamed and cherry-picked
+into the software-mansion-labs fork:
+
+- pytorch/executorch#22399 - do not partition ops whose symbolic arguments the
+  runtime reads at build time (symbolic `clamp` bound, symbolic `constant_pad_nd`,
+  non-4d batch norm).
+- pytorch/executorch#22401 - size the texture-vs-buffer choice by the bound, not
+  the trace hint. Without it `text_encoder` silently computed garbage
+  (cosine 0.41) whenever it ran longer than the traced length.
+- pytorch/executorch#22402 - only rewrite `addmm`/`mm` to `linear` when the
+  weight is a constant. `duration_predictor` multiplies by a runtime-derived
+  matrix, which became a `linear` whose weight the runtime then tried to prepack.
+- pytorch/executorch#22403 and #22406 - keep gathers on the GPU. `x[:, :, idx]`
+  was unsupported, and each occurrence split the delegate, so `vector_estimator`
+  lowered to 29 delegate calls. Now 2, worth 11-17% end to end.
+
+### T bound: 512, not 256
+
+The published XNNPACK `.pte` files declare `T` up to **512**; `schema.json` and
+`_T_MAX` in this repo said 256, so the repo had drifted from what is live. Both
+were moved to 512 so the two backends agree with production. Re-exporting
+XNNPACK from this repo now reproduces the shipped bound.
+
+### Where the remaining time goes
+
+`ETVK_DISPATCH_TRACE=<path>` (env-gated, no rebuild needed) on one
+`vector_estimator` execution shows **1246 dispatches, only 56 of them
+convolutions** - those 56 are ~278 ms of the 682. The rest is data movement:
+202 `binary_mul`, 166 `view_texture`, 158 `permute_texture3d`, 162 staging
+conversions, 36 layer norms.
+
+**Next lever is the shared GEMM kernel, not this model.** Measured head to head
+on identical arithmetic ([2,512,1000], 512->2048->512, 4.19 GMAC), `conv1d_pw`
+takes 9.94 ms and `aten.linear` 10.70 ms, both about **840 GFLOP/s**, which is
+roughly 15-20% of the device's fp16 peak. Neither used cooperative matrix
+instructions. So there is no win in respelling pointwise conv1d as a matmul
+(that was measured and rejected); the multiple that is left lives in the tiled
+GEMM shader itself and would benefit every Vulkan model, not just this one.
+
+## Vulkan: do not re-export from the current tree (2026-09-16)
+
+The published `v0.10.0` Vulkan artifacts already contain the gather/partition
+win. Delegate counts are identical between the live files and a fresh export
+off fork `7ba02ad`:
+
+| component | published v0.10.0 | fresh export |
+|---|---|---|
+| duration_predictor | 6 | 6 |
+| text_encoder | 10 | 10 |
+| vector_estimator | 2 | 2 |
+| vocoder | 3 | 3 |
+
+The earlier 29 -> 2 / 13 -> 3 A/B compared AOT pin `183327c` against
+`8d046240`; the shipped files were exported with the later pin, so that win is
+already live. `vocoder` is byte-identical to a fresh build.
+
+The only functional difference in the other three is the `get_model_schema`
+contract: shipped files allow `max: 512` tokens, a fresh export emits
+`max: 256`, because `3cc037a` (the MLX export commit) narrowed the shared
+`schema.json`. RNE reads its contract from `get_model_schema`, so republishing
+would reject inputs between 257 and 512 tokens that work today.
+
+Re-exporting Vulkan supertonic is therefore a capability regression with no
+measured gain. Supertonic's remaining upside is in the runtime libs, so measure
+it as part of the libs sweep (baseline vs candidate), not as an export A/B.

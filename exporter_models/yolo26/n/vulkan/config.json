@@ -9,8 +9,8 @@
   "license": "agpl-3.0",
   "variants": [
     {
-      "file": "yolo26n_384_vulkan_fp32.pte",
-      "precision": "fp32",
+      "file": "yolo26n_384_vulkan_fp16.pte",
+      "precision": "fp16",
       "quantized": false,
       "default": false,
       "methods": {
@@ -51,8 +51,8 @@
       }
     },
     {
-      "file": "yolo26n_512_vulkan_fp32.pte",
-      "precision": "fp32",
+      "file": "yolo26n_512_vulkan_fp16.pte",
+      "precision": "fp16",
       "quantized": false,
       "default": false,
       "methods": {
@@ -93,8 +93,8 @@
       }
     },
     {
-      "file": "yolo26n_640_vulkan_fp32.pte",
-      "precision": "fp32",
+      "file": "yolo26n_640_vulkan_fp16.pte",
+      "precision": "fp16",
       "quantized": false,
       "default": true,
       "methods": {
