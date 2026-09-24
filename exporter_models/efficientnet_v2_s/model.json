@@ -8,6 +8,7 @@
   "backends": [
     "xnnpack",
     "coreml",
-    "mlx"
+    "mlx",
+    "qnn"
   ]
 }
