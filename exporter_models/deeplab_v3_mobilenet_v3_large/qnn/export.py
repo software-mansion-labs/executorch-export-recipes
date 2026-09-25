@@ -146,6 +146,24 @@ def _arch_for(file_name: str):
     raise ValueError(f"unknown deeplab arch for variant file '{file_name}'")
 
 
+# ResNet-101 carries conv channels that BatchNorm has all but zeroed (folded
+# weights down to ~1e-8). QNN's a16w8 default eps (1.5e-9) lets those channels
+# keep a per-channel weight scale a million times below their neighbours', and
+# the HTP computes them as garbage: on an S26 Ultra one such layer1 channel came
+# out 338x too large and the whole model scored 0.1% mIoU. Flooring scales at
+# QNN's 8-bit default (3.9e-7) fixes it (layer1 cosine vs fp32: 0.67 -> 0.9996).
+# ResNet-50 and MobileNetV3 keep the default, matching their published files.
+# ResNet-101 then scores 78.90% mIoU at 29.7 ms (XNNPACK int8: 78.82%).
+_WEIGHT_EPS = {"deeplab_v3_resnet101": 3.921568627450981e-07}  # qconfig.DEFAULT_EPS_8BIT
+
+
+def _eps_for(file_name: str):
+    for arch, eps in _WEIGHT_EPS.items():
+        if file_name.startswith(arch):
+            return eps
+    return None
+
+
 def _soc_for(file_name: str) -> str:
     version = Path(file_name).stem.rsplit("_", 1)[-1]
     if version not in _HEXAGON_SOC:
@@ -235,6 +253,7 @@ def export(config: dict, out_dir: str) -> str:
                 quant_dtype=QuantDtype.use_16a8w,
                 soc_model=soc,
                 act_observer=MinMaxObserver,
+                eps=_eps_for(variant["file"]),
             ),
         )
         _calibrate(prepared)
