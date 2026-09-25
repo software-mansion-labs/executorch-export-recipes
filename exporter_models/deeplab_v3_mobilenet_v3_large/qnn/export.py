@@ -152,9 +152,17 @@ def _arch_for(file_name: str):
 # the HTP computes them as garbage: on an S26 Ultra one such layer1 channel came
 # out 338x too large and the whole model scored 0.1% mIoU. Flooring scales at
 # QNN's 8-bit default (3.9e-7) fixes it (layer1 cosine vs fp32: 0.67 -> 0.9996).
-# ResNet-50 and MobileNetV3 keep the default, matching their published files.
 # ResNet-101 then scores 78.90% mIoU at 29.7 ms (XNNPACK int8: 78.82%).
-_WEIGHT_EPS = {"deeplab_v3_resnet101": 3.921568627450981e-07}  # qconfig.DEFAULT_EPS_8BIT
+#
+# MobileNetV3 needs more: its stage 5-6 depthwise convs have dead channels that
+# still carry a folded bias (up to 0.93), and the int32 bias scale s_in * s_w is
+# so small at a floored s_w that the bias saturates to ~0. 3.9e-7 is not enough;
+# 1e-5 is: 66.55% -> 69.02% mIoU on an S26 Ultra (XNNPACK int8 66.56%, fp32 69.28%).
+# ResNet-50 keeps the default, matching its published files.
+_WEIGHT_EPS = {
+    "deeplab_v3_resnet101": 3.921568627450981e-07,  # qconfig.DEFAULT_EPS_8BIT
+    "deeplab_v3_mobilenet_v3_large": 1e-5,
+}
 
 
 def _eps_for(file_name: str):
