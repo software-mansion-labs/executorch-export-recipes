@@ -75,6 +75,69 @@ class _DeeplabWrapper(torch.nn.Module):
         return torch.argmax(self.model(x)["out"], dim=1).to(torch.int32)
 
 
+class _SplitInputConv(torch.nn.Module):
+    """A conv computed as the sum of convs over slices of its input channels.
+
+    Exact (convolution is linear in the input channels) and needed for the
+    ResNet ASPP: its dilated 3x3 convs read 2048 channels at 65x65, and in a16w8
+    the HTP cannot tile them into the 8 MiB VTCM ("not sufficiently tiled to fit
+    in TCM"). The dilation-36 kernel spans 73 pixels, wider than the map, so it
+    cannot be tiled spatially and a whole input slice must fit: 1024 channels
+    are 1024*65*65*2 B = 8.65 MB and still fail, 512 are 4.33 MB.
+
+    ResNet50 a16w8 v81 on an S26 Ultra, 200 VOC2012 val images: 76.74% mIoU at
+    20.1 ms, against 76.71% for the published XNNPACK int8 file.
+    """
+
+    def __init__(self, conv: torch.nn.Conv2d, chunk: int):
+        super().__init__()
+        assert conv.groups == 1
+        self.convs = torch.nn.ModuleList()
+        for i, w in enumerate(conv.weight.split(chunk, dim=1)):
+            # the bias is added once, by the first slice
+            has_bias = i == 0 and conv.bias is not None
+            part = torch.nn.Conv2d(
+                w.shape[1],
+                conv.out_channels,
+                conv.kernel_size,
+                padding=conv.padding,
+                dilation=conv.dilation,
+                bias=has_bias,
+            )
+            part.weight = torch.nn.Parameter(w.detach().clone())
+            if has_bias:
+                part.bias = torch.nn.Parameter(conv.bias.detach().clone())
+            self.convs.append(part)
+        self.chunk = chunk
+
+    def forward(self, x):
+        parts = x.split(self.chunk, dim=1)
+        out = self.convs[0](parts[0])
+        for conv, part in zip(self.convs[1:], parts[1:]):
+            out = out + conv(part)
+        return out
+
+
+# Split only ASPPs wider than this; MobileNetV3's reads 960 channels (8.1 MB,
+# fits) and is left untouched.
+_ASPP_MAX_CHANNELS = 1024
+_ASPP_SLICE_CHANNELS = 512
+
+
+def _split_wide_aspp_convs(model):
+    for module in model.modules():
+        if not isinstance(module, tvs.deeplabv3.ASPPConv):
+            continue
+        conv, bn = module[0], module[1]
+        if conv.in_channels > _ASPP_MAX_CHANNELS:
+            # Fold the BatchNorm first: after the split it would follow an add,
+            # not a conv, and prepare_pt2e would no longer fold it.
+            fused = torch.nn.utils.fusion.fuse_conv_bn_eval(conv.eval(), bn.eval())
+            module[0] = _SplitInputConv(fused, _ASPP_SLICE_CHANNELS)
+            module[1] = torch.nn.Identity()
+    return model
+
+
 def _arch_for(file_name: str):
     # longest match first so resnet101 isn't shadowed by resnet50, etc.
     for arch in sorted(_ARCHS, key=len, reverse=True):
@@ -149,7 +212,7 @@ def export(config: dict, out_dir: str) -> str:
     quantized = variant["quantized"]
     inputs = (torch.randn(shape, dtype=torch.float32),)
 
-    model = _DeeplabWrapper(builder(weights=weights())).eval()
+    model = _DeeplabWrapper(_split_wide_aspp_convs(builder(weights=weights()))).eval()
 
     # fp16 is an HTP compile-time precision, not a quantization pass; a16w8 is
     # 16-bit activations over 8-bit weights, done here before lowering. Plain
