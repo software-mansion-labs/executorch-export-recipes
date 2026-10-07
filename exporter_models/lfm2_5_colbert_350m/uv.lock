@@ -186,6 +186,7 @@ dependencies = [
     { name = "exporter", marker = "platform_machine == 'arm64' and sys_platform == 'darwin'" },
     { name = "safetensors", marker = "platform_machine == 'arm64' and sys_platform == 'darwin'" },
     { name = "torch", marker = "platform_machine == 'arm64' and sys_platform == 'darwin'" },
+    { name = "torchao", marker = "platform_machine == 'arm64' and sys_platform == 'darwin'" },
     { name = "transformers", marker = "platform_machine == 'arm64' and sys_platform == 'darwin'" },
 ]
 
@@ -196,6 +197,7 @@ requires-dist = [
     { name = "exporter", editable = "../../" },
     { name = "safetensors", specifier = "==0.8.0" },
     { name = "torch", specifier = "==2.14.0.dev20260702", index = "https://download.pytorch.org/whl/nightly/cpu" },
+    { name = "torchao", specifier = "==0.18.0" },
     { name = "transformers", specifier = "==5.14.1" },
 ]
 

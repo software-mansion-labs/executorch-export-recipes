@@ -24,7 +24,9 @@ def _load_lfm_retrieval_model():
 def export(config: dict, out_dir: str) -> str:
     from executorch.backends.xnnpack.partition.xnnpack_partitioner import XnnpackPartitioner
     from executorch.exir import EdgeCompileConfig, to_edge_transform_and_lower
-    from executorch.extension.llm.export.quantize import quantize_model_
+    import torch.nn as nn
+    from torchao.quantization.granularity import PerGroup
+    from torchao.quantization.quant_api import Int8DynamicActivationIntxWeightConfig, quantize_
 
     m = _load_lfm_retrieval_model()
     model, tok = m.load_colbert(torch.float32)
@@ -37,7 +39,21 @@ def export(config: dict, out_dir: str) -> str:
     td = torch.export.Dim("t", min=2, max=512)
     dynamic_shapes = {"input_ids": {1: td}, "attention_mask": {1: td}}
 
-    quantize_model_(model, qlinear_config="8da4w", qlinear_group_size=32)
+    # Leave the short-conv linears in fp32, as the lfm2_5_embedding_350m sibling
+    # does. Quantizing them too is 144 MB smaller but measurably less faithful
+    # (see NOTES.md).
+    qcfg = Int8DynamicActivationIntxWeightConfig(weight_dtype=torch.int4, weight_granularity=PerGroup(32))
+    quantize_(model, qcfg, filter_fn=lambda mod, fqn: isinstance(mod, nn.Linear) and ".conv." not in fqn)
+
+    # 8da4w covers the Linears only, which leaves the fp32 word-embedding table
+    # ([64402, 1024], 264 MB) in the file. Quantize it weight-only to int8 per row
+    # (embedding_byte, a portable kernel linked into the RNE runtime): 570 -> 373 MB
+    # at no measurable cost, where int4 g32 saves 25 MB more for a little fidelity.
+    from executorch.examples.models.llama.source_transformation.quantize import (
+        EmbeddingQuantHandler,
+    )
+
+    model = EmbeddingQuantHandler(model, bitwidth=8, precision=torch.float32).quantized_model()
 
     ep = torch.export.export(model, (ex_ids, ex_mask), dynamic_shapes=dynamic_shapes, strict=True)
 
