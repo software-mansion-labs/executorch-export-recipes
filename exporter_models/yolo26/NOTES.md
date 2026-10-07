@@ -1,5 +1,22 @@
 # yolo26 detection
 
+## XNNPACK int8 (n, s at 640)
+
+PT2E static, `get_symmetric_quantization_config(is_per_channel=True)`, 300 COCO
+val2017 calibration images, with `model.0` (first conv) and `model.23` (Detect)
+kept fp32. COCO mAP50-95 on the first 500 val2017 images, real `.pte`:
+
+| size | fp32 | int8 | host ms fp32 -> int8 |
+| --- | --- | --- | --- |
+| n | 44.58 | 43.92 (-0.66) | 36.2 -> 28.1 |
+| s | 50.67 | 50.06 (-0.61) | 89.5 -> 51.5 |
+
+Quantizing Detect gives 0 mAP: its decode cats pixel boxes with sigmoid scores
+under one int8 scale. ET 1.4.1 `_annotate_cat` ignores `filter_fn`, so
+`set_module_type(Detect, None)` does not keep the cats fp32; the exporter strips
+the annotations after the quantizer runs. 1000 calibration images did not help
+(fake-quant n -0.85, s +0.21).
+
 ## Vulkan: shipped (fp16, Android)
 
 `vulkan/export.py` drives `force_fp16` from the variant precision, matching
