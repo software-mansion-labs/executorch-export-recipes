@@ -1,6 +1,6 @@
 # yolo26 detection
 
-## XNNPACK int8 (n, s at 640)
+## XNNPACK int8 (every size, 384/512/640)
 
 PT2E static, `get_symmetric_quantization_config(is_per_channel=True)`, 300 COCO
 val2017 calibration images, with `model.0` (first conv) and `model.23` (Detect)
@@ -10,6 +10,11 @@ kept fp32. COCO mAP50-95 on the first 500 val2017 images, real `.pte`:
 | --- | --- | --- | --- |
 | n | 44.58 | 43.92 (-0.66) | 36.2 -> 28.1 |
 | s | 50.67 | 50.06 (-0.61) | 89.5 -> 51.5 |
+| m | 56.30 | 56.17 (-0.13) | 198.6 -> 79.9 |
+| l | 58.10 | 58.24 (+0.14) | 246.4 -> 97.6 |
+| x | 59.94 | 59.94 (0.00) | 536.0 -> 211.5 |
+
+At 640. n/s at 384 and 512 are within 0.53 too; m/l/x at 384/512 are exported, not evaluated.
 
 Quantizing Detect gives 0 mAP: its decode cats pixel boxes with sigmoid scores
 under one int8 scale. ET 1.4.1 `_annotate_cat` ignores `filter_fn`, so
