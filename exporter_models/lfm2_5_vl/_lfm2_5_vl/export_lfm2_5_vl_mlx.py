@@ -25,6 +25,7 @@ Usage:
         [--dtype bf16|fp16|fp32] [--output lfm2_5_vl_mlx.pte]
 """
 
+import json
 import logging
 import os
 from argparse import ArgumentParser, BooleanOptionalAction
@@ -126,7 +127,8 @@ def export_text_decoder(lfm2, dtype: DType = DType.fp32) -> torch.export.Exporte
         def forward(
             self, embeddings: torch.Tensor, input_pos: torch.Tensor
         ) -> torch.Tensor:
-            return self.text_model(None, {"input_pos": input_pos}, embeddings)
+            out = self.text_model(None, {"input_pos": input_pos}, embeddings)
+            return out.to(torch.float32) if isinstance(out, torch.Tensor) else out
 
     decoder = TextDecoder(lfm2.text_model)
     dim = lfm2.text_model_args.dim
@@ -156,13 +158,13 @@ def export_text_decoder(lfm2, dtype: DType = DType.fp32) -> torch.export.Exporte
     return manager.export_program
 
 
-def export_token_embedding(lfm2) -> torch.export.ExportedProgram:
+def export_token_embedding(lfm2, max_seq_len: int = PREFILL_SEQ_CAP) -> torch.export.ExportedProgram:
     language_model = lfm2.model_.model.language_model
-    token_dim = Dim("token_dim_1", min=1, max=MAX_SEQ_LEN)
+    token_dim = Dim("token_dim_1", min=1, max=max_seq_len)
     dynamic_shapes = [{1: token_dim}]
     logging.info("Exporting token embedding (fp32)...")
     embed_module = language_model.get_input_embeddings()
-    example_ids = torch.zeros(1, MAX_SEQ_LEN, dtype=torch.int64)
+    example_ids = torch.zeros(1, max_seq_len, dtype=torch.int64)
     with torch.no_grad():
         ep = torch.export.export(
             embed_module, (example_ids,), dynamic_shapes=dynamic_shapes, strict=False
@@ -227,7 +229,7 @@ def export_all(
     logging.info("[2/3] Exporting text decoder...")
     decoder_ep = export_text_decoder(lfm2, dtype)
     logging.info("[3/3] Exporting token embedding...")
-    token_ep = export_token_embedding(lfm2)
+    token_ep = export_token_embedding(lfm2, max_seq_len=max_seq_len)
 
     logging.info("Lowering to Edge IR + MLX...")
     lowered = to_edge_transform_and_lower(
@@ -269,6 +271,117 @@ def export_all(
             # .item() in rope.get_freqs that breaks export. Matches gemma4 MM.
             "enable_dynamic_shape": True,
             "get_eos_ids": [7],  # <|im_end|>
+            "get_model_schema": json.dumps({
+                "vision_encoder": {
+                    "inputs": [
+                        {
+                            "kind": "Tensor",
+                            "dtype": "float32",
+                            "shape": [
+                                {"kind": "constant", "value": 1},
+                                {"kind": "constant", "value": 3},
+                                {"kind": "constant", "value": IMAGE_SIZE},
+                                {"kind": "constant", "value": IMAGE_SIZE},
+                            ],
+                        }
+                    ],
+                    "outputs": [
+                        {
+                            "kind": "Tensor",
+                            "dtype": "float32",
+                            "shape": [
+                                {"kind": "constant", "value": 1},
+                                {"kind": "constant", "value": 256},
+                                {"kind": "constant", "value": lfm2.text_model_args.dim},
+                            ],
+                        }
+                    ],
+                    "runtimeConstraints": [],
+                },
+                "token_embedding": {
+                    "inputs": [
+                        {
+                            "kind": "Tensor",
+                            "dtype": "int64",
+                            "shape": [
+                                {"kind": "constant", "value": 1},
+                                {
+                                    "kind": "range",
+                                    "range": {
+                                        "min": 1,
+                                        "max": PREFILL_SEQ_CAP - 1,
+                                        "step": 1,
+                                    },
+                                },
+                            ],
+                        }
+                    ],
+                    "outputs": [
+                        {
+                            "kind": "Tensor",
+                            "dtype": "bfloat16" if dtype == DType.bf16 else "float32",
+                            "shape": [
+                                {"kind": "constant", "value": 1},
+                                {
+                                    "kind": "range",
+                                    "range": {
+                                        "min": 1,
+                                        "max": PREFILL_SEQ_CAP - 1,
+                                        "step": 1,
+                                    },
+                                },
+                                {"kind": "constant", "value": lfm2.text_model_args.dim},
+                            ],
+                        }
+                    ],
+                    "runtimeConstraints": [],
+                },
+                "text_decoder": {
+                    "inputs": [
+                        {
+                            "kind": "Tensor",
+                            "dtype": "bfloat16" if dtype == DType.bf16 else "float32",
+                            "shape": [
+                                {"kind": "constant", "value": 1},
+                                {
+                                    "kind": "range",
+                                    "range": {
+                                        "min": 1,
+                                        "max": PREFILL_SEQ_CAP - 1,
+                                        "step": 1,
+                                    },
+                                },
+                                {"kind": "constant", "value": lfm2.text_model_args.dim},
+                            ],
+                        },
+                        {
+                            "kind": "Tensor",
+                            "dtype": "int64",
+                            "shape": [
+                                {
+                                    "kind": "range",
+                                    "range": {
+                                        "min": 1,
+                                        "max": PREFILL_SEQ_CAP - 1,
+                                        "step": 1,
+                                    },
+                                }
+                            ],
+                        },
+                    ],
+                    "outputs": [
+                        {
+                            "kind": "Tensor",
+                            "dtype": "float32",
+                            "shape": [
+                                {"kind": "constant", "value": 1},
+                                {"kind": "constant", "value": lfm2.text_model_args.vocab_size},
+                            ],
+                        }
+                    ],
+                    "runtimeConstraints": [],
+                },
+            }),
         },
         compile_config=EdgeCompileConfig(_check_ir_validity=False),
     )

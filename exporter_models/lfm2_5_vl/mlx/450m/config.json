@@ -42,7 +42,7 @@
             {
               "shape": [
                 1,
-                2048
+                64
               ],
               "dtype": "int64"
             }
@@ -51,7 +51,7 @@
             {
               "shape": [
                 1,
-                2048,
+                64,
                 1024
               ],
               "dtype": "bfloat16"
@@ -89,7 +89,7 @@
         "get_eos_ids": [
           7
         ],
-        "get_max_context_len": 2048,
+        "get_max_context_len": 16384,
         "get_max_seq_len": 64,
         "get_n_layers": null,
         "get_vocab_size": 65536,
