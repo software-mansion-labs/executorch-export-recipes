@@ -44,9 +44,59 @@ def export(config: dict, out_dir: str) -> str:
     # Runner constants come from the config -- the single source of truth.
     # export_llama derives the rest (vocab) from params.
     consts = config["variant"].get("constants", {})
-    cfg.base.metadata = json.dumps(
-        {k: consts[k] for k in ("get_bos_id", "get_eos_ids") if k in consts}
-    )
+    max_ctx = consts.get("get_max_context_len", 16384)
+    max_seq = consts.get("get_max_seq_len", 2048)
+    vocab_sz = consts.get("get_vocab_size", spec["params"]["vocab_size"])
+    out_dtype = "float32"
+
+    # Generate and validate get_model_schema matching model.schema.json
+    model_schema = {
+        "forward": {
+            "inputs": [
+                {
+                    "kind": "Tensor",
+                    "dtype": "int64",
+                    "shape": [
+                        {"kind": "constant", "value": 1},
+                        {
+                            "kind": "range",
+                            "range": {
+                                "min": 1,
+                                "max": max_seq - 1,
+                                "step": 1,
+                            },
+                        },
+                    ],
+                },
+                {
+                    "kind": "Tensor",
+                    "dtype": "int64",
+                    "shape": [{"kind": "constant", "value": 1}],
+                },
+            ],
+            "outputs": [
+                {
+                    "kind": "Tensor",
+                    "dtype": out_dtype,
+                    "shape": [
+                        {"kind": "constant", "value": 1},
+                        {"kind": "constant", "value": vocab_sz},
+                    ],
+                }
+            ],
+            "runtimeConstraints": [],
+        }
+    }
+    root_schema_path = _MODEL_DIR.parent.parent / "model.schema.json"
+    if root_schema_path.exists():
+        import jsonschema
+
+        root_schema = json.loads(root_schema_path.read_text())
+        jsonschema.validate(instance=model_schema, schema=root_schema)
+
+    metadata_dict = dict(consts)
+    metadata_dict["get_model_schema"] = json.dumps(model_schema)
+    cfg.base.metadata = json.dumps(metadata_dict)
     cfg.model.use_kv_cache = True
     cfg.model.use_sdpa_with_kv_cache = True
     cfg.model.dtype_override = DtypeOverride.bf16
@@ -57,11 +107,31 @@ def export(config: dict, out_dir: str) -> str:
     cfg.export.max_context_length = consts["get_max_context_len"]
     cfg.export.output_name = out_path
 
+    # Patch Transformer.forward during export to cast output logits to float32 without weight bloat
+    import torch
+    from executorch.examples.models.llama.llama_transformer import Transformer
+
+    orig_forward = Transformer.forward
+
+    def patched_forward(self, tokens=None, attn_options=None, *args, **kwargs):
+        out = orig_forward(self, tokens=tokens, attn_options=attn_options, *args, **kwargs)
+        if isinstance(out, torch.Tensor):
+            return out.to(torch.float32)
+        elif isinstance(out, tuple):
+            return tuple(
+                x.to(torch.float32) if isinstance(x, torch.Tensor) and x.dtype.is_floating_point else x
+                for x in out
+            )
+        return out
+
+    Transformer.forward = patched_forward
+
     cwd = os.getcwd()
     os.chdir(tempfile.gettempdir())
     try:
         export_llama(cfg)
     finally:
+        Transformer.forward = orig_forward
         os.chdir(cwd)
         os.unlink(params_path)
     return out_path
