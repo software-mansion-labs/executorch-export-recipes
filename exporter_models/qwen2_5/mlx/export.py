@@ -34,13 +34,13 @@ def _load_params():
 
 def _checkpoint(source_repo: str) -> str:
     """Downloads the upstream HF weights and converts them to Meta format."""
-    from executorch.examples.models.qwen2_5.convert_weights import convert_weights
-    from huggingface_hub import snapshot_download
-
     _CKPT_CACHE.mkdir(parents=True, exist_ok=True)
     out = _CKPT_CACHE / f"{source_repo.replace('/', '_')}.pth"
     if out.exists():
         return str(out)
+    # Imported only when converting: the converter pulls in torchtune.
+    from executorch.examples.models.qwen2_5.convert_weights import convert_weights
+    from huggingface_hub import snapshot_download
     src = snapshot_download(source_repo, allow_patterns=_WEIGHT_PATTERNS)
     # Some converters write scratch files into the cwd; keep them out of the repo.
     cwd = os.getcwd()
