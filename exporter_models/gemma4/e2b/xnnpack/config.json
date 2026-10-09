@@ -1,0 +1,71 @@
+{
+  "$schema": "https://huggingface.co/software-mansion/react-native-executorch-spec/resolve/main/config.schema.json",
+  "model": "gemma_4",
+  "family": "gemma",
+  "capabilities": [
+    "text-generation"
+  ],
+  "backend": "xnnpack",
+  "license": "gemma",
+  "variants": [
+    {
+      "file": "gemma_4_e2b_xnnpack_8da4w.pte",
+      "precision": "8da4w",
+      "quantized": true,
+      "default": true,
+      "methods": {
+        "enable_dynamic_shape": true,
+        "get_bos_id": 2,
+        "get_eos_ids": [
+          1,
+          106,
+          50
+        ],
+        "get_max_context_len": 4048,
+        "get_max_seq_len": 1024,
+        "get_vocab_size": 262144,
+        "use_kv_cache": true,
+        "forward": {
+          "inputs": [
+            {
+              "name": "tokens",
+              "shape": [
+                1,
+                {
+                  "min": 1,
+                  "max": 1024
+                }
+              ],
+              "dtype": "int64"
+            },
+            {
+              "name": "input_pos",
+              "shape": [
+                {
+                  "min": 1,
+                  "max": 1024
+                }
+              ],
+              "dtype": "int64"
+            }
+          ],
+          "outputs": [
+            {
+              "name": "logits",
+              "shape": [
+                1,
+                {
+                  "min": 1,
+                  "max": 1024
+                },
+                262144
+              ],
+              "dtype": "float32"
+            }
+          ]
+        }
+      }
+    }
+  ],
+  "size": "e2b"
+}

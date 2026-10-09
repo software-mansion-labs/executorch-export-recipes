@@ -1,0 +1,30 @@
+{
+  "forward": {
+    "inputs": [
+      {
+        "kind": "Tensor",
+        "dtype": "int64",
+        "shape": [
+          { "kind": "constant", "value": 1 },
+          { "kind": "range", "range": { "min": 1, "max": {seq_max}, "step": 1 } }
+        ]
+      },
+      {
+        "kind": "Tensor",
+        "dtype": "int64",
+        "shape": [{ "kind": "constant", "value": 1 }]
+      }
+    ],
+    "outputs": [
+      {
+        "kind": "Tensor",
+        "dtype": "float32",
+        "shape": [
+          { "kind": "constant", "value": 1 },
+          { "kind": "constant", "value": {vocab_size} }
+        ]
+      }
+    ],
+    "runtimeConstraints": []
+  }
+}
