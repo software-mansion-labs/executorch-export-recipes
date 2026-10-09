@@ -59,6 +59,7 @@ def export(config: dict, out_dir: str) -> str:
             max_seq_len=max_seq,
             max_context_len=max_ctx,
             params_path=params_path,
+            qmode="8w" if config["variant"]["precision"] in ("8w", "int8") else "4w",
         )
     finally:
         os.chdir(cwd)
