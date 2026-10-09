@@ -210,17 +210,14 @@ def export(config: dict, out_dir: str) -> str:
 
         jsonschema.validate(instance=model_schema, schema=json.loads(root_schema_path.read_text()))
 
-    llm_metadata = {
-        k: v for k, v in consts.items() if k not in ("get_n_layers", "use_sdpa_with_kv_cache")
-    }
-    llm_metadata.update(
-        get_max_seq_len=max_prefill,
-        get_max_context_len=max_ctx,
-        get_vocab_size=vocab_size,
-        use_kv_cache=True,
-        enable_dynamic_shape=True,
-        get_model_schema=json.dumps(model_schema),
-    )
+    # The config is the source of truth; it may not claim a chunk size the
+    # graph cannot take (the runner prefills in chunks of get_max_seq_len).
+    if consts.get("get_max_seq_len") != max_prefill:
+        raise ValueError(
+            f"config get_max_seq_len={consts.get('get_max_seq_len')} but the graph's "
+            f"prefill bound is {max_prefill} (sliding_window); fix the config"
+        )
+    llm_metadata = dict(consts, get_model_schema=json.dumps(model_schema))
     logger.info(
         "Embedding LLM runner metadata: %s",
         {k: v for k, v in llm_metadata.items() if k != "get_model_schema"},

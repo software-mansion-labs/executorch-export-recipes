@@ -40,3 +40,28 @@ as data-dependent (apple/coremltools#2825, see `docs/coremltools-2825-repro.md`)
 the Core ML backend and collected a failure. It is not attempted because the cost is
 high and the prior is bad, not because it was tried and rejected. If Core ML gains
 usable stateful-KV-cache support, this is worth revisiting.
+
+## Text runner contract (react-native-executorch TypeScript runner)
+
+All three backends export `forward(tokens[1, S], input_pos[1]) -> float32
+[1, vocab]` with an embedded `get_model_schema`, at the context length in the
+vendored `e2b/<backend>/config.json` (the single source of truth for the runner
+constants and the I/O contract). The configs describe what we export, not the
+older published `.pte`s (vector `input_pos`, `[1, S, vocab]` logits).
+
+| backend | port | prefill bound (`get_max_seq_len`) | notes |
+|---|---|---|---|
+| xnnpack | `_gemma4_edge/` | 1024 | quantized from the bf16 checkpoint, then retargeted to fp16 |
+| vulkan | `_gemma4_edge/` | 128 | per-layer embeddings int4 (the 1.4.1 fork's Vulkan partitioner does not claim int2) |
+| mlx | `_text_decoder/` | 512 (graph bound 511, the sliding window) | `compile_friendly=False`, non-strict trace |
+
+- `_edge_adapters.py` fits the edge recipes to the contract by swapping names
+  inside `_gemma4_edge.export.pipeline` (start position expanded in-graph via a
+  cumsum, last-position fp32 logits); `_gemma4_edge/` itself is unmodified.
+- `_lean_load.py` builds the model without initializing weights and assigns the
+  memory-mapped checkpoint. Without it E2B (~5B params) materializes in fp32
+  first and no 16 GB machine survives the load. The MLX exporter likewise
+  quantizes the 2.35B-param per-layer embedding table in row chunks.
+- Export with the software-mansion-labs ExecuTorch fork (`@ms/separate-backends-1.4.1`):
+  the PyPI wheel serializes MLX graphs with a different op numbering, which the
+  RNE runtime rejects with `InvalidProgram`.

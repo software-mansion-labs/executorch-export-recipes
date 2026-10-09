@@ -21,8 +21,8 @@
           106,
           50
         ],
-        "get_max_context_len": 2048,
-        "get_max_seq_len": 2048,
+        "get_max_context_len": 4096,
+        "get_max_seq_len": 512,
         "use_kv_cache": true,
         "forward": {
           "inputs": [
@@ -30,14 +30,17 @@
               "name": "tokens",
               "shape": [
                 1,
-                511
+                {
+                  "min": 1,
+                  "max": 511
+                }
               ],
               "dtype": "int64"
             },
             {
               "name": "input_pos",
               "shape": [
-                511
+                1
               ],
               "dtype": "int64"
             }
@@ -47,13 +50,13 @@
               "name": "logits",
               "shape": [
                 1,
-                1,
                 262144
               ],
               "dtype": "float32"
             }
           ]
-        }
+        },
+        "get_vocab_size": 262144
       }
     }
   ],
