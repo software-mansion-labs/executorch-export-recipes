@@ -1,0 +1,98 @@
+{
+  "$schema": "https://huggingface.co/software-mansion/react-native-executorch-spec/resolve/main/config.schema.json",
+  "model": "rfdetr_nano",
+  "family": "rfdetr",
+  "capabilities": [
+    "object-detection",
+    "instance-segmentation"
+  ],
+  "backend": "xnnpack",
+  "license": "apache-2.0",
+  "variants": [
+    {
+      "file": "rfdetr_nano_xnnpack_fp32.pte",
+      "precision": "fp32",
+      "quantized": false,
+      "default": true,
+      "methods": {
+        "forward": {
+          "inputs": [
+            {
+              "shape": [
+                1,
+                3,
+                384,
+                384
+              ],
+              "dtype": "float32"
+            }
+          ],
+          "outputs": [
+            {
+              "shape": [
+                300,
+                4
+              ],
+              "dtype": "float32"
+            },
+            {
+              "shape": [
+                300
+              ],
+              "dtype": "float32"
+            },
+            {
+              "shape": [
+                300
+              ],
+              "dtype": "float32"
+            }
+          ]
+        }
+      }
+    },
+    {
+      "file": "rfdetr_nano_xnnpack_int8.pte",
+      "precision": "int8",
+      "quantized": true,
+      "quantize": "8da8w-pc",
+      "default": true,
+      "methods": {
+        "forward": {
+          "inputs": [
+            {
+              "shape": [
+                1,
+                3,
+                384,
+                384
+              ],
+              "dtype": "float32"
+            }
+          ],
+          "outputs": [
+            {
+              "shape": [
+                300,
+                4
+              ],
+              "dtype": "float32"
+            },
+            {
+              "shape": [
+                300
+              ],
+              "dtype": "float32"
+            },
+            {
+              "shape": [
+                300
+              ],
+              "dtype": "float32"
+            }
+          ]
+        }
+      }
+    }
+  ]
+}
