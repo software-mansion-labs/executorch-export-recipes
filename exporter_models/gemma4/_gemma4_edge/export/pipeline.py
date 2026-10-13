@@ -1151,6 +1151,7 @@ def _lower_and_write(
             ],
         )
         backend_config = ExecutorchBackendConfig(
+            passes=[InitializedMutableBufferPass(_INIT_MUTABLE_BUFFERS)],
             do_quant_fusion_and_const_prop=True,
         )
     else:

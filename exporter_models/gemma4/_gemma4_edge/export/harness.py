@@ -18,11 +18,14 @@ from __future__ import annotations
 
 import dataclasses
 import glob
+import logging
 import os
 
 from .config import Recipe
 
 __all__ = ["HarnessRecipe", "check_constants", "resolve_checkpoint"]
+
+logger = logging.getLogger(__name__)
 
 # The public Gemma 4 E2B checkpoint. Hardcoded here rather than read from the
 # model config, per the convention that vendored code owns its source id.
