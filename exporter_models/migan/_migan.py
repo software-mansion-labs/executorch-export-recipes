@@ -442,3 +442,44 @@ class InpaintingWrapper(nn.Module):
         x = torch.cat([mask - 0.5, img * mask], dim=1)
         out = self.generator(x)
         return (out * 0.5 + 0.5).clamp(0.0, 1.0)
+
+
+class Downsample2dVulkan(nn.Module):
+    """Vulkan-only stand-in for `Downsample2d`, numerically identical.
+
+    Upstream's `Downsample2d` is a 4x4 depthwise conv with stride 2. The
+    ExecuTorch Vulkan runtime routes a depthwise conv whose stride differs from
+    its dilation to the generic `conv2d_dw_sned` shader, and the prebuilt
+    react-native-executorch Vulkan library ships only the tiled 3x3 / 5x5
+    variants of it, so the model fails to load ("Could not find ShaderInfo with
+    name conv2d_dw_sned_half"). A 4x4 kernel fits neither tile. Running the
+    same conv at stride 1 selects the plain `conv2d_dw` shader (shipped), and
+    `avg_pool2d(kernel=1, stride=2)` keeps exactly the pixels the stride-2 conv
+    would have produced: out[i] = y[2i] with the same padding of 1.
+    """
+
+    def __init__(self, downsample: "Downsample2d"):
+        super().__init__()
+        self.filter = nn.Conv2d(
+            in_channels=downsample.filter.in_channels,
+            out_channels=downsample.filter.out_channels,
+            kernel_size=4,
+            groups=downsample.filter.groups,
+            padding=1,
+            bias=False,
+            stride=1,
+        )
+        self.filter.weight = downsample.filter.weight
+
+    def forward(self, x):
+        y = self.filter(x)
+        return F.avg_pool2d(y, kernel_size=1, stride=2)
+
+
+def vulkanize(generator: Generator) -> Generator:
+    """Swap every `Downsample2d` in `generator` for `Downsample2dVulkan` (in place)."""
+    for module in generator.modules():
+        for name, child in list(module.named_children()):
+            if isinstance(child, Downsample2d):
+                setattr(module, name, Downsample2dVulkan(child))
+    return generator

@@ -7,6 +7,8 @@
     "512"
   ],
   "backends": [
-    "xnnpack"
+    "xnnpack",
+    "coreml",
+    "vulkan"
   ]
 }

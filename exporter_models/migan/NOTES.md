@@ -42,6 +42,13 @@ for the full plan and the app-side hand-off).
   example images matches to max abs 3e-6 (256) / 3e-6 (512); visual check on
   `places2_512_object/1.png` removes the sheep cleanly. Host CPU forward:
   ~64 ms (256), ~126 ms (512).
+- **On device (2026-10-13, Samsung Galaxy S23 / SM-S911B, Android 16, debug build of
+  the react-native-executorch computer-vision example app, low-level `loadModel` +
+  `execute`):** both `.pte`s load, report `XnnpackBackend` for `forward`, and fill a
+  synthetic hole. Forward avg of 10: **460 ms (256), 848 ms (512)**; first call
+  531 / 1201 ms; load 52 / 176 ms. The 512 vs 256 ratio is only 1.8x for 4x the
+  pixels, so a fixed cost dominates; worth a profiler run (the 12 to 14 portable
+  `upsample_nearest2d` ops are the first suspect) before deciding on int8.
 - **Delegation:** everything lands on XNNPACK except `upsample_nearest2d` (12
   ops at 256, 14 at 512), which the partitioner does not take with or without
   `extended_ops=True`. They are cheap memory ops; the upstream `Upsample2d` is
@@ -55,3 +62,73 @@ for the full plan and the app-side hand-off).
   the "parity failure" looks identical for every build you try).
 - Env pins stable `torch==2.14.0` from PyPI rather than a dated nightly (the
   nightly index prunes old builds; facemesh does the same).
+
+## Backends beyond XNNPACK (2026-10-13)
+
+- **iOS: CoreML, not MLX.** The repo's own measurements rule MLX out for conv
+  CV: `docs/ios-backend-and-quantization-findings.md` has MLX 19x slower than
+  CoreML on efficientnet and `skills/backends/mlx` records every CV MLX export
+  as slower than its CoreML twin and "DON'T SHIP". MI-GAN is a plain conv
+  encoder-decoder, so no `mlx/` dir was made.
+- **CoreML fp16** (`coreml/export.py`, same build as xnnpack, inline
+  `CoreMLPartitioner`, iOS18 target): 13.0 MB (256) / 14.8 MB (512). Static
+  check of the `.pte` (deserialised program): one `CoreMLBackend` delegate call,
+  zero portable ops, I/O matches the config. **Not run on a device yet** -- the
+  pip wheel cannot init the CoreML delegate on macOS (see
+  `docs/executorch-1.4.1-bump.md`). `compute_unit` is left at the default
+  `ALL` -- **swept on device, keep it** (below).
+- **CoreML on device (2026-10-13, iPhone 16 / iOS 26.6, same example app,
+  low-level `loadModel` + `execute`, 10-forward average, fp32 PyTorch
+  reference mean-of-output 0.56661 (512) / 0.54211 (256) on the screen's
+  synthetic input):**
+
+  | compute unit | 512 ms | 512 mean | 256 ms | 256 mean |
+  | --- | --- | --- | --- | --- |
+  | `ALL` (default, shipped) | **35.1** | 0.56674 | **13.7** | 0.54211 |
+  | `CPU_AND_NE` | 34.9 | 0.56674 | 13.8 | 0.54211 |
+  | `CPU_AND_GPU` | 51.9 | 0.56666 | 27.6 | 0.54202 |
+  | `CPU_ONLY` | 145.1 | 0.56664 | 60.7 | 0.54213 |
+  | XNNPACK fp32 (same phone) | 712.6 | 0.56661 | 384.4 | 0.54211 |
+
+  Every CoreML variant is numerically fine (fp16-level deltas of ~1e-4 from the
+  fp32 reference; XNNPACK matches it exactly). `ALL` lands on the Neural
+  Engine (identical to `CPU_AND_NE`) and is the fastest, 20x XNNPACK -- the
+  opposite of style_transfer's ANE pathology, which is why the sweep is per
+  model. First forward 40 ms, load 0.1-1.9 s (CoreML compile, once per
+  install). No compute_unit pin needed.
+- **Vulkan fp16** (`vulkan/export.py`, `force_fp16`, own `vulkan/pyproject.toml`
+  pinned to the software-mansion-labs executorch fork like every other Vulkan
+  export): 12.4 MB (256) / 14.1 MB (512). Static check: one `VulkanBackend`
+  delegate call, zero portable ops -- Vulkan takes `upsample_nearest2d`, which
+  XNNPACK leaves on CPU. **`uv sync` of the fork pin cannot build on a fresh
+  machine**: upstream ExecuTorch's CMake refuses any checkout directory not
+  named exactly `executorch` (pytorch/executorch#6475) and uv names git
+  checkouts by commit hash. Like the MLX models (`skills/model-conventions`),
+  the pyproject declares the pin and the export is run in a source-built dev
+  env: these files came from `~/Documents/softu_executorch/executorch/.venv`
+  (editable executorch 1.4.1+f8b41ab = the fork's `@ms/separate-backends-1.4.1`
+  lineage plus the Vulkan mean/safe_idx fix, torch 2.13.0, python 3.13) via
+  `PYTHONPATH=src python -c 'from exporter.cli import main; main()' export migan
+  --backend vulkan ...`.
+- **Vulkan needs one graph rewrite** (`Downsample2dVulkan` / `vulkanize()` in
+  `_migan.py`, applied only by `vulkan/export.py`): the first export loaded on
+  the Galaxy S23 with `Could not find ShaderInfo with name conv2d_dw_sned_half`.
+  The runtime routes a depthwise conv whose stride != dilation to the generic
+  `conv2d_dw_sned` shader, and the prebuilt RNE Vulkan lib (nativeLibsVersion
+  0.10.4) ships only its tiled 3x3/5x5 variants; upstream's `Downsample2d` is a
+  4x4 stride-2 depthwise blur, which fits neither. Running that conv at stride 1
+  (plain `conv2d_dw`, shipped) followed by `avg_pool2d(kernel=1, stride=2)`
+  (shipped) is the same arithmetic: eager original vs rewritten max abs diff
+  8e-6. 6 blocks swapped at 256, 7 at 512. XNNPACK / CoreML keep the upstream
+  block.
+- **Vulkan on device (2026-10-13, Galaxy S23 / Adreno, same app and harness as
+  the XNNPACK numbers):** both sizes load (`VulkanBackend`) and fill the
+  synthetic hole with the same mean as XNNPACK (0.494 / 0.495). Forward avg of
+  10: **139 ms (256), 229 ms (512)** vs 460 / 848 ms on XNNPACK, i.e. 3.3x /
+  3.7x faster; first call 217 / 306 ms; load 79 / 503 ms (shader compile).
+  Vulkan is the Android default candidate for this model.
+- **Download cache trap when re-testing on device:** the RNE fetcher keys its
+  cache on the URL path (a `?v=2` query does not bust it), so a re-exported
+  file at the same URL is never re-downloaded. Delete
+  `/storage/emulated/0/Android/data/<app>/files/react-native-executorch/*` via
+  adb, or rename the file.
