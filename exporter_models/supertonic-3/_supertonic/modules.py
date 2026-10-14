@@ -75,6 +75,19 @@ class ConvNeXtBlock(nn.Module):
         self.pwconv1 = nn.Conv1d(dim, intermediate_dim, 1)
         self.pwconv2 = nn.Conv1d(intermediate_dim, dim, 1)
         self.gamma = nn.Parameter(torch.ones(1, dim, 1))
+        self._linear_pw = False
+
+    def use_linear_pointwise(self):
+        """Swap the k=1 pointwise convs for equivalent Linears on the [B, T, C]
+        layout the norm already uses, so a Linear quantizer can reach them."""
+        for name in ("pwconv1", "pwconv2"):
+            conv = getattr(self, name)
+            lin = nn.Linear(conv.in_channels, conv.out_channels, bias=conv.bias is not None)
+            lin.weight.data = conv.weight.data[:, :, 0].clone()
+            if conv.bias is not None:
+                lin.bias.data = conv.bias.data.clone()
+            setattr(self, name, lin)
+        self._linear_pw = True
 
     def forward(self, x, mask=None):
         # Caller is expected to have applied the mask to x already.
@@ -86,10 +99,14 @@ class ConvNeXtBlock(nn.Module):
             h = self.dwconv(x)
         if mask is not None:
             h = h * mask
-        h = self.norm(h)
-        h = self.pwconv1(h)
-        h = F.gelu(h)
-        h = self.pwconv2(h)
+        if self._linear_pw:
+            h = self.norm.norm(h.transpose(1, 2))
+            h = self.pwconv2(F.gelu(self.pwconv1(h))).transpose(1, 2)
+        else:
+            h = self.norm(h)
+            h = self.pwconv1(h)
+            h = F.gelu(h)
+            h = self.pwconv2(h)
         h = residual + self.gamma * h
         if mask is not None:
             h = h * mask
