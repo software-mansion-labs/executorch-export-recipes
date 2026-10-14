@@ -10,6 +10,7 @@
   ],
   "backends": [
     "mlx",
-    "xnnpack"
+    "xnnpack",
+    "vulkan"
   ]
 }

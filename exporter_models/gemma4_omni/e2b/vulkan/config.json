@@ -27,51 +27,31 @@
         "get_max_seq_len": 128,
         "get_vocab_size": 262144,
         "use_kv_cache": true,
-        "audio_block_k_max": 62,
-        "audio_block_k_min": 1,
+        "has_ple": true,
+        "image_placeholder_id": 258880,
+        "audio_placeholder_id": 258881,
+        "audio_sample_rate": 16000,
         "audio_block_samples": 7680,
-        "audio_encoder": {
+        "audio_block_k_min": 1,
+        "audio_block_k_max": 62,
+        "audio_soft_tokens_max": 744,
+        "audio_sample_count_min": 7680,
+        "audio_sample_count_max": 476160,
+        "token_embedding": {
           "inputs": [
             {
-              "name": "waveform",
+              "name": "input_ids",
               "shape": [
                 1,
                 {
-                  "min": 7680,
-                  "max": 476160
+                  "min": 1,
+                  "max": 128
                 }
               ],
-              "dtype": "float32"
-            },
-            {
-              "name": "num_valid_samples",
-              "shape": [],
               "dtype": "int64"
             }
           ],
           "outputs": [
-            {
-              "name": "audio_embeds",
-              "shape": [
-                1,
-                {
-                  "min": 12,
-                  "max": 744
-                },
-                1536
-              ],
-              "dtype": "float16"
-            }
-          ]
-        },
-        "audio_placeholder_id": 258881,
-        "audio_sample_count_max": 476160,
-        "audio_sample_count_min": 7680,
-        "audio_soft_tokens_max": 744,
-        "has_ple": true,
-        "image_placeholder_id": 258880,
-        "text_decoder": {
-          "inputs": [
             {
               "name": "embeds",
               "shape": [
@@ -79,10 +59,9 @@
                 {
                   "min": 1,
                   "max": 128
-                },
-                1536
+                }
               ],
-              "dtype": "float16"
+              "dtype": "float32"
             },
             {
               "name": "ple_tokens",
@@ -95,7 +74,36 @@
                 35,
                 256
               ],
-              "dtype": "float16"
+              "dtype": "float32"
+            }
+          ]
+        },
+        "text_decoder": {
+          "inputs": [
+            {
+              "name": "embeds",
+              "shape": [
+                1,
+                {
+                  "min": 1,
+                  "max": 128
+                },
+                1536
+              ],
+              "dtype": "float32"
+            },
+            {
+              "name": "ple_tokens",
+              "shape": [
+                1,
+                {
+                  "min": 1,
+                  "max": 128
+                },
+                35,
+                256
+              ],
+              "dtype": "float32"
             },
             {
               "name": "input_pos",
@@ -113,55 +121,10 @@
               "name": "logits",
               "shape": [
                 1,
-                {
-                  "min": 1,
-                  "max": 128
-                },
+                1,
                 262144
               ],
-              "dtype": "float16"
-            }
-          ]
-        },
-        "token_embedding": {
-          "inputs": [
-            {
-              "name": "input_ids",
-              "shape": [
-                1,
-                {
-                  "min": 1,
-                  "max": 2048
-                }
-              ],
-              "dtype": "int64"
-            }
-          ],
-          "outputs": [
-            {
-              "name": "embeds",
-              "shape": [
-                1,
-                {
-                  "min": 1,
-                  "max": 2048
-                },
-                1536
-              ],
-              "dtype": "float16"
-            },
-            {
-              "name": "ple_tokens",
-              "shape": [
-                1,
-                {
-                  "min": 1,
-                  "max": 2048
-                },
-                35,
-                256
-              ],
-              "dtype": "float16"
+              "dtype": "float32"
             }
           ]
         },
@@ -187,20 +150,56 @@
                 1536
               ],
               "dtype": "float32"
-            },
+            }
+          ]
+        },
+        "audio_encoder": {
+          "inputs": [
             {
-              "name": "ple_tokens",
+              "name": "waveform",
               "shape": [
                 1,
-                280,
-                35,
-                256
+                {
+                  "min": 7680,
+                  "max": 476160
+                }
+              ],
+              "dtype": "float32"
+            },
+            {
+              "name": "num_valid_samples",
+              "shape": [
+                1
+              ],
+              "dtype": "int64"
+            }
+          ],
+          "outputs": [
+            {
+              "name": "audio_embeds",
+              "shape": [
+                1,
+                {
+                  "min": 12,
+                  "max": 744
+                },
+                1536
+              ],
+              "dtype": "float32"
+            },
+            {
+              "name": "audio_mask",
+              "shape": [
+                1,
+                {
+                  "min": 12,
+                  "max": 744
+                }
               ],
               "dtype": "float32"
             }
           ]
-        },
-        "audio_sample_rate": 16000
+        }
       }
     }
   ],

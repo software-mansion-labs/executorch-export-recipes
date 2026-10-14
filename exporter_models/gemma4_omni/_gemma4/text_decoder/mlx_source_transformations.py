@@ -175,7 +175,7 @@ def _replace_attention_forward(attn: nn.Module) -> None:
             # a naive causal slice attends to scrambled/out-of-window positions
             # (catastrophic divergence past the window — long conversations). Use
             # the ring-window mask, which is correct at every position.
-            buffer_size = 2 * self._mlx_sliding_window
+            buffer_size = k_cache.shape[2]
             cache = self._mlx_mask_cache
             key = ("ring", id(input_pos))
             if cache.get("_key") != key[1]:
