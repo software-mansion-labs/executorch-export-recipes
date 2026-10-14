@@ -44,6 +44,37 @@ def export(config: dict, out_dir: str) -> str:
         torch.zeros(1, max_tokens, dtype=torch.int64),
         torch.ones(1, max_tokens, dtype=torch.int64),
     )
+    if variant["quantized"]:
+        # 8da4w costs 2.2 points of ImageNetV2 zero-shot top-1 here (min text cosine
+        # 0.74); int8 per-channel weights keep the tower close to fp32.
+        import torch.nn as nn
+        from torchao.quantization.granularity import PerAxis
+        from torchao.quantization.quant_api import Int8DynamicActivationIntxWeightConfig, quantize_
+
+        assert variant.get("quantize") == "8da8w-pc", variant.get("quantize")
+        qcfg = Int8DynamicActivationIntxWeightConfig(
+            weight_dtype=torch.int8, weight_granularity=PerAxis(0)
+        )
+        quantize_(module, qcfg, filter_fn=lambda mod, fqn: isinstance(mod, nn.Linear))
+
+    # That covers the Linears only; the token embedding table (40% of the weights)
+    # is quantized weight-only to embedding_byte/embedding_4bit (portable kernels,
+    # both linked into the RNE runtime).
+    embedding_quantize = variant.get("embedding_quantize")
+    if embedding_quantize:
+        from executorch.examples.models.llama.source_transformation.quantize import (
+            EmbeddingQuantHandler,
+        )
+
+        bits = {"int8": 8, "int4": 4}[embedding_quantize]
+        module = EmbeddingQuantHandler(
+            module,
+            bitwidth=bits,
+            group_size=None,
+            packed=bits == 4,
+            precision=torch.float32,
+        ).quantized_model()
+
     dim = Dim("tokens", min=1, max=max_tokens)
     dynamic = {"input_ids": {1: dim}, "attention_mask": {1: dim}}
 
