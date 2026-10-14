@@ -46,7 +46,8 @@
         },
         "get_bos_id": 151644,
         "get_eos_ids": [
-          151645
+          151645,
+          151643
         ],
         "get_max_context_len": 2048,
         "get_max_seq_len": 2048,
@@ -94,7 +95,8 @@
         },
         "get_bos_id": 151644,
         "get_eos_ids": [
-          151645
+          151645,
+          151643
         ],
         "get_max_context_len": 2048,
         "get_max_seq_len": 2048,

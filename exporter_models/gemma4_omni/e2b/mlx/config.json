@@ -11,7 +11,7 @@
   "license": "gemma",
   "variants": [
     {
-      "file": "gemma4_e2b_mlx_int4.pte",
+      "file": "gemma_4_e2b_mlx_int4.pte",
       "precision": "int4",
       "quantized": true,
       "default": true,
