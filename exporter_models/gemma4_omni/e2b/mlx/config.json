@@ -26,32 +26,53 @@
         "get_max_context_len": 2048,
         "get_max_seq_len": 511,
         "get_vocab_size": 262144,
-        "has_ple": true,
-        "image_placeholder_id": 262145,
         "use_kv_cache": true,
-        "audio_encoder": {
+        "has_ple": true,
+        "image_placeholder_id": 258880,
+        "audio_placeholder_id": 258881,
+        "audio_sample_rate": 16000,
+        "audio_block_samples": 7680,
+        "audio_block_k_min": 1,
+        "audio_block_k_max": 62,
+        "audio_soft_tokens_max": 744,
+        "audio_sample_count_min": 7680,
+        "audio_sample_count_max": 476160,
+        "token_embedding": {
           "inputs": [
             {
+              "name": "input_ids",
               "shape": [
                 1,
-                476160
+                {
+                  "min": 1,
+                  "max": 511
+                }
               ],
-              "dtype": "float32"
+              "dtype": "int64"
             }
           ],
           "outputs": [
             {
+              "name": "embeds",
               "shape": [
                 1,
-                744,
-                1536
+                {
+                  "min": 1,
+                  "max": 511
+                }
               ],
               "dtype": "float32"
             },
             {
+              "name": "ple_tokens",
               "shape": [
                 1,
-                744
+                {
+                  "min": 1,
+                  "max": 511
+                },
+                35,
+                256
               ],
               "dtype": "float32"
             }
@@ -60,31 +81,44 @@
         "text_decoder": {
           "inputs": [
             {
+              "name": "embeds",
               "shape": [
                 1,
-                511,
+                {
+                  "min": 1,
+                  "max": 511
+                },
                 1536
               ],
               "dtype": "float32"
             },
             {
+              "name": "ple_tokens",
               "shape": [
                 1,
-                511,
+                {
+                  "min": 1,
+                  "max": 511
+                },
                 35,
                 256
               ],
               "dtype": "float32"
             },
             {
+              "name": "input_pos",
               "shape": [
-                511
+                {
+                  "min": 1,
+                  "max": 511
+                }
               ],
               "dtype": "int64"
             }
           ],
           "outputs": [
             {
+              "name": "logits",
               "shape": [
                 1,
                 1,
@@ -94,39 +128,10 @@
             }
           ]
         },
-        "token_embedding": {
-          "inputs": [
-            {
-              "shape": [
-                1,
-                2048
-              ],
-              "dtype": "int64"
-            }
-          ],
-          "outputs": [
-            {
-              "shape": [
-                1,
-                2048,
-                1536
-              ],
-              "dtype": "float32"
-            },
-            {
-              "shape": [
-                1,
-                2048,
-                35,
-                256
-              ],
-              "dtype": "float32"
-            }
-          ]
-        },
         "vision_encoder": {
           "inputs": [
             {
+              "name": "pixel_values",
               "shape": [
                 1,
                 3,
@@ -138,10 +143,58 @@
           ],
           "outputs": [
             {
+              "name": "embeds",
               "shape": [
                 1,
                 280,
                 1536
+              ],
+              "dtype": "float32"
+            }
+          ]
+        },
+        "audio_encoder": {
+          "inputs": [
+            {
+              "name": "waveform",
+              "shape": [
+                1,
+                {
+                  "min": 7680,
+                  "max": 476160
+                }
+              ],
+              "dtype": "float32"
+            },
+            {
+              "name": "num_valid_samples",
+              "shape": [
+                1
+              ],
+              "dtype": "int64"
+            }
+          ],
+          "outputs": [
+            {
+              "name": "audio_embeds",
+              "shape": [
+                1,
+                {
+                  "min": 12,
+                  "max": 744
+                },
+                1536
+              ],
+              "dtype": "float32"
+            },
+            {
+              "name": "audio_mask",
+              "shape": [
+                1,
+                {
+                  "min": 12,
+                  "max": 744
+                }
               ],
               "dtype": "float32"
             }
