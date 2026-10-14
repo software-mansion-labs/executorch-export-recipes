@@ -19,8 +19,33 @@ _WEIGHT_PATTERNS = ["*.safetensors", "*.safetensors.index.json", "config.json"]
 # MLX builds are comparable across models.
 MLX_GROUP_SIZE = 64
 
-# 4w, matching gemma4 and lfm2_5_text.
+# Default 4w, matching gemma4 and lfm2_5_text (0_6b overrides to 8w due to small model degradation).
 MLX_QMODE = "4w"
+
+
+def _quantize_with_8w(orig_quantize):
+    """Wraps export_llama's quantize() with an "8w" mode mirroring its "4w"."""
+
+    def quantize(model, qmode, *args, **kwargs):
+        if qmode != "8w":
+            return orig_quantize(model, qmode, *args, **kwargs)
+        import torch
+        from torchao.quantization.granularity import PerGroup
+        from torchao.quantization.quant_api import IntxWeightOnlyConfig, quantize_
+
+        group_size = kwargs.get("group_size") or MLX_GROUP_SIZE
+        hqq = kwargs.get("quantize_with_hqq", True)
+        quantize_(
+            model,
+            IntxWeightOnlyConfig(
+                weight_dtype=torch.int8,
+                granularity=PerGroup(group_size),
+                intx_choose_qparams_algorithm="hqq_scale_only" if hqq else "affine",
+            ),
+        )
+        return model
+
+    return quantize
 
 
 def _load_params():
@@ -137,7 +162,11 @@ def export(config: dict, out_dir: str) -> str:
     cfg.model.use_kv_cache = True
     cfg.model.use_sdpa_with_kv_cache = True
     cfg.model.dtype_override = DtypeOverride.bf16
-    cfg.quantization.qmode = MLX_QMODE
+    qmode = variant.get("precision", MLX_QMODE)
+    if size == "0_6b" and "precision" not in variant:
+        qmode = "8w"
+
+    cfg.quantization.qmode = qmode
     cfg.quantization.group_size = MLX_GROUP_SIZE
     cfg.backend.mlx.enabled = True
     cfg.export.max_seq_length = max_seq
@@ -163,11 +192,18 @@ def export(config: dict, out_dir: str) -> str:
 
     Transformer.forward = patched_forward
 
+    from executorch.examples.models.llama.source_transformation import quantize as quantize_mod
+
+    orig_quantize = quantize_mod.quantize
+    if qmode == "8w":
+        quantize_mod.quantize = _quantize_with_8w(orig_quantize)
+
     cwd = os.getcwd()
     os.chdir(tempfile.gettempdir())
     try:
         export_llama(cfg)
     finally:
+        quantize_mod.quantize = orig_quantize
         Transformer.forward = orig_forward
         os.chdir(cwd)
         os.unlink(params_path)
