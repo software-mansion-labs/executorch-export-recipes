@@ -5,6 +5,25 @@ import torchvision.models.segmentation as tvs
 from torch.export import export as torch_export
 
 
+def _ane_argmax(logits, k: int):
+    """argmax(dim=1) built only from ops the ANE runs.
+
+    torch.argmax lowers to ios18.reduce_argmax, which has no ANE kernel and is
+    pinned to the CPU: the ANE then writes all K channels out for the CPU to
+    reduce, so the transfer is still paid and a multi-million element reduction
+    is added on top (31 -> 65 ms on an iPhone 16, measured). reduce_max and
+    elementwise ops are ANE-resident, so the same result is built from those
+    (25 ms, and 200 of 201 ops stay on the ANE).
+
+    torch.argmax returns the FIRST maximal index while (mask * arange).amax
+    returns the last, hence the reversal. Verified pixel-exact on 520x520.
+    """
+    ar = torch.arange(k, dtype=logits.dtype, device=logits.device).view(1, k, 1, 1)
+    peak = logits.amax(dim=1, keepdim=True)
+    hit = (logits == peak).to(logits.dtype)
+    return (k - 1) - (((k - 1) - ar) * hit).amax(dim=1)
+
+
 class _SegWrapper(torch.nn.Module):
     def __init__(self, model):
         super().__init__()
@@ -12,7 +31,8 @@ class _SegWrapper(torch.nn.Module):
 
     def forward(self, x):
         # The shipped .pte returns only the main "out" head (no aux).
-        return self.model(x)["out"]
+        logits = self.model(x)["out"]
+        return _ane_argmax(logits, 21).to(torch.int32)
 
 
 def _build(file_name: str):
