@@ -1,11 +1,11 @@
 # migan notes
 
-- **Layout:** `{backend}/{size}/config.json` locally (`xnnpack/256/`,
-  `xnnpack/512/`, same as whisper, kokoro, fast_sam); the published HF repo is
-  `size/backend/` like the other multi-size repos (yolo26 `l/coreml/`, fast_sam
-  `s/xnnpack/`), and `exports/migan-hf/` is a ready-to-upload mirror of it (root
-  `config.json`, `README.md`, `LICENSE`, `256/<backend>/`, `512/<backend>/`)
-  built from the last export.
+- **Layout:** `{backend}/{size}/config.json`, both locally (`xnnpack/256/`,
+  `xnnpack/512/`) and in the HF repo (`xnnpack/256/migan_256_xnnpack_fp16.pte`),
+  backend on top as in the spec's model-card example and kokoro; other
+  multi-size repos differ, this one follows the review. `exports/migan-hf/` is
+  a ready-to-upload mirror of the HF repo (root `config.json`, `README.md`,
+  `LICENSE`, `<backend>/<size>/`) built from the last export.
 
 Tracks react-native-executorch issue #1373.
 
