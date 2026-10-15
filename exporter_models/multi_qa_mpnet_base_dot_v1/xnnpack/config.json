@@ -22,11 +22,28 @@
       }
     },
     {
+      "file": "multi_qa_mpnet_base_dot_v1_xnnpack_int8.pte",
+      "precision": "int8",
+      "quantized": true,
+      "quantize": "8da8w-pc",
+      "embedding_quantize": "int8",
+      "default": true,
+      "methods": {
+        "forward": {
+          "inputs": [
+            { "shape": [1, 510], "dtype": "int64" },
+            { "shape": [1, 510], "dtype": "int64" }
+          ],
+          "outputs": [{ "shape": [1, 768], "dtype": "float32" }]
+        }
+      }
+    },
+    {
       "file": "multi_qa_mpnet_base_dot_v1_xnnpack_8da4w.pte",
       "precision": "8da4w",
       "quantized": true,
       "embedding_quantize": "int8",
-      "default": true,
+      "default": false,
       "methods": {
         "forward": {
           "inputs": [

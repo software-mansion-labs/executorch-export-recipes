@@ -44,10 +44,16 @@ def export(config: dict, out_dir: str) -> str:
 
     if variant["quantized"]:
         import torch.nn as nn
-        from torchao.quantization.granularity import PerGroup
+        from torchao.quantization.granularity import PerAxis, PerGroup
         from torchao.quantization.quant_api import Int8DynamicActivationIntxWeightConfig, quantize_
 
+        # 8da8w-pc: int8 per-channel weights; 8da4w (int4, group 32) costs more
+        # SQuAD passage-retrieval top-1 (0.45 / 0.80 points on the two mpnets).
+        scheme = variant.get("quantize", "8da4w")
+        assert scheme in ("8da8w-pc", "8da4w"), scheme
         qcfg = Int8DynamicActivationIntxWeightConfig(
+            weight_dtype=torch.int8, weight_granularity=PerAxis(0)
+        ) if scheme == "8da8w-pc" else Int8DynamicActivationIntxWeightConfig(
             weight_dtype=torch.int4, weight_granularity=PerGroup(32)
         )
         quantize_(module, qcfg, filter_fn=lambda mod, fqn: isinstance(mod, nn.Linear))
