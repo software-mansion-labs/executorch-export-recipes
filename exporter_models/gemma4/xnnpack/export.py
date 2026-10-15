@@ -67,7 +67,7 @@ LOGITS_DTYPE = torch.float32
 # only sizes the KV cache. Long generation is cheap, long prefill is not.
 NUM_LAYERS = 35
 NUM_KV_SHARED_LAYERS = 20
-MAX_SEQ_LEN = 4048
+MAX_SEQ_LEN = 4096
 PREFILL_LEN = 1024
 
 # --- attention / cache flags ------------------------------------------------
