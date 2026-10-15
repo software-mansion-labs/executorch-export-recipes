@@ -68,7 +68,7 @@ LOGITS_DTYPE = torch.float32
 NUM_LAYERS = 35
 NUM_KV_SHARED_LAYERS = 20
 MAX_SEQ_LEN = 4096
-PREFILL_LEN = 1024
+PREFILL_LEN = 512
 
 # --- attention / cache flags ------------------------------------------------
 # Levers B+C (shared ring state) and E (skip redundant RoPE slice) are the

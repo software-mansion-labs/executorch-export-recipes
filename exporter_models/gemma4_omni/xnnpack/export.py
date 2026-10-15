@@ -38,8 +38,8 @@ LOGITS_DTYPE = torch.float32
 NUM_LAYERS = 35
 NUM_KV_SHARED_LAYERS = 20
 MAX_SEQ_LEN = 4096
-PREFILL_LEN = 1024
-TEXT_DECODER_PREFILL_LEN = 1024
+PREFILL_LEN = 512
+TEXT_DECODER_PREFILL_LEN = 512
 
 VIS_H = 448
 VIS_W = 640
@@ -248,6 +248,12 @@ def export(config: dict, out_dir: str) -> str:
     wrappers = importlib.import_module(f"{_EDGE_PKG}.export.wrappers")
 
     _adapt_multimodal(pipeline, wrappers)
+    adapter_spec = importlib.util.spec_from_file_location(
+        "gemma4_omni_edge_adapters", _GEMMA4_DIR / "_edge_adapters.py"
+    )
+    adapters = importlib.util.module_from_spec(adapter_spec)
+    adapter_spec.loader.exec_module(adapters)
+    adapters.lean_loader(pipeline)
     _quantize_from_bf16(pipeline)
 
     variant = config["variant"]

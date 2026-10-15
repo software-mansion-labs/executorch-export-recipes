@@ -1260,10 +1260,12 @@ class Gemma4EdgeModel(nn.Module):
         device = inputs_embeds.device
 
         if self._use_kv_cache:
-            cos_local = self._cos_local[input_pos]
-            sin_local = self._sin_local[input_pos]
-            cos_global = self._cos_global[input_pos]
-            sin_global = self._sin_global[input_pos]
+            # F.embedding lowers to aten.embedding.default (Vulkan-supported);
+            # `tensor[input_pos]` lowers to aten.index.Tensor which Vulkan rejects.
+            cos_local = F.embedding(input_pos, self._cos_local)
+            sin_local = F.embedding(input_pos, self._sin_local)
+            cos_global = F.embedding(input_pos, self._cos_global)
+            sin_global = F.embedding(input_pos, self._sin_global)
         else:
             cos_local, sin_local = self.rope_local(S, device)
             cos_global, sin_global = self.rope_global(S, device)

@@ -240,8 +240,9 @@ def export(config: dict, out_dir: str) -> str:
 
     _adapt_multimodal(pipeline, wrappers)
     adapters = _edge_adapters()
+    adapters.vulkan_post_fusion_dtype_promotion()
     adapters.lean_loader(pipeline)
-    adapters._patch_vulkan_transforms()
+    adapters._patch_vulkan_transforms(_EDGE_PKG)
 
     variant = config["variant"]
     recipe = harness.HarnessRecipe(

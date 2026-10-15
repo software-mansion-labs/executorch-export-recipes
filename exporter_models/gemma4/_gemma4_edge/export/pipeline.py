@@ -699,16 +699,37 @@ def _build_towers(
     Q = recipe.quant
     model_dir, _ = _resolve_checkpoint(checkpoint)
 
-    from transformers import Gemma4ForConditionalGeneration
+    from transformers import Gemma4Config
+    from transformers.models.gemma4.modeling_gemma4 import (
+        Gemma4AudioModel, Gemma4MultimodalEmbedder, Gemma4VisionModel,
+    )
+    from safetensors import safe_open
 
     t0 = time.perf_counter()
-    _say(verbose, f"[towers] loading HF Gemma4ForConditionalGeneration (fp32) from {model_dir}")
-    hf = Gemma4ForConditionalGeneration.from_pretrained(
-        str(model_dir), torch_dtype=torch.float32, low_cpu_mem_usage=True
-    ).eval()
-    # The text decoder is ours; drop HF's copy before doing anything else, it
-    # is the single largest thing in the process.
+    _say(verbose, f"[towers] loading HF vision/audio towers (fp32) from {model_dir}")
+    # Construct only the encoders we use. Loading a second, fp32 text model
+    # before discarding it requires another ~20 GB during an omni export.
+    config = Gemma4Config.from_pretrained(str(model_dir), local_files_only=True)
+    hf = nn.Module()
+    hf.model = nn.Module()
     hf.model.language_model = None
+    if recipe.has_vision:
+        hf.model.vision_tower = Gemma4VisionModel(config.vision_config)
+        hf.model.embed_vision = Gemma4MultimodalEmbedder(config.vision_config, config.text_config)
+    if recipe.has_audio:
+        hf.model.audio_tower = Gemma4AudioModel(config.audio_config)
+        hf.model.embed_audio = Gemma4MultimodalEmbedder(config.audio_config, config.text_config)
+    expected = set(hf.state_dict())
+    state = {}
+    for shard in sorted(model_dir.glob("*.safetensors")):
+        with safe_open(str(shard), framework="pt") as tensors:
+            for key in tensors.keys():
+                if key in expected:
+                    value = tensors.get_tensor(key)
+                    state[key] = value.float() if value.is_floating_point() else value
+    hf.load_state_dict(state, strict=True, assign=True)
+    hf.eval()
+    del state
     gc.collect()
     _say(verbose, f"[towers] HF load: {time.perf_counter() - t0:.1f}s")
 
@@ -1301,6 +1322,14 @@ def export(
 
     # [5/8] Quantize (+ Vulkan fp16 retarget) — AFTER the PLE split.
     model = _quantize(model, recipe, verbose=verbose)
+
+    # A 2W ring must retain W-1 previous tokens alongside the whole chunk.
+    # Larger chunks evict keys still needed by the first queries in the chunk.
+    if (
+        recipe.attn.ring_kv_cache
+        and recipe.lengths.effective_text_decoder_prefill_len > model.config.sliding_window
+    ):
+        raise ValueError("ring KV cache requires prefill_len <= sliding_window")
 
     # [6/8] Caches + source transforms — AFTER quantize.
     model = _setup_caches_and_transforms(model, recipe, verbose=verbose)

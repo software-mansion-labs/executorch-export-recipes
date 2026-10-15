@@ -96,10 +96,9 @@ INT8_KV_CACHE = False
 RING_KV_CACHE = False
 VULKAN_SDPA_TRANSFORM = True
 VULKAN_ROPE_TRANSFORM = True
-# As validated: the lm_head runs over the whole chunk and `_edge_adapters` keeps
-# the last position. Slicing before the (embedding-tied, quantized) lm_head left
-# its dequantize outside the Vulkan delegate, with no host kernel for it.
-RETURN_LAST_ONLY = False
+# Slicing hidden states before lm_head produces [1, 1, vocab] which fits in
+# texture and avoids broken select_copy.int shader on large vocab buffers in Vulkan.
+RETURN_LAST_ONLY = True
 
 
 def _load_edge():
@@ -137,7 +136,9 @@ def export(config: dict, out_dir: str) -> str:
     edge_config = importlib.import_module(f"{_EDGE_PKG}.export.config")
     harness = importlib.import_module(f"{_EDGE_PKG}.export.harness")
     pipeline = importlib.import_module(f"{_EDGE_PKG}.export.pipeline")
-    _edge_adapters().adapt(pipeline)
+    adapters = _edge_adapters()
+    adapters.adapt(pipeline)
+    adapters.vulkan_post_fusion_dtype_promotion()
 
     variant = config["variant"]
     # The KV cache is sized by the config's context length; the chunk size stays

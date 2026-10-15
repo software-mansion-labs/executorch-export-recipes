@@ -5,6 +5,7 @@ these patch names inside its `pipeline` module instead of editing it. Used by
 the XNNPACK and Vulkan text exporters.
 """
 
+import importlib
 import importlib.util
 import inspect
 from pathlib import Path
@@ -71,7 +72,9 @@ def scalar_input_pos(pipeline):
             positions = start_pos + offsets
 
             logits = super().forward(input_ids, positions)
-            return logits[:, -1, :].to(torch.float32)
+            if logits.dim() == 3:
+                logits = logits.squeeze(1) if logits.shape[1] == 1 else logits[:, -1, :]
+            return logits.to(torch.float32)
 
     # Patch sdpa and rope transforms in _gemma4_edge so start_pos_arg reads from _GRAPH_START_POS_HOLDER
     _patch_vulkan_transforms()
@@ -89,16 +92,21 @@ def scalar_input_pos(pipeline):
     pipeline.torch_export = export_with_scalar_pos
 
 
-def _patch_vulkan_transforms():
+def _patch_vulkan_transforms(edge_pkg: str | None = None):
     """Patches sdpa.py and rope.py so start_pos_arg reads top-level graph input start_pos
     and sliding masks use F.embedding instead of broken aten.index.Tensor.
     """
-    try:
-        import gemma4_edge_text.model.transforms.sdpa as sdpa_mod
-        import gemma4_edge_text.model.transforms.rope as rope_mod
-    except ImportError:
-        return
+    pkgs = [edge_pkg] if edge_pkg else ["gemma4_edge_text", "gemma4_edge_omni"]
+    for pkg in pkgs:
+        try:
+            sdpa_mod = importlib.import_module(f"{pkg}.model.transforms.sdpa")
+            rope_mod = importlib.import_module(f"{pkg}.model.transforms.rope")
+        except ImportError:
+            continue
+        _apply_vulkan_transforms_patch(sdpa_mod, rope_mod)
 
+
+def _apply_vulkan_transforms_patch(sdpa_mod, rope_mod):
     def _patched_build_mask4d_for_sliding(attn_module, input_pos, q_dtype):
         use_bool_mask = getattr(type(attn_module), "use_bool_mask", False)
         # Use F.embedding instead of attn_module.mask[input_pos] (aten.index.Tensor).
@@ -149,3 +157,65 @@ def _patch_vulkan_transforms():
     exec(src, scope)
     rope_mod._make_paired_rope_standalone_forward = scope['_make_paired_rope_standalone_forward']
 
+
+
+
+def vulkan_post_fusion_dtype_promotion():
+    """Normalize fused dtypes and use the dynamically resized conversion op.
+
+    Quantized embedding fusion changes fp16 output to fp32. Vulkan binary
+    and RMSNorm kernels require matching tensor dtypes. The ordinary
+    _to_copy implementation uses a texture-only blit without a resize
+    callback, whereas _to_dim_order_copy supports buffer casts and resizing.
+    """
+    import executorch.backends.vulkan.vulkan_preprocess as preprocess
+    from executorch.backends.transforms.utils import get_param_tensor
+    from executorch.backends.vulkan import utils
+    from executorch.backends.vulkan._passes.insert_dtype_promotion import (
+        InsertDtypePromotionPass,
+    )
+    from executorch.exir.dialects._ops import ops
+    from executorch.exir.pass_base import PassResult
+
+    original = preprocess.FusePatternsPass
+    if getattr(original, "_gemma_post_fusion_promotion", False):
+        return
+
+    class FuseAndPromote(original):
+        _gemma_post_fusion_promotion = True
+
+        def call(self, graph_module):
+            fused = super().call(graph_module)
+            gm = fused.graph_module
+            for node in gm.graph.nodes:
+                if node.op != "call_function" or node.target != ops.edge.aten.rms_norm.default:
+                    continue
+                activation, weight = node.args[0], node.args[2]
+                if not isinstance(weight, torch.fx.Node):
+                    continue
+                dtype = activation.meta["val"].dtype
+                if weight.meta["val"].dtype == dtype:
+                    continue
+                tensor = get_param_tensor(self._exported_program, weight)
+                if tensor is None:
+                    raise ValueError("Vulkan RMSNorm weight must be a constant")
+                utils.update_program_state_dict(
+                    self._exported_program, weight.name, tensor.to(dtype)
+                )
+                weight.meta["val"] = weight.meta["val"].to(dtype)
+
+            gm = InsertDtypePromotionPass()(gm).graph_module
+            for node in gm.graph.nodes:
+                if node.op != "call_function" or node.target != ops.edge.aten._to_copy.default:
+                    continue
+                kwargs = dict(node.kwargs)
+                memory_format = kwargs.pop("memory_format", None)
+                if memory_format not in (None, torch.contiguous_format, torch.preserve_format):
+                    raise ValueError("Unexpected memory format in Gemma Vulkan cast")
+                kwargs["dim_order"] = list(range(node.args[0].meta["val"].dim()))
+                node.target = ops.edge.dim_order_ops._to_dim_order_copy.default
+                node.kwargs = kwargs
+            gm.recompile()
+            return PassResult(gm, True)
+
+    preprocess.FusePatternsPass = FuseAndPromote
