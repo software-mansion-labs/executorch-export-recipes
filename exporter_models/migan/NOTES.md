@@ -9,6 +9,15 @@
 
 Tracks react-native-executorch issue #1373.
 
+- **XNNPACK ships fp16 only, no fp32 and no int8.** fp16 equals fp32 to
+  ~1e-3 and is ~2x faster on the S23. int8 was exported and measured and is
+  **buggy on the RNE Android runtime**: the same `.pte` that is fine on the
+  host runtime returns a saturated, wrong image on the S23 and on the Android
+  emulator (mean-in-hole 0.80 / 1.00 instead of 0.49), on top of visible
+  speckles already on the host (25 dB vs fp32). Details, bisection and a
+  minimal repro in "XNNPACK precision study" below; `xnnpack/export.py`
+  refuses `quantized` variants with a pointer here.
+
 - **Source:** https://github.com/Picsart-AI-Research/MI-GAN (MIT code, MIT
   weights), pinned to `SOURCE_COMMIT` in `_migan.py`. The vendored file is
   upstream's `lib/model_zoo/migan_inference.py`, verbatim except for one
