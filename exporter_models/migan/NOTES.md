@@ -14,9 +14,12 @@ Tracks react-native-executorch issue #1373.
   **buggy on the RNE Android runtime**: the same `.pte` that is fine on the
   host runtime returns a saturated, wrong image on the S23 and on the Android
   emulator (mean-in-hole 0.80 / 1.00 instead of 0.49), on top of visible
-  speckles already on the host (25 dB vs fp32). Details, bisection and a
-  minimal repro in "XNNPACK precision study" below; `xnnpack/export.py`
-  refuses `quantized` variants with a pointer here.
+  speckles already on the host (25 dB vs fp32). Root cause: the XNNPACK
+  weights cache (on in the Android/iOS builds) hands nodes with same-named
+  quantized kernels each other's packed weights; fixed in the ET fork on
+  2026-10-15, not yet in an RNE release. Details in "XNNPACK precision
+  study" below; `xnnpack/export.py` refuses `quantized` variants with a
+  pointer here.
 
 - **Source:** https://github.com/Picsart-AI-Research/MI-GAN (MIT code, MIT
   weights), pinned to `SOURCE_COMMIT` in `_migan.py`. The vendored file is
@@ -255,26 +258,34 @@ original still contains the removed object). Measured on this Mac.
   Keeping the RGB skip path (`fromrgb`, `torgb`, image upsample) in fp32 does
   NOT help, so the error is in the feature path -- plausibly the activation
   range (the `lrelu_agc` clamp is +/-256, so per-tensor 8-bit steps are coarse).
-- **int8 on the RNE Android runtime computes the wrong thing** (libs 0.10.4,
-  ET 1.4.1 headers): the same `.pte` gives mean-in-hole 0.49 on the host
-  runtime but 0.80 (256) / 1.00 saturated (512) on the S23, and the Android
-  emulator reproduces the S23 numbers exactly, so it is the Android build, not
-  the SoC. Bisection (all on the synthetic-gradient screen input): per-tensor
-  weights, or leaving mul/add/cat unquantized, change nothing; single MI-GAN
-  building blocks (conv3x3, dw 4x4 + pad, lrelu/gain/clamp chains, 64 ch) are
-  bit-exact host vs emulator; a minimal U-Net skip loop (encoder, portable
-  `upsample_nearest2d`, multiply by the constant checkerboard, decoder) diverges
-  (host 3.59 vs 2.25 mean), is bit-exact without the checkerboard multiply or
-  with the whole upsample path as one `conv_transpose2d`, and still diverges
-  when that multiply is left in fp32. Folding MI-GAN's `Upsample2d` into a
-  depthwise `conv_transpose2d(stride=2, padding=1)` (eager parity 3e-7, one
-  XNNPACK partition) shrinks the error (0.60) but does not remove it, and made
-  fp32 slower on the S23, so it is not a fix. Repro files:
-  `exports/migan/migan_256_micro_skip*.pte` (local). Root cause not pinned;
-  next step would be a layer-by-layer bisection of the generator.
+- **int8 on the RNE Android runtime computed the wrong thing, root cause
+  found and fixed in the ET fork (2026-10-15).** The same `.pte` gave
+  mean-in-hole 0.49 on the host runtime but 0.80 (256) / 1.00 saturated (512)
+  on the S23 and, identically, on the Android emulator. The host build of the
+  fork matched the host wheel, so it was build configuration: the fork's
+  `android.cmake` / `apple_common.cmake` presets turn on
+  `EXECUTORCH_XNNPACK_ENABLE_WEIGHT_CACHE`, the pybind preset does not, and
+  `executor_runner` built on the Mac with the cache on reproduces the Android
+  numbers bit for bit. The cache keys packed weights on the unpacked kernel's
+  name (+ bias name). The exporter dedups constants by content hash, so
+  MI-GAN's Downsample2d (blur) and Upsample2d (4 x blur) depthwise kernels,
+  identical as int8 codes with different scales, share one name, and every
+  512-channel block shares it again with different activation scales, which
+  XNNPACK folds into qc8 packing. A `look_up` hit is final for XNNPACK (it
+  never packs on a hit), so the second node ran on the first node's packing.
+  fp16/fp32 are immune only because their kernel bytes differ. Fix: the cache
+  name of a quantized kernel now carries its scale tensor name / zero point
+  and the consuming node's input/output quantization; branch
+  `xnnpack-weights-cache-quant-names` in the SWM fork (worktree
+  `~/Documents/softu_executorch/executorch-wcfix`), with a gtest. Verified:
+  cached host runner bit-identical to uncached for int8 256/512, the
+  single-partition variant and the minimal U-Net repro, and the patched
+  `executor_runner` on the Android arm64 emulator matches the host. Not yet
+  in an RNE native-libs release, so the shipped Android lib still has it.
+  Upstream has the same cache design, PR candidate.
 - **Decision (2026-10-15): XNNPACK ships fp16 only.** fp32 is dropped (same
-  output, slower) and int8 is dropped (quality loss on host, wrong on
-  Android). The int8 recipe (PT2E, `XNNPACKQuantizer`, per-channel weights,
+  output, slower) and int8 is dropped (quality loss on host; the Android
+  divergence is a runtime bug, fixed in the fork, see above). The int8 recipe (PT2E, `XNNPACKQuantizer`, per-channel weights,
   calibration on a sparse clone of upstream `examples/` at `SOURCE_COMMIT`,
   needs Pillow) lives in this branch's history if the runtime bug gets fixed.
 - Eval tooling: `exports/migan/eval_variants.py`, device runner via the local smoke-test screen + `autorun.json` (local).
