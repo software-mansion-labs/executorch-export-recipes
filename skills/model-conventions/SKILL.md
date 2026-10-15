@@ -135,28 +135,43 @@ Run an export inside the model's locked env:
 uv run --project exporter_models/<model> exporter export <model> --backend <b> --output-dir <dir>
 ```
 
-Why per-model (not one shared env): the models genuinely conflict — the torch
-2.14 nightly (matched to executorch 1.3.1) vs `rfdetr==1.8.2`'s `torch<=2.13`
-pin, funasr's undeclared torchaudio, the MLX models' executorch source build.
-A single lock can't satisfy them.
+Why per-model (not one shared env): the models genuinely conflict — torch 2.14
+(what executorch 1.4.1 runs on) vs `rfdetr==1.8.2`'s `torch<=2.13` pin,
+funasr's undeclared torchaudio, the MLX and Vulkan models' executorch source
+build. A single lock can't satisfy them.
 
 Conventions when authoring a model's `pyproject.toml`:
 - `requires-python = "==3.10.*"`; repo-root `.python-version` is `3.10`.
-- Torch-family (`torch`, `torchvision`, `torchaudio`, `torchao`) come from the
-  PyTorch **nightly** index via `[tool.uv.sources] <pkg> = { index = "pytorch-nightly" }`
-  + a `[[tool.uv.index]]` block. **Date-match** torch and torchvision (a nightly
-  torchvision hard-pins its same-day torch). torchao is the pure-python
-  `py3-none-any` nightly wheel (no C++ build).
+- Torch-family (`torch`, `torchvision`, `torchaudio`, `torchao`): pin the
+  **stable release from PyPI** (as facemesh and migan do — `torch==2.14.0`,
+  `torchvision==0.29.0`; executorch 1.4.1 only asks for `torch>=2.13.0a0`),
+  with no `[tool.uv.sources]` entry for them. Match torch and torchvision
+  (torchvision hard-pins its torch). Use a **wheel URL** only if a nightly is
+  unavoidable:
+  `torch = { url = "https://download.pytorch.org/whl/nightly/cpu/torch-2.14.0.dev20260702-cp310-cp310-macosx_14_0_arm64.whl" }`
+  — never a dated pin against the `pytorch-nightly` index. The index keeps a
+  rolling window and prunes old dev builds, so `torch==2.14.0.devYYYYMMDD`
+  stops resolving a few months on (the wheel file itself stays served, which is
+  what the `<model>/vulkan/` sub-projects rely on). Existing locks keep working
+  because they record wheel URLs. torchao, if needed, is the pure-python
+  `py3-none-any` wheel (no C++ build); `docs/executorch-1.4.1-bump.md` has its
+  `.dev`-sorts-below-release trap.
 - `[tool.uv] environments = ["sys_platform == 'darwin' and platform_machine == 'arm64'"]`
-  pins the lock to this host and avoids the nightly +cpu/plain platform split.
+  pins the lock to this host and avoids the torch +cpu/plain platform split.
 - rfdetr/ultralytics under-constrain torch, so add
-  `override-dependencies = ["torch==…", "torchvision==…"]` to force the nightly.
+  `override-dependencies = ["torch==…", "torchvision==…"]` to force the pinned
+  torch.
 - `safetensors` is effectively always needed (the ET `export_llama` path reads
   it); funasr also needs `torchaudio`.
-- MLX-backend models (gemma*/lfm2_5_vl) need executorch built from the
-  software-mansion-labs fork (`branch = "@ms/separate-backends"`) — a native
-  source build; their pyproject **declares** the fork source but is not
-  uv-buildable here (run in the ET-source dev env; `.pte` ships on HF).
+- MLX-backend models (gemma*/lfm2_5_vl) and every `<model>/vulkan/`
+  sub-project need executorch built from the software-mansion-labs fork
+  (`branch = "@ms/separate-backends-1.4.1"`) — a native source build. Their
+  pyproject **declares** the fork source but is not uv-buildable here: besides
+  the build itself, upstream's CMake refuses a checkout directory not named
+  exactly `executorch` (pytorch/executorch#6475) and uv names git checkouts by
+  commit hash, so `uv sync` dies before compiling. Run these exports in the
+  ET-source dev env (recipe in `skills/backends/{mlx,vulkan}`); the `.pte`
+  ships on HF.
 
 The `model.json` `extras` survive only as human-readable stack labels; the
 `export` preflight (`registry.check_extras`) is a light presence sanity-check.
