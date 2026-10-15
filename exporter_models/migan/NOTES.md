@@ -153,6 +153,71 @@ Tracks react-native-executorch issue #1373.
   `/storage/emulated/0/Android/data/<app>/files/react-native-executorch/*` via
   adb, or rename the file.
 
+## Profiling (2026-10-15, executorch-profiler)
+
+Run with the sibling [executorch-profiler](https://gl.swmansion.com/swm-ai/executorch-profiler)
+against an event-traced ExecuTorch built from the SWM fork at
+`@ms/separate-backends-1.4.1` (the branch the RNE runtime is built from) with
+`EXECUTORCH_ENABLE_EVENT_TRACER=ON`, `EXECUTORCH_BUILD_COREML=ON`,
+`EXECUTORCH_BUILD_MLX=OFF` (MLX needs the Metal toolchain and is not needed
+here). Inputs are real upstream example pairs (`exports/migan/profile/inputs_*.pt`,
+local), 10 forwards each. Full tables in `exports/migan/profile/` (local).
+Shares below are of `Method::execute` time on this Mac; absolute numbers are
+host-side and not recorded.
+
+**XNNPACK fp16, where the time goes:**
+
+| | 256 | 512 | faces_256 |
+| --- | --- | --- | --- |
+| delegated (XNNPACK) | 87% | 82% | 87% |
+| portable `upsample_nearest2d` (12 / 14 / 12 calls) | 11% | 14% | 12% |
+| portable `_to_dim_order_copy` (65 / 73 / 65 calls) | 2% | 4% | 2% |
+| inside the delegate: `Transpose` (NCHW<->NHWC) | 22% | 25% | 22% |
+| inside the delegate: GEMM (1x1 convs) | 28% | 21% | 27% |
+| inside the delegate: depthwise conv | 10% | 10% | 10% |
+| inside the delegate: pad / mul / lrelu / clamp / add | 23% | 21% | 24% |
+
+- **Delegation is complete apart from `upsample_nearest2d`**, as the static
+  check said, and every delegated op reports 100%.
+- **The partition split is the real cost, not the upsample itself.** The
+  portable upsample ops cut the graph into 7 (256) / 8 (512) XNNPACK
+  partitions, and each partition converts its inputs and outputs between
+  NCHW and NHWC: the `Transpose` ops are a quarter of the forward, on top of
+  the 11 to 14% spent in the upsample kernels. Roughly 35 to 40% of XNNPACK
+  time is partitioning overhead. That is the fixed cost suspected from the
+  256 vs 512 smoke test.
+- **What would remove it:** one XNNPACK partition, which needs the nearest
+  x2 upsample inside the delegate. XNNPACK has no nearest resize node;
+  `Upsample2d` is nearest-x2 followed by a zero-insertion checkerboard, which
+  is a `pixel_shuffle` (depth-to-space) of `[x, 0, 0, 0]` along channels, or a
+  depthwise `conv_transpose2d(stride=2)`. The conv_transpose rewrite was
+  tried during the int8 bisection: one partition, but slower on the S23 than
+  the split graph, so it is not the answer; pixel_shuffle / depth_to_space
+  support in the XNNPACK partitioner is the candidate ExecuTorch change.
+- **GEMM, not 3x3 conv**: MI-GAN's `SeparableConv2d` is depthwise 3x3 +
+  pointwise 1x1, so the heavy op is the 1x1 GEMM; depthwise convs are 10%.
+
+**CoreML fp16, compute plan** (`coreml_compute_plan.py`, compute units `ALL`
+as compiled; what the CoreML runtime on this Mac would choose, iOS may differ):
+
+| | 256 | 512 | faces_256 |
+| --- | --- | --- | --- |
+| ops on ANE | 274 / 324 (85%) | 283 / 370 (77%) | 274 / 324 (85%) |
+| ops on GPU | 50 (15%) | 87 (23%) | 50 (15%) |
+| ops on CPU | 0 | 0 | 0 |
+
+- The split follows resolution: at 256 the first 272 ops run on the ANE and
+  the last 50, the full-resolution decoder block plus the RGB output, on the
+  GPU; at 512 the first full-resolution encoder block goes to the GPU as
+  well and the middle of the network stays on the ANE. Nothing on the CPU.
+  Matches the on-device sweep, where `ALL` and `CPU_AND_NE` were
+  indistinguishable: the ANE carries the bulk, the GPU takes the
+  full-resolution ends.
+
+**Vulkan**: the profiler drives the host runtime and has no Vulkan
+backend, so only the static check applies (one `VulkanBackend` call, zero
+portable ops, for all three sizes).
+
 ## XNNPACK precision study: fp32 vs fp16 vs int8 (2026-10-14, for MR !31)
 
 Review asked whether XNNPACK should ship fp32 at all. Exported fp16 and static
