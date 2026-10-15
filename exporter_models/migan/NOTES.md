@@ -47,18 +47,26 @@ Tracks react-native-executorch issue #1373.
   a dilated + blurred mask are NOT in the graph (data-dependent indexing) —
   that is the app-side task, a port of `MIGAN_Pipeline.forward` in upstream's
   `scripts/create_onnx_pipeline.py`.
-- **Verified 2026-10-13** (ET 1.4.1 runtime on host, torch 2.14.0): both `.pte`s
-  report the config's contract via `method_meta`; `.pte` vs eager on upstream
-  example images matches to max abs 3e-6 (256) / 3e-6 (512); visual check on
-  `places2_512_object/1.png` removes the sheep cleanly.
-- **Smoke-tested on a Samsung Galaxy S23 (2026-10-13)** through a local,
-  uncommitted screen in the react-native-executorch computer-vision example
-  app (low-level `loadModel` + `execute` on a synthetic gradient with a square
-  hole): both `.pte`s load, report `XnnpackBackend` for `forward`, and return
-  the host result. This is not the RNE inpainting task (it does not exist
-  yet), so no timings are recorded here; 512 was noticeably less than 4x the
-  cost of 256, which suggests a fixed cost worth a profiler run (the 12 to 14
-  portable `upsample_nearest2d` ops are the first suspect).
+- **XNNPACK fp16** (`xnnpack/export.py`, the only XNNPACK variant shipped):
+  `model.half()` behind an fp32-I/O wrapper, so the app contract stays fp32.
+  24.2 MB (256) / 25.9 MB (512).
+- **Verified** (ET 1.4.1 runtime on host, torch 2.14.0): the fp32 build
+  (2026-10-13, since dropped) matched eager on upstream example images to max
+  abs 3e-6 at both sizes, with a clean visual check on
+  `places2_512_object/1.png` (sheep removed); the shipped fp16 build
+  (2026-10-14) matches that fp32 output inside the hole to 55 dB / mean abs
+  diff ~1e-3 (see the precision study below), and the harness checks
+  `method_meta` against the config on every export.
+- **Smoke-tested on a Samsung Galaxy S23** through a local, uncommitted screen
+  in the react-native-executorch computer-vision example app (low-level
+  `loadModel` + `execute` on a synthetic gradient with a square hole): the fp32
+  build on 2026-10-13, the shipped fp16 files on 2026-10-14 and again on the
+  Android emulator on 2026-10-15 after the final export. Both sizes load,
+  report `XnnpackBackend` for `forward`, and return the host result (fp16
+  matches fp32 to 4 decimals). This is not the RNE inpainting task (it does
+  not exist yet), so no timings are recorded here; 512 was noticeably less
+  than 4x the cost of 256, which suggests a fixed cost worth a profiler run
+  (the 12 to 14 portable `upsample_nearest2d` ops are the first suspect).
 - **Delegation:** everything lands on XNNPACK except `upsample_nearest2d` (12
   ops at 256, 14 at 512), which the partitioner does not take with or without
   `extended_ops=True`. They are cheap memory ops; the upstream `Upsample2d` is
@@ -122,7 +130,7 @@ Tracks react-native-executorch issue #1373.
 - **Smoke-tested on the Galaxy S23 (Adreno, 2026-10-13)** with the same local
   screen: both sizes load (`VulkanBackend`) and return the same result as
   XNNPACK; forward was several times faster than XNNPACK fp32 on the same
-  phone (first call and load are longer, shader compile). Vulkan is the
+  phone (and still clearly ahead of the fp16 now shipped) (first call and load are longer, shader compile). Vulkan is the
   Android default candidate for this model.
 - **Download cache trap when re-testing on device:** the RNE fetcher keys its
   cache on the URL path (a `?v=2` query does not bust it), so a re-exported
