@@ -1,7 +1,7 @@
 {
   "hf": "https://huggingface.co/software-mansion/react-native-executorch-migan",
   "repo": "software-mansion/react-native-executorch-migan",
-  "config": "{size}/{backend}/config.json",
+  "config": "{backend}/{size}/config.json",
   "sizes": [
     "256",
     "512"

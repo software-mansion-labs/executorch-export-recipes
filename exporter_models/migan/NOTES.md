@@ -1,12 +1,13 @@
 # migan notes
 
-- **Layout:** `{size}/{backend}/config.json` (`256/xnnpack/`, `512/xnnpack/`),
-  matching the SWM HF repo layout; `exports/migan-hf/` is a ready-to-upload
-  mirror of the HF repo (root `config.json`, `README.md`, `LICENSE`, per-size
-  dirs) built from the last export.
+- **Layout:** `{backend}/{size}/config.json` locally (`xnnpack/256/`,
+  `xnnpack/512/`, same as whisper, kokoro, fast_sam); the published HF repo is
+  `size/backend/` like the other multi-size repos (yolo26 `l/coreml/`, fast_sam
+  `s/xnnpack/`), and `exports/migan-hf/` is a ready-to-upload mirror of it (root
+  `config.json`, `README.md`, `LICENSE`, `256/<backend>/`, `512/<backend>/`)
+  built from the last export.
 
-Tracks react-native-executorch issue #1373 (see `docs/migan-inpainting-plan.md`
-for the full plan and the app-side hand-off).
+Tracks react-native-executorch issue #1373.
 
 - **Source:** https://github.com/Picsart-AI-Research/MI-GAN (MIT code, MIT
   weights), pinned to `SOURCE_COMMIT` in `_migan.py`. The vendored file is
