@@ -10,7 +10,7 @@
 Tracks react-native-executorch issue #1373.
 
 - **XNNPACK ships fp16 only, no fp32 and no int8.** fp16 equals fp32 to
-  ~1e-3 and is ~2x faster on the S23. int8 was exported and measured and is
+  ~1e-3 and is clearly faster on an ARM phone. int8 was exported and measured and is
   **buggy on the RNE Android runtime**: the same `.pte` that is fine on the
   host runtime returns a saturated, wrong image on the S23 and on the Android
   emulator (mean-in-hole 0.80 / 1.00 instead of 0.49), on top of visible
@@ -50,15 +50,15 @@ Tracks react-native-executorch issue #1373.
 - **Verified 2026-10-13** (ET 1.4.1 runtime on host, torch 2.14.0): both `.pte`s
   report the config's contract via `method_meta`; `.pte` vs eager on upstream
   example images matches to max abs 3e-6 (256) / 3e-6 (512); visual check on
-  `places2_512_object/1.png` removes the sheep cleanly. Host CPU forward:
-  ~64 ms (256), ~126 ms (512).
-- **On device (2026-10-13, Samsung Galaxy S23 / SM-S911B, Android 16, debug build of
-  the react-native-executorch computer-vision example app, low-level `loadModel` +
-  `execute`):** both `.pte`s load, report `XnnpackBackend` for `forward`, and fill a
-  synthetic hole. Forward avg of 10: **460 ms (256), 848 ms (512)**; first call
-  531 / 1201 ms; load 52 / 176 ms. The 512 vs 256 ratio is only 1.8x for 4x the
-  pixels, so a fixed cost dominates; worth a profiler run (the 12 to 14 portable
-  `upsample_nearest2d` ops are the first suspect) before deciding on int8.
+  `places2_512_object/1.png` removes the sheep cleanly.
+- **Smoke-tested on a Samsung Galaxy S23 (2026-10-13)** through a local,
+  uncommitted screen in the react-native-executorch computer-vision example
+  app (low-level `loadModel` + `execute` on a synthetic gradient with a square
+  hole): both `.pte`s load, report `XnnpackBackend` for `forward`, and return
+  the host result. This is not the RNE inpainting task (it does not exist
+  yet), so no timings are recorded here; 512 was noticeably less than 4x the
+  cost of 256, which suggests a fixed cost worth a profiler run (the 12 to 14
+  portable `upsample_nearest2d` ops are the first suspect).
 - **Delegation:** everything lands on XNNPACK except `upsample_nearest2d` (12
   ops at 256, 14 at 512), which the partitioner does not take with or without
   `extended_ops=True`. They are cheap memory ops; the upstream `Upsample2d` is
@@ -84,26 +84,16 @@ Tracks react-native-executorch issue #1373.
   `CoreMLPartitioner`, iOS18 target): 13.0 MB (256) / 14.8 MB (512). Static
   check of the `.pte` (deserialised program): one `CoreMLBackend` delegate call,
   zero portable ops, I/O matches the config. `compute_unit` is left at the
-  default `ALL` -- **swept on device, keep it** (below).
-- **CoreML on device (2026-10-13, iPhone 16 / iOS 26.6, same example app,
-  low-level `loadModel` + `execute`, 10-forward average, fp32 PyTorch
-  reference mean-of-output 0.56661 (512) / 0.54211 (256) on the screen's
-  synthetic input):**
-
-  | compute unit | 512 ms | 512 mean | 256 ms | 256 mean |
-  | --- | --- | --- | --- | --- |
-  | `ALL` (default, shipped) | **35.1** | 0.56674 | **13.7** | 0.54211 |
-  | `CPU_AND_NE` | 34.9 | 0.56674 | 13.8 | 0.54211 |
-  | `CPU_AND_GPU` | 51.9 | 0.56666 | 27.6 | 0.54202 |
-  | `CPU_ONLY` | 145.1 | 0.56664 | 60.7 | 0.54213 |
-  | XNNPACK fp32 (same phone) | 712.6 | 0.56661 | 384.4 | 0.54211 |
-
-  Every CoreML variant is numerically fine (fp16-level deltas of ~1e-4 from the
-  fp32 reference; XNNPACK matches it exactly). `ALL` lands on the Neural
-  Engine (identical to `CPU_AND_NE`) and is the fastest, 20x XNNPACK -- the
-  opposite of style_transfer's ANE pathology, which is why the sweep is per
-  model. First forward 40 ms, load 0.1-1.9 s (CoreML compile, once per
-  install). No compute_unit pin needed.
+  default `ALL`, swept on device, keep it (below).
+- **Smoke-tested on an iPhone 16 / iOS 26.6 (2026-10-13)** with the same local
+  screen: both sizes load, report `CoreMLBackend`, and match the fp32 host
+  reference to ~1e-4 (fp16-level). A compute-unit sweep (`ALL`, `CPU_AND_NE`,
+  `CPU_AND_GPU`, `CPU_ONLY`) showed `ALL` landing on the Neural Engine
+  (identical output and speed to `CPU_AND_NE`) and being the fastest by a wide
+  margin, far ahead of XNNPACK on the same phone -- the opposite of
+  style_transfer's ANE pathology, which is why the sweep is per model. No
+  compute_unit pin needed. First CoreML load compiles the model (seconds, once
+  per install).
 - **Vulkan fp16** (`vulkan/export.py`, `force_fp16`, own `vulkan/pyproject.toml`
   pinned to the software-mansion-labs executorch fork like every other Vulkan
   export): 12.4 MB (256) / 14.1 MB (512). Static check: one `VulkanBackend`
@@ -129,12 +119,11 @@ Tracks react-native-executorch issue #1373.
   (shipped) is the same arithmetic: eager original vs rewritten max abs diff
   8e-6. 6 blocks swapped at 256, 7 at 512. XNNPACK / CoreML keep the upstream
   block.
-- **Vulkan on device (2026-10-13, Galaxy S23 / Adreno, same app and harness as
-  the XNNPACK numbers):** both sizes load (`VulkanBackend`) and fill the
-  synthetic hole with the same mean as XNNPACK (0.494 / 0.495). Forward avg of
-  10: **139 ms (256), 229 ms (512)** vs 460 / 848 ms on XNNPACK, i.e. 3.3x /
-  3.7x faster; first call 217 / 306 ms; load 79 / 503 ms (shader compile).
-  Vulkan is the Android default candidate for this model.
+- **Smoke-tested on the Galaxy S23 (Adreno, 2026-10-13)** with the same local
+  screen: both sizes load (`VulkanBackend`) and return the same result as
+  XNNPACK; forward was several times faster than XNNPACK fp32 on the same
+  phone (first call and load are longer, shader compile). Vulkan is the
+  Android default candidate for this model.
 - **Download cache trap when re-testing on device:** the RNE fetcher keys its
   cache on the URL path (a `?v=2` query does not bust it), so a re-exported
   file at the same URL is never re-downloaded. Delete
@@ -151,34 +140,27 @@ evaluated on sets it never saw: `places2_512_object` and `ffhq_256_freeform`
 (faces, out of domain, random masks). Metrics are computed **inside the hole
 only**, against the fp32 export's output and against the original pixels;
 "PSNR vs GT" is only meaningful on random-mask sets (on the object set the
-original still contains the removed object). Host = this Mac, median forward.
+original still contains the removed object). Measured on this Mac.
 
-| 512 | MB | host ms | PSNR vs fp32 | SSIM vs fp32 | mean abs diff | PSNR vs GT (ffhq) |
-| --- | --- | --- | --- | --- | --- | --- |
-| fp32 | 28.0 | 118 | - | 1.0000 | 0 | 17.64 |
-| fp16 | 25.9 | 93 | 55 dB | 0.9999 | 0.001 | 17.65 |
-| int8 | 7.3 | 76 | 25.4 dB (min 21) | 0.937 | 0.034 | 17.10 |
-| int8, RGB path kept fp32 | 8.8 | 80 | 24.1 dB | 0.927 | 0.040 | 16.99 |
+| 512 | MB | PSNR vs fp32 | SSIM vs fp32 | mean abs diff | PSNR vs GT (ffhq) |
+| --- | --- | --- | --- | --- | --- |
+| fp32 | 28.0 | - | 1.0000 | 0 | 17.64 |
+| fp16 | 25.9 | 55 dB | 0.9999 | 0.001 | 17.65 |
+| int8 | 7.3 | 25.4 dB (min 21) | 0.937 | 0.034 | 17.10 |
+| int8, RGB path kept fp32 | 8.8 | 24.1 dB | 0.927 | 0.040 | 16.99 |
 
-| 256 | MB | host ms | PSNR vs fp32 | SSIM vs fp32 | mean abs diff | PSNR vs GT (ffhq) |
-| --- | --- | --- | --- | --- | --- | --- |
-| fp32 | 24.7 | 64 | - | 1.0000 | 0 | 17.80 |
-| fp16 | 24.2 | 54 | 56 dB | 0.9999 | 0.001 | 17.80 |
-| int8 | 6.5 | 45 | 26.6 dB (min 21) | 0.949 | 0.030 | 17.55 |
-
-- **On device (S23, same screen, avg of 10 forwards, 2026-10-14):**
-
-| S23 XNNPACK | fp32 | fp16 | int8 |
-| --- | --- | --- | --- |
-| 256 | 440 ms | 213 ms | 170 ms (wrong output) |
-| 512 | 809 ms | 410 ms | 336 ms (wrong output) |
+| 256 | MB | PSNR vs fp32 | SSIM vs fp32 | mean abs diff | PSNR vs GT (ffhq) |
+| --- | --- | --- | --- | --- | --- |
+| fp32 | 24.7 | - | 1.0000 | 0 | 17.80 |
+| fp16 | 24.2 | 56 dB | 0.9999 | 0.001 | 17.80 |
+| int8 | 6.5 | 26.6 dB (min 21) | 0.949 | 0.030 | 17.55 |
 
 - **fp16 is numerically fp32** (55 dB, mean abs diff ~1/1000) and only 8%
   smaller (the delegate keeps most weight bytes in fp32, as facemesh records),
-  but on the phone it is **~2x faster**: ARM fp16 NEON arithmetic, unlike the
-  Mac where the gain was 25%. fp16 output on device matches fp32 to 4 decimals
-  (mean-of-output 0.56665 vs 0.56661 at 512).
-- **int8 on host is 3.8x smaller and ~1.6x faster, with visible damage**:
+  but on the S23 smoke-test screen it ran about twice as fast as fp32 (ARM
+  fp16 NEON arithmetic; on the Mac the gain was much smaller) with output
+  matching fp32 to 4 decimals. int8 ran faster still, but see below.
+- **int8 on host is 3.8x smaller, with visible damage**:
   blue speckles in smooth regions (sky, haze) and along high-contrast edges,
   see `exports/migan/cmp_volcano_int8b.png`; PSNR to fp32 inside the hole
   ~25 dB, i.e. ~8/255 average error, and 0.3-0.5 dB lost against ground truth.
@@ -198,12 +180,12 @@ original still contains the removed object). Host = this Mac, median forward.
   with the whole upsample path as one `conv_transpose2d`, and still diverges
   when that multiply is left in fp32. Folding MI-GAN's `Upsample2d` into a
   depthwise `conv_transpose2d(stride=2, padding=1)` (eager parity 3e-7, one
-  XNNPACK partition) shrinks the error (0.60) but does not remove it, and is
-  slower for fp32 on the S23 (622 vs 440 ms), so it is not a fix. Repro files:
+  XNNPACK partition) shrinks the error (0.60) but does not remove it, and made
+  fp32 slower on the S23, so it is not a fix. Repro files:
   `exports/migan/migan_256_micro_skip*.pte` (local). Root cause not pinned;
   next step would be a layer-by-layer bisection of the generator.
 - **Decision (2026-10-15): XNNPACK ships fp16 only.** fp32 is dropped (same
-  output, half the speed) and int8 is dropped (quality loss on host, wrong on
+  output, slower) and int8 is dropped (quality loss on host, wrong on
   Android). The int8 recipe (PT2E, `XNNPACKQuantizer`, per-channel weights,
   calibration on a sparse clone of upstream `examples/` at `SOURCE_COMMIT`,
   needs Pillow) lives in this branch's history if the runtime bug gets fixed.
