@@ -33,9 +33,21 @@ Tracks react-native-executorch issue #1373.
   with an HTML virus-scan interstitial for files over ~25 MB). The HF repo holds
   only exported artifacts, like every other SWM model repo; mirror the `.pt`
   files there only if Drive ever breaks.
-- **Sizes:** `256` and `512`, both the Places2 (scenery) checkpoints. The FFHQ
-  face checkpoint (`migan_256_ffhq.pt`, hash in `_migan.py`) shares the 256
-  architecture and could ship as a second 256 variant later.
+- **Sizes:** `256` and `512` are the Places2 (scenery) checkpoints at that
+  resolution; `faces_256` is the FFHQ (faces) checkpoint, same architecture
+  as `256`, different weights, upstream ships it only at 256. The size token
+  is a checkpoint id in the model.json sense (like kokoro's `german`), so the
+  exporters map it through `RESOLUTION_FOR_SIZE` / `CHECKPOINT_FOR_SIZE` in
+  `_migan.py` instead of `int(size)`. Files: `migan_faces_256_<backend>_fp16.pte`.
+- **faces_256 verified (2026-10-15):** XNNPACK fp16 `.pte` vs fp32 eager on
+  upstream's `ffhq_256_freeform` examples, inside the hole: 52 to 62 dB
+  (mean 56). On the same faces the Places2 `256` checkpoint differs by
+  0.05 to 0.09 mean abs and visibly smears eyes and mouths where the face
+  checkpoint reconstructs them (`exports/migan/cmp_faces.png`, local), which
+  is the reason to ship it. XNNPACK smoke-tested on the Android emulator
+  (loads, `XnnpackBackend`, sensible output); CoreML and Vulkan only
+  statically checked (one delegate call, zero portable ops each), not yet run
+  on a phone.
 - **Graph I/O** (`InpaintingWrapper`): `image [1,3,H,W] f32` RGB in `[0,1]`,
   `mask [1,1,H,W] f32` with **1 = known pixel, 0 = hole**; output
   `[1,3,H,W] f32` in `[0,1]`, the whole frame with the hole filled. Upstream's
@@ -69,7 +81,10 @@ Tracks react-native-executorch issue #1373.
   (the 12 to 14 portable `upsample_nearest2d` ops are the first suspect).
 - **Delegation:** everything lands on XNNPACK except `upsample_nearest2d` (12
   ops at 256, 14 at 512), which the partitioner does not take with or without
-  `extended_ops=True`. They are cheap memory ops; the upstream `Upsample2d` is
+  `extended_ops=True`. The fp16 build additionally carries 65 / 73 portable
+  `_to_dim_order_copy` casts: the three fp32-I/O casts of the wrapper plus one
+  zero-dim fp32 to fp16 cast per scalar constant (gains, clamp bounds), i.e.
+  negligible work. They are cheap memory ops; the upstream `Upsample2d` is
   nearest-x2 followed by a `[[1,0],[0,0]]` checkerboard multiply, i.e. zero
   insertion — a depthwise `conv_transpose2d(stride=2)` would express it as one
   delegated op if profiling shows the portable fallback matters. Not yet

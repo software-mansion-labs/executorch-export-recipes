@@ -409,12 +409,17 @@ WEIGHTS_SHA256 = {
     "migan_512_places2.pt": "1d6087eee0aac8923ad2606be5d8caeb4824d3e4de331995e420c74e124a466a",
     "migan_256_ffhq.pt": "3cab897cfcc3fcbe224510cedad06a634ae8bf5bd7120428a32fd7224f4237f4",
 }
-# size -> checkpoint. Both shipped sizes are the Places2 (scenery) weights; the
-# FFHQ (faces) checkpoint shares the 256 architecture and is not exported yet.
+# size token -> checkpoint and input resolution. "256" and "512" are the Places2
+# (scenery) weights at that resolution; "faces_256" is the FFHQ (faces)
+# checkpoint, same 256 architecture, different weights, upstream ships it only
+# at 256. The token is a size in the model.json sense (a distinct checkpoint),
+# not necessarily a number.
 CHECKPOINT_FOR_SIZE = {
     "256": "migan_256_places2.pt",
     "512": "migan_512_places2.pt",
+    "faces_256": "migan_256_ffhq.pt",
 }
+RESOLUTION_FOR_SIZE = {"256": 256, "512": 512, "faces_256": 256}
 
 
 class InpaintingWrapper(nn.Module):

@@ -62,8 +62,8 @@ def export(config: dict, out_dir: str) -> str:
     image_shape = tuple(inputs_spec[0]["shape"])
     mask_shape = tuple(inputs_spec[1]["shape"])
     resolution = image_shape[-1]
-    assert image_shape[-2:] == mask_shape[-2:] == (int(size), int(size)), (
-        f"config shapes {image_shape}/{mask_shape} disagree with size {size}"
+    assert image_shape[-2:] == mask_shape[-2:] == (mg.RESOLUTION_FOR_SIZE[size],) * 2, (
+        f"config shapes {image_shape}/{mask_shape} disagree with size {size} ({mg.RESOLUTION_FOR_SIZE[size]})"
     )
 
     generator = mg.Generator(resolution=resolution)

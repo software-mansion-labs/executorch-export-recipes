@@ -4,7 +4,8 @@
   "config": "{backend}/{size}/config.json",
   "sizes": [
     "256",
-    "512"
+    "512",
+    "faces_256"
   ],
   "backends": [
     "xnnpack",
