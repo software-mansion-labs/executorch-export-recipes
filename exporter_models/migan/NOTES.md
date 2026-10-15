@@ -74,10 +74,8 @@ Tracks react-native-executorch issue #1373.
 - **CoreML fp16** (`coreml/export.py`, same build as xnnpack, inline
   `CoreMLPartitioner`, iOS18 target): 13.0 MB (256) / 14.8 MB (512). Static
   check of the `.pte` (deserialised program): one `CoreMLBackend` delegate call,
-  zero portable ops, I/O matches the config. **Not run on a device yet** -- the
-  pip wheel cannot init the CoreML delegate on macOS (see
-  `docs/executorch-1.4.1-bump.md`). `compute_unit` is left at the default
-  `ALL` -- **swept on device, keep it** (below).
+  zero portable ops, I/O matches the config. `compute_unit` is left at the
+  default `ALL` -- **swept on device, keep it** (below).
 - **CoreML on device (2026-10-13, iPhone 16 / iOS 26.6, same example app,
   low-level `loadModel` + `execute`, 10-forward average, fp32 PyTorch
   reference mean-of-output 0.56661 (512) / 0.54211 (256) on the screen's
