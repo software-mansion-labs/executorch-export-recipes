@@ -39,6 +39,17 @@ def _fetch_weights(mg, checkpoint: str) -> Path:
     return path
 
 
+class _Fp16IO(torch.nn.Module):
+    """fp32 I/O around an fp16 model, so the app contract stays fp32."""
+
+    def __init__(self, inner):
+        super().__init__()
+        self.inner = inner
+
+    def forward(self, image, mask):
+        return self.inner(image.to(torch.float16), mask.to(torch.float16)).to(torch.float32)
+
+
 def export(config: dict, out_dir: str) -> str:
     from torch.export import export as torch_export
 
@@ -65,6 +76,16 @@ def export(config: dict, out_dir: str) -> str:
         torch.rand(*image_shape, dtype=torch.float32),
         (torch.rand(*mask_shape) > 0.3).to(torch.float32),
     )
+
+    if variant["precision"] == "fp16":
+        # fp16 is the only XNNPACK variant shipped: output matches fp32 to
+        # ~1e-3 and ARM fp16 arithmetic makes it ~2x faster on device (S23);
+        # the file is only 8% smaller. int8 was measured and dropped, see
+        # NOTES.md "XNNPACK precision study".
+        model = _Fp16IO(model.half()).eval()
+    elif variant["quantized"]:
+        raise ValueError("int8 is not shipped for migan: wrong output on the RNE Android runtime, see NOTES.md")
+
     ep = torch_export(model, inputs, strict=True)
     program = lower(ep, config["backend"])
 
