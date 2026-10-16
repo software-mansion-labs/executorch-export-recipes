@@ -297,8 +297,8 @@
       }
     },
     {
-      "file": "deeplab_v3_resnet50_qnn_a16w8_v81.pte",
-      "precision": "a16w8",
+      "file": "deeplab_v3_resnet50_qnn_a8w8_v81.pte",
+      "precision": "a8w8",
       "quantized": true,
       "default": false,
       "size": "resnet50",
@@ -457,8 +457,8 @@
       }
     },
     {
-      "file": "deeplab_v3_resnet101_qnn_a16w8_v81.pte",
-      "precision": "a16w8",
+      "file": "deeplab_v3_resnet101_qnn_a8w8_v81.pte",
+      "precision": "a8w8",
       "quantized": true,
       "default": false,
       "size": "resnet101",

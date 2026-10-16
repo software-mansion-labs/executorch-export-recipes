@@ -11,6 +11,10 @@ file's suffix (`..._v81.pte`).
 On an S26 Ultra (v81), 200 VOC2012 val images: ResNet50 71.21% mIoU at 15.5 ms
 and ResNet101 74.93% at 29.7 ms, against 71.36% and 74.99% for the published
 XNNPACK int8 files.
+
+The v81 variants are a8w8, which halves latency at the same mIoU on the same
+device and images: ResNet50 71.23% at 8.9 ms, ResNet101 74.98% at 15.3 ms.
+TODO: re-export the v69-v79 variants as a8w8 too; only v81 is validated.
 """
 
 import logging
@@ -71,6 +75,9 @@ def _arch_for(file_name: str):
 # QNN's 8-bit default (3.9e-7) fixes it (layer1 cosine vs fp32: 0.67 -> 0.9996).
 # ResNet-50 and MobileNetV3 keep the default, matching their published files.
 _WEIGHT_EPS = {"fcn_resnet101": 3.921568627450981e-07}  # qconfig.DEFAULT_EPS_8BIT
+
+
+_QUANT_DTYPE = {"a16w8": "use_16a8w", "a8w8": "use_8a8w"}
 
 
 def _eps_for(file_name: str):
@@ -148,8 +155,8 @@ def export(config: dict, out_dir: str) -> str:
 
     model = _IndexMapWrapper(builder(weights=weights())).eval()
 
-    # fp16 is an HTP compile-time precision, not a quantization pass; a16w8 is
-    # 16-bit activations over 8-bit weights, done here before lowering.
+    # fp16 is an HTP compile-time precision, not a quantization pass; a16w8 and
+    # a8w8 are 16-/8-bit activations over 8-bit weights, done here before lowering.
     compiler_specs = generate_qnn_executorch_compiler_spec(
         soc_model=getattr(QcomChipset, soc),
         backend_options=generate_htp_compiler_spec(use_fp16=not quantized),
@@ -162,7 +169,7 @@ def export(config: dict, out_dir: str) -> str:
             # MovingAverageMinMaxObserver, whose moving average trails the real
             # activation range: it cost DeepLabV3 1.59 mIoU.
             make_quantizer(
-                quant_dtype=QuantDtype.use_16a8w,
+                quant_dtype=getattr(QuantDtype, _QUANT_DTYPE[variant["precision"]]),
                 soc_model=soc,
                 act_observer=MinMaxObserver,
                 eps=_eps_for(variant["file"]),

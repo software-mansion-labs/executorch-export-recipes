@@ -17,6 +17,12 @@ dilated convolution over a 65x65 input trips a watchdog after ~11.5 s with QNN
 error 1007, and no compiler option avoids it (pytorch/executorch#23096). The
 fp16 path below is kept because the failure is specific to that layer shape, but
 config.json declares a16w8 only.
+
+The ResNet v81 variants are a8w8: at the same mIoU it halves latency on an S26
+Ultra (200 VOC2012 val images; a16w8 -> a8w8): ResNet50 76.74% / 20.4 ms ->
+76.44% / 9.9 ms, ResNet101 78.90% / 29.4 ms -> 78.96% / 14.9 ms. MobileNetV3
+stays a16w8: a8w8 costs it 11 mIoU in host fake-quant (67.22% -> 55.77%).
+TODO: re-export the ResNet v69-v79 variants as a8w8 too; only v81 is validated.
 """
 
 import logging
@@ -165,6 +171,9 @@ _WEIGHT_EPS = {
 }
 
 
+_QUANT_DTYPE = {"a16w8": "use_16a8w", "a8w8": "use_8a8w"}
+
+
 def _eps_for(file_name: str):
     for arch, eps in _WEIGHT_EPS.items():
         if file_name.startswith(arch):
@@ -240,9 +249,8 @@ def export(config: dict, out_dir: str) -> str:
 
     model = _DeeplabWrapper(_split_wide_aspp_convs(builder(weights=weights()))).eval()
 
-    # fp16 is an HTP compile-time precision, not a quantization pass; a16w8 is
-    # 16-bit activations over 8-bit weights, done here before lowering. Plain
-    # 8a8w costs far too much accuracy on this model.
+    # fp16 is an HTP compile-time precision, not a quantization pass; a16w8 and
+    # a8w8 are 16-/8-bit activations over 8-bit weights, done here before lowering.
     compiler_specs = generate_qnn_executorch_compiler_spec(
         soc_model=getattr(QcomChipset, soc),
         backend_options=generate_htp_compiler_spec(use_fp16=not quantized),
@@ -258,7 +266,7 @@ def export(config: dict, out_dir: str) -> str:
             # 66.55% with plain min/max, which matches the published XNNPACK
             # int8 file (66.56%) at 3.20 ms/inference.
             make_quantizer(
-                quant_dtype=QuantDtype.use_16a8w,
+                quant_dtype=getattr(QuantDtype, _QUANT_DTYPE[variant["precision"]]),
                 soc_model=soc,
                 act_observer=MinMaxObserver,
                 eps=_eps_for(variant["file"]),
