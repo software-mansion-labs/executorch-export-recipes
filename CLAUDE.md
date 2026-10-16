@@ -85,9 +85,11 @@ matches its authored contract and lowers as intended:
   is its own uv project (`pyproject.toml` + `uv.lock`) that path-depends on the
   harness and pins its exact stack (torch/executorch/transformers/…). Run inside
   it with `uv run --project exporter_models/<model> exporter export <model> …`.
-  Torch comes as a stable release from PyPI (as facemesh and migan do), or as
-  a wheel URL when a nightly is unavoidable — never a dated pin on the nightly
-  index, which gets pruned and stops resolving. Python is pinned to 3.10; locks
+  From now on torch is a stable release from PyPI (as facemesh and migan do),
+  or a wheel URL when a nightly is unavoidable; do not add new dated pins on
+  the nightly index, which gets pruned and stops resolving (most existing
+  models still have one, swap it at their next re-export). Python is pinned to
+  3.10; locks
   target this macOS arm64 host. The `model.json` `extras` survive as stack
   labels only. rfdetr/ultralytics need a torch `override-dependencies`; MLX
   models (gemma*/lfm2_5_vl) and Vulkan exports need an executorch source build

@@ -142,18 +142,20 @@ build. A single lock can't satisfy them.
 
 Conventions when authoring a model's `pyproject.toml`:
 - `requires-python = "==3.10.*"`; repo-root `.python-version` is `3.10`.
-- Torch-family (`torch`, `torchvision`, `torchaudio`, `torchao`): pin the
-  **stable release from PyPI** (as facemesh and migan do — `torch==2.14.0`,
-  `torchvision==0.29.0`; executorch 1.4.1 only asks for `torch>=2.13.0a0`),
-  with no `[tool.uv.sources]` entry for them. Match torch and torchvision
-  (torchvision hard-pins its torch). Use a **wheel URL** only if a nightly is
-  unavoidable:
+- Torch-family (`torch`, `torchvision`, `torchaudio`, `torchao`): from now
+  on, pin the **stable release from PyPI** (as facemesh and migan do —
+  `torch==2.14.0`, `torchvision==0.29.0`; executorch 1.4.1 only asks for
+  `torch>=2.13.0a0`), with no `[tool.uv.sources]` entry for them. Match torch
+  and torchvision (torchvision hard-pins its torch). Use a **wheel URL** only
+  if a nightly is unavoidable:
   `torch = { url = "https://download.pytorch.org/whl/nightly/cpu/torch-2.14.0.dev20260702-cp310-cp310-macosx_14_0_arm64.whl" }`
-  — never a dated pin against the `pytorch-nightly` index. The index keeps a
-  rolling window and prunes old dev builds, so `torch==2.14.0.devYYYYMMDD`
+  Do not add new dated pins against the `pytorch-nightly` index. The index
+  keeps a rolling window and prunes old dev builds, so `torch==2.14.0.devYYYYMMDD`
   stops resolving a few months on (the wheel file itself stays served, which is
-  what the `<model>/vulkan/` sub-projects rely on). Existing locks keep working
-  because they record wheel URLs. torchao, if needed, is the pure-python
+  what the `<model>/vulkan/` sub-projects rely on). Most existing models still
+  carry such a pin; they stay as they are until the model is next re-exported,
+  and their locks keep working because they record wheel URLs. torchao, if
+  needed, is the pure-python
   `py3-none-any` wheel (no C++ build); `docs/executorch-1.4.1-bump.md` has its
   `.dev`-sorts-below-release trap.
 - `[tool.uv] environments = ["sys_platform == 'darwin' and platform_machine == 'arm64'"]`

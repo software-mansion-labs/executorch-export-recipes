@@ -49,11 +49,12 @@ exporter_models/<model>/
   uv run --project exporter_models/<model> exporter export <model> --backend <b>
   ```
 
-  The harness targets **python 3.10** (`.python-version`); torch is a **stable
-  release from PyPI** (as facemesh and migan do), or a **wheel URL** in
-  `[tool.uv.sources]` when a nightly is unavoidable — never a dated pin on the
-  nightly index, which gets pruned — and locks are pinned to this macOS arm64
-  host (`tool.uv.environments`). The old
+  The harness targets **python 3.10** (`.python-version`); from now on torch
+  is a **stable release from PyPI** (as facemesh and migan do), or a **wheel
+  URL** in `[tool.uv.sources]` when a nightly is unavoidable — no new dated pins
+  on the nightly index, which gets pruned (most existing models still carry
+  one, to be swapped at their next re-export) — and locks are pinned to this
+  macOS arm64 host (`tool.uv.environments`). The old
   `model.json` `extras` remain as human-readable stack labels; `export` still
   preflights them as a light sanity check.
 
