@@ -76,7 +76,7 @@ git checkouts by commit hash. Do what the MLX models do (`skills/backends/mlx`,
 
    ```bash
    cd export-scripts
-   PYTHONPATH=src python -c 'from exporter.cli import main; main()' \
+   PYTHONPATH=src python -m exporter.cli \
        export <model> --backend vulkan --size <s> --output-dir <dir>
    ```
 
