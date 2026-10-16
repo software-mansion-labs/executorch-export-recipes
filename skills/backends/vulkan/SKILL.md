@@ -149,6 +149,7 @@ stride-1 depthwise conv came out wrong. Both are fixed in upstream PR
 (picker guard on `is_3x3 || is_5x5`, full-extent loop in `conv2d_dw.glsl`,
 4x4 / 7x7 depthwise cases in `op_tests/cases.py`, `test_vulkan_delegate.py`
 and the custom-op test), verified on MoltenVK with the recipe above; the same
-change goes to the fork's `@ms/separate-backends-1.4.1` through its own MR. migan's
+change is backported to the fork's `@ms/separate-backends-1.4.1` in
+[software-mansion-labs/executorch#10](https://github.com/software-mansion-labs/executorch/pull/10). migan's
 `vulkanize()` graph rewrite goes away once the RNE Vulkan lib is rebuilt with
 it.
