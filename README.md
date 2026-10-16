@@ -50,7 +50,7 @@ exporter_models/<model>/
   ```
 
   The harness targets **python 3.10** (`.python-version`); from now on torch
-  is a **stable release from PyPI** (as facemesh and migan do), or a **wheel
+  is a **stable release from PyPI** (as facemesh does), or a **wheel
   URL** in `[tool.uv.sources]` when a nightly is unavoidable — no new dated pins
   on the nightly index, which gets pruned (most existing models still carry
   one, to be swapped at their next re-export) — and locks are pinned to this

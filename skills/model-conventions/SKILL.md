@@ -143,7 +143,7 @@ build. A single lock can't satisfy them.
 Conventions when authoring a model's `pyproject.toml`:
 - `requires-python = "==3.10.*"`; repo-root `.python-version` is `3.10`.
 - Torch-family (`torch`, `torchvision`, `torchaudio`, `torchao`): from now
-  on, pin the **stable release from PyPI** (as facemesh and migan do —
+  on, pin the **stable release from PyPI** (as facemesh does —
   `torch==2.14.0`, `torchvision==0.29.0`; executorch 1.4.1 only asks for
   `torch>=2.13.0a0`), with no `[tool.uv.sources]` entry for them. Match torch
   and torchvision (torchvision hard-pins its torch). Use a **wheel URL** only
@@ -165,9 +165,10 @@ Conventions when authoring a model's `pyproject.toml`:
   torch.
 - `safetensors` is effectively always needed (the ET `export_llama` path reads
   it); funasr also needs `torchaudio`.
-- MLX-backend models (gemma*/lfm2_5_vl) and every `<model>/vulkan/`
-  sub-project need executorch built from the software-mansion-labs fork
-  (`branch = "@ms/separate-backends-1.4.1"`) — a native source build. Their
+- The MLX models gemma*, lfm2_5_vl and `sdxs_512_dreamshaper/mlx`, and every
+  `<model>/vulkan/` sub-project, need executorch built from the
+  software-mansion-labs fork (`branch = "@ms/separate-backends-1.4.1"`) — a
+  native source build. Their
   pyproject **declares** the fork source but is not uv-buildable here: besides
   the build itself, upstream's CMake refuses a checkout directory not named
   exactly `executorch` (pytorch/executorch#6475) and uv names git checkouts by

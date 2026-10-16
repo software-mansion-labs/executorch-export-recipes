@@ -68,13 +68,15 @@ and an `export.py` per backend. See `skills/model-conventions` for the full
 5. **Author the model's uv project:** add `exporter_models/<model>/pyproject.toml`
    pinning the exact stack this model needs (see the "Per-model dependencies"
    section in `skills/model-conventions` for the full recipe — stable torch
-   from PyPI (as facemesh and migan do), or a wheel URL if a nightly is
+   from PyPI (as facemesh does), or a wheel URL if a nightly is
    unavoidable; matched torch/torchvision; `safetensors` always; environments
    pinned to this host; overrides for rfdetr/ultralytics). Then `uv lock` it and
-   commit the `uv.lock`. The per-model `.venv` is gitignored. MLX and Vulkan
-   backends are the exception: their pyproject declares the executorch fork pin
-   but is not uv-buildable, and the export runs in a source-built dev env — the
-   build recipe is in `skills/backends/vulkan` (it applies to MLX too).
+   commit the `uv.lock`. The per-model `.venv` is gitignored. The projects
+   that pin executorch to the software-mansion-labs fork (gemma*, lfm2_5_vl,
+   `sdxs_512_dreamshaper/mlx`, every `<model>/vulkan/`) are the exception:
+   the pin is declared but not uv-buildable, and the export runs in a
+   source-built dev env — the build recipe is in `skills/backends/vulkan` (it
+   applies to the MLX ones too).
 
 6. **Run it inside that env:**
    `uv run --project exporter_models/<model> exporter export <model> [--size S] [--backend B]`.
@@ -93,8 +95,9 @@ Two mistakes that cost hours on migan and are invisible to the harness:
   `if act_gain != 1:` exports fine in eager but `torch.export` wraps the numpy
   scalar into a tensor, so the comparison becomes data-dependent control flow
   and the export fails on it. Patch the vendored module to keep a Python
-  float (`self.gain = float(np.sqrt(2))`), mark the change (`# EXPORT PATCH`),
-  and note it in the model's `NOTES.md`. Nothing to fix upstream; this is how
+  float (`self.gain = float(np.sqrt(2))`), mark the change with an
+  `# EXPORT PATCH` comment so it stays greppable, and note it in the model's
+  `NOTES.md`. Nothing to fix upstream; this is how
   `torch.export` treats numpy values. In-place ops (`leaky_relu(inplace=True)`,
   `add_`) are NOT a problem — export functionalises them, bit-identically.
 - **A non-contiguous input makes every `.pte` look broken.** The ExecuTorch

@@ -61,7 +61,7 @@ and raises for other backends). Heavy imports stay inside `export()`.
 Every `<model>/vulkan/pyproject.toml` pins executorch to the
 software-mansion-labs fork (`branch = "@ms/separate-backends-1.4.1"`), because
 the shipped Vulkan runtime carries fork-only fixes (the NOTE block in each file
-says which). That pin is a **declaration, not a recipe**: `uv sync` of it fails
+says why). That pin is a **declaration, not a recipe**: `uv sync` of it fails
 before compiling anything, since upstream ExecuTorch's CMake refuses a checkout
 directory not named exactly `executorch` (pytorch/executorch#6475) and uv names
 git checkouts by commit hash. Like the MLX models, run the export in a
@@ -80,7 +80,7 @@ source-built dev env; this section is the recipe (the MLX skill has none).
        export <model> --backend vulkan --size <s> --output-dir <dir>
    ```
 
-   Keep the `vulkan/pyproject.toml` (+ `uv.lock` where one exists) as the
+   Keep the `vulkan/pyproject.toml` (+ its `uv.lock`) as the
    record of intent — torch wheel URL, fork branch — so the stack stays
    auditable even though uv cannot materialise it.
 
@@ -147,9 +147,10 @@ the window crossed the right / bottom edge (any padding > 0), so even a 7x7
 stride-1 depthwise conv came out wrong. Both are fixed in upstream PR
 [pytorch/executorch#23892](https://github.com/pytorch/executorch/pull/23892)
 (picker guard on `is_3x3 || is_5x5`, full-extent loop in `conv2d_dw.glsl`,
-4x4 / 7x7 depthwise cases in `op_tests/cases.py`, `test_vulkan_delegate.py`
-and the custom-op test), verified on MoltenVK with the recipe above; the same
-change is backported to the fork's `@ms/separate-backends-1.4.1` in
+new depthwise cases — 4x4 s2, 7x7, dilated, non-square — in
+`op_tests/cases.py`, `test_vulkan_delegate.py` and the custom-op test),
+verified on MoltenVK with the recipe above; the same change is merged into
+the fork's `@ms/separate-backends-1.4.1` as
 [software-mansion-labs/executorch#10](https://github.com/software-mansion-labs/executorch/pull/10). migan's
 `vulkanize()` graph rewrite goes away once the RNE Vulkan lib is rebuilt with
 it.
