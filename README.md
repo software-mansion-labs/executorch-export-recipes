@@ -41,16 +41,19 @@ exporter_models/<model>/
   `uv.lock`) that path-depends on this harness and pins torch / executorch /
   transformers / torchao / … to the versions that produced its `.pte`. This is
   per-model because the models genuinely conflict (rfdetr forces torch<=2.13
-  via an override; funasr needs torchaudio; the MLX models need an executorch
-  source build). Run an export inside a model's locked env:
+  via an override; funasr needs torchaudio; the MLX models and the Vulkan
+  exports need an executorch source build). Run an export inside a model's
+  locked env:
 
   ```bash
   uv run --project exporter_models/<model> exporter export <model> --backend <b>
   ```
 
-  The harness targets **python 3.10** (`.python-version`); the torch-family
-  wheels come from the PyTorch **nightly** index (`[tool.uv.sources]`), and locks
-  are pinned to this macOS arm64 host (`tool.uv.environments`). The old
+  The harness targets **python 3.10** (`.python-version`); torch is a **stable
+  release from PyPI** (as facemesh and migan do), or a **wheel URL** in
+  `[tool.uv.sources]` when a nightly is unavoidable — never a dated pin on the
+  nightly index, which gets pruned — and locks are pinned to this macOS arm64
+  host (`tool.uv.environments`). The old
   `model.json` `extras` remain as human-readable stack labels; `export` still
   preflights them as a light sanity check.
 
