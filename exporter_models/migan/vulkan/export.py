@@ -1,14 +1,11 @@
-import hashlib
 import importlib.util
 import sys
-import urllib.request
 from pathlib import Path
 
 import torch
 
 _HERE = Path(__file__).resolve().parent
 _MODEL_DIR = _HERE.parent
-_WEIGHTS_DIR = _MODEL_DIR / "weights"
 
 
 def _load_migan():
@@ -21,22 +18,6 @@ def _load_migan():
     spec.loader.exec_module(mod)
     return mod
 
-
-def _fetch_weights(mg, checkpoint: str) -> Path:
-    path = _WEIGHTS_DIR / checkpoint
-    if not path.exists():
-        _WEIGHTS_DIR.mkdir(parents=True, exist_ok=True)
-        url = mg.WEIGHTS_DRIVE_URL.format(file_id=mg.WEIGHTS_DRIVE_IDS[checkpoint])
-        urllib.request.urlretrieve(url, path)
-
-    expected = mg.WEIGHTS_SHA256[checkpoint]
-    actual = hashlib.sha256(path.read_bytes()).hexdigest()
-    if actual != expected:
-        raise ValueError(
-            f"checkpoint '{checkpoint}' sha256 {actual} != expected {expected}; "
-            f"delete {path} and re-run, or update WEIGHTS_SHA256 if upstream moved"
-        )
-    return path
 
 
 def export(config: dict, out_dir: str) -> str:
@@ -56,7 +37,7 @@ def export(config: dict, out_dir: str) -> str:
     )
 
     generator = mg.Generator(resolution=resolution)
-    weights = _fetch_weights(mg, mg.CHECKPOINT_FOR_SIZE[size])
+    weights = mg.fetch_weights(mg.CHECKPOINT_FOR_SIZE[size])
     generator.load_state_dict(torch.load(weights, map_location="cpu", weights_only=True), strict=True)
     generator = mg.vulkanize(generator)  # see Downsample2dVulkan in _migan.py
     model = mg.InpaintingWrapper(generator)

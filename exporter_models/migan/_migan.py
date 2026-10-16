@@ -387,6 +387,10 @@ class Generator(nn.Module):
         return img
 # --- VENDORED: end -----------------------------------------------------------
 
+import hashlib
+import urllib.request
+from pathlib import Path
+
 SOURCE_REPO = "Picsart-AI-Research/MI-GAN"
 # Pinned to a commit, not `main`: the upstream repo is unversioned.
 SOURCE_COMMIT = "2b793c5ece43f4253e32d4afc257120a5deed6f5"
@@ -420,6 +424,26 @@ CHECKPOINT_FOR_SIZE = {
     "faces_256": "migan_256_ffhq.pt",
 }
 RESOLUTION_FOR_SIZE = {"256": 256, "512": 512, "faces_256": 256}
+
+WEIGHTS_DIR = Path(__file__).resolve().parent / "weights"  # gitignored
+
+
+def fetch_weights(checkpoint: str) -> Path:
+    """Download `checkpoint` into WEIGHTS_DIR once and sha256-check it every time."""
+    path = WEIGHTS_DIR / checkpoint
+    if not path.exists():
+        WEIGHTS_DIR.mkdir(parents=True, exist_ok=True)
+        url = WEIGHTS_DRIVE_URL.format(file_id=WEIGHTS_DRIVE_IDS[checkpoint])
+        urllib.request.urlretrieve(url, path)
+
+    expected = WEIGHTS_SHA256[checkpoint]
+    actual = hashlib.sha256(path.read_bytes()).hexdigest()
+    if actual != expected:
+        raise ValueError(
+            f"checkpoint '{checkpoint}' sha256 {actual} != expected {expected}; "
+            f"delete {path} and re-run, or update WEIGHTS_SHA256 if upstream moved"
+        )
+    return path
 
 
 class InpaintingWrapper(nn.Module):
