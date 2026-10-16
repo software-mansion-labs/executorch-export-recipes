@@ -4,6 +4,7 @@ from pathlib import Path
 
 import torch
 
+from exporter.backends import require_mlx_runtime_fork
 from exporter.schema import load_and_validate_schema
 
 _HERE = Path(__file__).resolve().parent
@@ -45,6 +46,10 @@ class _BosPrepend(torch.nn.Module):
 
 
 def export(config: dict, out_dir: str) -> str:
+    # The MLX graph is version-locked to the runtime by union order, not by the
+    # schema version field -- a wheel-built .pte loads as garbage. Fail early.
+    require_mlx_runtime_fork()
+
     from executorch import exir
     from executorch.backends.mlx import MLXPartitioner
     from executorch.backends.mlx.llm.quantization import quantize_model_

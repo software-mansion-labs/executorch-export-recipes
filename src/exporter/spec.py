@@ -42,6 +42,11 @@ class Variant:
     # op_linear_quantizer_config per-channel. None leaves weights at the compute
     # precision. Distinct from `precision`, which is the compute precision.
     quantize: str | None = None
+    # Core ML only: which compute units the delegate may dispatch to
+    # ("ALL", "CPU_ONLY", "CPU_AND_GPU", "CPU_AND_NE"). None leaves the choice
+    # to the export script's own default. This is a correctness knob as much as
+    # a performance one: some graphs are wrong on the ANE or on CPU-only fp16.
+    compute_unit: str | None = None
     # LLM runner constants declared in the config as non-IO method entries
     # (get_bos_id, get_eos_ids, get_max_seq_len, use_kv_cache, ...). Values are
     # int / list / bool / null. Embedded into the .pte at export time.
@@ -139,6 +144,7 @@ def load_spec(data: dict) -> Spec:
                 methods=methods,
                 components=rv.get("components"),
                 quantize=rv.get("quantize"),
+                compute_unit=rv.get("compute_unit"),
                 constants=constants,
             )
         )

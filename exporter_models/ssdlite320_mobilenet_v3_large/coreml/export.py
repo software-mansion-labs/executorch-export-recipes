@@ -43,6 +43,12 @@ def export(config: dict, out_dir: str) -> str:
     precision = {"fp16": ct.precision.FLOAT16, "fp32": ct.precision.FLOAT32}[
         variant["precision"]
     ]
+    # generate_compile_specs defaults compute_unit to ALL. For a graph this small
+    # that default is not obviously right: dispatching to the Neural Engine costs
+    # the same whether the program does a lot of work or almost none, and ssdlite
+    # is a 320x320 mobilenet. Swept on device rather than assumed; see
+    # docs/ssdlite320-coreml-compute-units.md.
+    compute_unit = getattr(ct.ComputeUnit, variant.get("compute_unit") or "ALL")
 
     m = _load_model_module()
     base_model = m.ssdlite320_mobilenet_v3_large(
@@ -54,6 +60,7 @@ def export(config: dict, out_dir: str) -> str:
     ep = torch_export(model, inputs)
     specs = CoreMLBackend.generate_compile_specs(
         minimum_deployment_target=ct.target.iOS18,
+        compute_unit=compute_unit,
         compute_precision=precision,
     )
     program = to_edge_transform_and_lower(
