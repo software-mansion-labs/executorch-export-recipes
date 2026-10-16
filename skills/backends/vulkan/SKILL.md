@@ -128,8 +128,9 @@ Nothing on the export side warns about this, so **check the runtime library you
 ship against, not just the export**. Shader names are plain string literals in
 the generated registry, so `strings` on the Android lib lists exactly what it
 ships (the RNE lib is `third-party/android/libs/executorch/<abi>/libvulkan_executorch_backend.so`
-in the react-native-executorch package, built from
-`software-mansion-labs/executorch@rne-split-build`):
+in the react-native-executorch package, built from the fork base branch
+`software-mansion-labs/executorch@@ms/separate-backends-1.4.1`, the same pin
+the exports use):
 
 ```bash
 strings libvulkan_executorch_backend.so | grep -E '^conv2d_dw' | sort
@@ -148,6 +149,6 @@ stride-1 depthwise conv came out wrong. Both are fixed in upstream PR
 (picker guard on `is_3x3 || is_5x5`, full-extent loop in `conv2d_dw.glsl`,
 4x4 / 7x7 depthwise cases in `op_tests/cases.py`, `test_vulkan_delegate.py`
 and the custom-op test), verified on MoltenVK with the recipe above; the same
-commit sits on the fork branch of that name for `rne-split-build`. migan's
+change goes to the fork's `@ms/separate-backends-1.4.1` through its own MR. migan's
 `vulkanize()` graph rewrite goes away once the RNE Vulkan lib is rebuilt with
 it.
