@@ -58,14 +58,16 @@ def export(config: dict, out_dir: str) -> str:
         (torch.rand(*mask_shape) > 0.3).to(torch.float32),
     )
 
+    if variant["quantized"]:
+        # Checked first so an fp16 + quantized variant cannot slip through as
+        # plain fp16.
+        raise ValueError("int8 is not shipped for migan: wrong output on the RNE Android runtime, see NOTES.md")
     if variant["precision"] == "fp16":
         # fp16 is the only XNNPACK variant shipped: output matches fp32 to
         # ~1e-3 and ARM fp16 arithmetic makes it ~2x faster on device (S23);
         # the file is only 8% smaller. int8 was measured and dropped, see
         # NOTES.md "XNNPACK precision study".
         model = _Fp16IO(model.half()).eval()
-    elif variant["quantized"]:
-        raise ValueError("int8 is not shipped for migan: wrong output on the RNE Android runtime, see NOTES.md")
 
     ep = torch_export(model, inputs, strict=True)
     program = lower(ep, config["backend"])
