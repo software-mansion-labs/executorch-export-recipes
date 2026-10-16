@@ -172,8 +172,8 @@ Conventions when authoring a model's `pyproject.toml`:
   the build itself, upstream's CMake refuses a checkout directory not named
   exactly `executorch` (pytorch/executorch#6475) and uv names git checkouts by
   commit hash, so `uv sync` dies before compiling. Run these exports in the
-  ET-source dev env (recipe in `skills/backends/{mlx,vulkan}`); the `.pte`
-  ships on HF.
+  ET-source dev env (recipe in `skills/backends/vulkan`, which covers MLX
+  too); the `.pte` ships on HF.
 
 The `model.json` `extras` survive only as human-readable stack labels; the
 `export` preflight (`registry.check_extras`) is a light presence sanity-check.

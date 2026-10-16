@@ -73,8 +73,8 @@ and an `export.py` per backend. See `skills/model-conventions` for the full
    pinned to this host; overrides for rfdetr/ultralytics). Then `uv lock` it and
    commit the `uv.lock`. The per-model `.venv` is gitignored. MLX and Vulkan
    backends are the exception: their pyproject declares the executorch fork pin
-   but is not uv-buildable, and the export runs in a source-built dev env — see
-   `skills/backends/{mlx,vulkan}`.
+   but is not uv-buildable, and the export runs in a source-built dev env — the
+   build recipe is in `skills/backends/vulkan` (it applies to MLX too).
 
 6. **Run it inside that env:**
    `uv run --project exporter_models/<model> exporter export <model> [--size S] [--backend B]`.

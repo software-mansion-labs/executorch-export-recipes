@@ -64,8 +64,8 @@ the shipped Vulkan runtime carries fork-only fixes (the NOTE block in each file
 says which). That pin is a **declaration, not a recipe**: `uv sync` of it fails
 before compiling anything, since upstream ExecuTorch's CMake refuses a checkout
 directory not named exactly `executorch` (pytorch/executorch#6475) and uv names
-git checkouts by commit hash. Do what the MLX models do (`skills/backends/mlx`,
-`skills/model-conventions`): run the export in a source-built dev env.
+git checkouts by commit hash. Like the MLX models, run the export in a
+source-built dev env; this section is the recipe (the MLX skill has none).
 
 1. Clone the fork into a directory literally named `executorch`, check out the
    pinned branch, build with `EXECUTORCH_BUILD_VULKAN=ON` and install the
