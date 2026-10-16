@@ -2,10 +2,9 @@
 
 - **Layout:** `{backend}/{size}/config.json`, both locally (`xnnpack/256/`,
   `xnnpack/512/`) and in the HF repo (`xnnpack/256/migan_256_xnnpack_fp16.pte`),
-  backend on top as in the spec's model-card example and kokoro; other
-  multi-size repos differ, this one follows the review. `exports/migan-hf/` is
-  a ready-to-upload mirror of the HF repo (root `config.json`, `README.md`,
-  `LICENSE`, `<backend>/<size>/`) built from the last export.
+  backend on top as in the spec's model-card example and kokoro (other
+  multi-size repos differ). The HF repo holds the root `config.json`,
+  `README.md`, `LICENSE` and one `<backend>/<size>/` dir per export.
 
 Tracks react-native-executorch issue #1373.
 
@@ -46,8 +45,7 @@ Tracks react-native-executorch issue #1373.
   upstream's `ffhq_256_freeform` examples, inside the hole: 52 to 62 dB
   (mean 56). On the same faces the Places2 `256` checkpoint differs by
   0.05 to 0.09 mean abs and visibly smears eyes and mouths where the face
-  checkpoint reconstructs them (`exports/migan/cmp_faces.png`, local), which
-  is the reason to ship it. XNNPACK smoke-tested on the Android emulator
+  checkpoint reconstructs them, which is the reason to ship it. XNNPACK smoke-tested on the Android emulator
   (loads, `XnnpackBackend`, sensible output); CoreML and Vulkan only
   statically checked (one delegate call, zero portable ops each), not yet run
   on a phone.
@@ -80,18 +78,16 @@ Tracks react-native-executorch issue #1373.
   report `XnnpackBackend` for `forward`, and return the host result (fp16
   matches fp32 to 4 decimals). This is not the RNE inpainting task (it does
   not exist yet), so no timings are recorded here; 512 was noticeably less
-  than 4x the cost of 256, which suggests a fixed cost worth a profiler run
-  (the 12 to 14 portable `upsample_nearest2d` ops are the first suspect).
+  than 4x the cost of 256, a fixed cost the profiler run below pins on the
+  partition split around the portable `upsample_nearest2d` ops.
 - **Delegation:** everything lands on XNNPACK except `upsample_nearest2d` (12
   ops at 256, 14 at 512), which the partitioner does not take with or without
   `extended_ops=True`. The fp16 build additionally carries 65 / 73 portable
   `_to_dim_order_copy` casts: the three fp32-I/O casts of the wrapper plus one
   zero-dim fp32 to fp16 cast per scalar constant (gains, clamp bounds), i.e.
-  negligible work. They are cheap memory ops; the upstream `Upsample2d` is
-  nearest-x2 followed by a `[[1,0],[0,0]]` checkerboard multiply, i.e. zero
-  insertion — a depthwise `conv_transpose2d(stride=2)` would express it as one
-  delegated op if profiling shows the portable fallback matters. Not yet
-  profiled with the executorch-profiler (needs the event-tracer ET build).
+  negligible work. The upstream `Upsample2d` is nearest-x2 followed by a
+  `[[1,0],[0,0]]` checkerboard multiply, i.e. zero insertion; what the split
+  costs and what would remove it is in "Profiling" below.
 - **Testing trap:** when checking a `.pte` from a PIL/numpy image, `permute`
   leaves the tensor non-contiguous and the ET runtime reads the raw buffer as
   contiguous NCHW — call `.contiguous()` first or the output is garbage (and
@@ -129,9 +125,9 @@ Tracks react-native-executorch issue #1373.
   named exactly `executorch` (pytorch/executorch#6475) and uv names git
   checkouts by commit hash. Like the MLX models (`skills/model-conventions`),
   the pyproject declares the pin and the export is run in a source-built dev
-  env: these files came from `~/Documents/softu_executorch/executorch/.venv`
-  (editable executorch 1.4.1+f8b41ab = the fork's `@ms/separate-backends-1.4.1`
-  lineage plus the Vulkan mean/safe_idx fix, torch 2.13.0, python 3.13) via
+  env: these files came from a source-built checkout of the fork (editable
+  executorch 1.4.1+f8b41ab = the fork's `@ms/separate-backends-1.4.1` lineage
+  plus the Vulkan mean/safe_idx fix, torch 2.13.0, python 3.13) via
   `PYTHONPATH=src python -c 'from exporter.cli import main; main()' export migan
   --backend vulkan ...`.
 - **Vulkan needs one graph rewrite** (`Downsample2dVulkan` / `vulkanize()` in
@@ -147,8 +143,9 @@ Tracks react-native-executorch issue #1373.
   block.
 - **Smoke-tested on the Galaxy S23 (Adreno, 2026-10-13)** with the same local
   screen: both sizes load (`VulkanBackend`) and return the same result as
-  XNNPACK; forward was several times faster than XNNPACK fp32 on the same
-  phone (and still clearly ahead of the fp16 now shipped) (first call and load are longer, shader compile). Vulkan is the
+  XNNPACK. Forward was several times faster than XNNPACK fp32 on the same
+  phone and still clearly ahead of the fp16 build now shipped; only the load
+  and the first call take longer, for the shader compile. Vulkan is the
   Android default candidate for this model.
 - **Download cache trap when re-testing on device:** the RNE fetcher keys its
   cache on the URL path (a `?v=2` query does not bust it), so a re-exported
@@ -163,9 +160,8 @@ against an event-traced ExecuTorch built from the SWM fork at
 `@ms/separate-backends-1.4.1` (the branch the RNE runtime is built from) with
 `EXECUTORCH_ENABLE_EVENT_TRACER=ON`, `EXECUTORCH_BUILD_COREML=ON`,
 `EXECUTORCH_BUILD_MLX=OFF` (MLX needs the Metal toolchain and is not needed
-here). Inputs are real upstream example pairs (`exports/migan/profile/inputs_*.pt`,
-local), 10 forwards each. Full tables in `exports/migan/profile/` (local).
-Shares below are of `Method::execute` time on this Mac; absolute numbers are
+here). Inputs are real upstream example pairs, 10 forwards each. Shares
+below are of `Method::execute` time on this Mac; absolute numbers are
 host-side and not recorded.
 
 **XNNPACK fp16, where the time goes:**
@@ -221,11 +217,11 @@ as compiled; what the CoreML runtime on this Mac would choose, iOS may differ):
 backend, so only the static check applies (one `VulkanBackend` call, zero
 portable ops, for all three sizes).
 
-## XNNPACK precision study: fp32 vs fp16 vs int8 (2026-10-14, for MR !31)
+## XNNPACK precision study: fp32 vs fp16 vs int8 (2026-10-14)
 
-Review asked whether XNNPACK should ship fp32 at all. Exported fp16 and static
-int8 (PT2E, per-channel weights, `XNNPACKQuantizer`) alongside fp32 and measured
-them on upstream's example sets. int8 is calibrated on the free-form sets
+To decide what XNNPACK should ship, fp16 and static int8 (PT2E, per-channel
+weights, `XNNPACKQuantizer`) were exported alongside fp32 and measured on
+upstream's example sets. int8 is calibrated on the free-form sets
 (`places2_512_freeform` for 512; that plus `places2_256_freeform` for 256) and
 evaluated on sets it never saw: `places2_512_object` and `ffhq_256_freeform`
 (faces, out of domain, random masks). Metrics are computed **inside the hole
@@ -252,8 +248,8 @@ original still contains the removed object). Measured on this Mac.
   fp16 NEON arithmetic; on the Mac the gain was much smaller) with output
   matching fp32 to 4 decimals. int8 ran faster still, but see below.
 - **int8 on host is 3.8x smaller, with visible damage**:
-  blue speckles in smooth regions (sky, haze) and along high-contrast edges,
-  see `exports/migan/cmp_volcano_int8b.png`; PSNR to fp32 inside the hole
+  blue speckles in smooth regions (sky, haze) and along high-contrast edges;
+  PSNR to fp32 inside the hole
   ~25 dB, i.e. ~8/255 average error, and 0.3-0.5 dB lost against ground truth.
   Keeping the RGB skip path (`fromrgb`, `torgb`, image upsample) in fp32 does
   NOT help, so the error is in the feature path -- plausibly the activation
@@ -276,8 +272,7 @@ original still contains the removed object). Measured on this Mac.
   fp16/fp32 are immune only because their kernel bytes differ. Fix: the cache
   name of a quantized kernel now carries its scale tensor name / zero point
   and the consuming node's input/output quantization; branch
-  `xnnpack-weights-cache-quant-names` in the SWM fork (worktree
-  `~/Documents/softu_executorch/executorch-wcfix`), with a gtest. Verified:
+  `xnnpack-weights-cache-quant-names` in the SWM fork, with a gtest. Verified:
   cached host runner bit-identical to uncached for int8 256/512, the
   single-partition variant and the minimal U-Net repro, and the patched
   `executor_runner` on the Android arm64 emulator matches the host. Not yet
@@ -285,10 +280,10 @@ original still contains the removed object). Measured on this Mac.
   Upstream has the same cache design, PR candidate.
 - **Decision (2026-10-15): XNNPACK ships fp16 only.** fp32 is dropped (same
   output, slower) and int8 is dropped (quality loss on host; the Android
-  divergence is a runtime bug, fixed in the fork, see above). The int8 recipe (PT2E, `XNNPACKQuantizer`, per-channel weights,
-  calibration on a sparse clone of upstream `examples/` at `SOURCE_COMMIT`,
-  needs Pillow) lives in this branch's history if the runtime bug gets fixed.
-- Eval tooling: `exports/migan/eval_variants.py`, device runner via the local smoke-test screen + `autorun.json` (local).
+  divergence is a runtime bug, fixed in the fork, see above). The int8 recipe
+  (PT2E, `XNNPACKQuantizer`, per-channel weights, calibration on a sparse
+  clone of upstream `examples/` at `SOURCE_COMMIT`, needs Pillow) is in the
+  git history of `xnnpack/export.py` should it be worth revisiting.
 - Quantizer trap: `XNNPACKQuantizer.set_module_name` honours only one name per
   quantizer (78 names -> 3 observers) and `None` configs are unsupported; to
   exclude modules set `quantizer.filter_fn` (combined with every annotator) and
