@@ -97,6 +97,7 @@ def _quantize_from_bf16(pipeline) -> None:
             if quant._is_torchao_parametrized(mod):
                 scale = mod.parametrizations.weight.original1
                 scale.data = scale.data.to(BASE_DTYPE)
+        quant.materialize_weight_only_ple_projections(model)
         return model
 
     pipeline.load_truncated_from_safetensors = load_bf16
@@ -261,10 +262,14 @@ def export(config: dict, out_dir: str) -> str:
         name="xnnpack-omni",
         backend="xnnpack",
         modality="multimodal",
-        validated_on_device=True,
+        validated_on_device=False,
         quant=edge_config.QuantSpec(
             linear_bits=LINEAR_BITS,
             linear_group_size=LINEAR_GROUP_SIZE,
+            # Preserve precision in attention and the PLE residual projection.
+            skip_linear_name_suffixes=(
+                "q_proj", "k_proj", "v_proj", "o_proj", "per_layer_projection",
+            ),
             quantize_main_embeddings=QUANTIZE_MAIN_EMBEDDINGS,
             embedding_group_size=EMBEDDING_GROUP_SIZE,
             quantize_ple_embeddings=QUANTIZE_PLE_EMBEDDINGS,

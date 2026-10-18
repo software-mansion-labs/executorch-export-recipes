@@ -660,7 +660,7 @@ class Gemma4Attention(nn.Module):
             # is being used (prefill-without-cache path falls through).
             if (Gemma4Attention.use_dynamic_kv_slice
                     and self.is_global and not is_ring):
-                effective_len = int(input_pos[-1].item()) + 1
+                effective_len = input_pos[-1].item() + 1
                 torch._check_is_size(effective_len)
                 # slice_forward decomp guards `end <= max_dim`; teach the
                 # shape env that effective_len is within the cache bound.

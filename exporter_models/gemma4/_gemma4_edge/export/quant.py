@@ -321,3 +321,41 @@ def retarget_quantized_to_fp16_with_fp32_scales(model: nn.Module) -> None:
     Vulkan recipes print, if a caller wants them for a diagnostic.
     """
     _retarget_quantized_to_fp16_with_fp32_scales(model)
+
+
+def materialize_weight_only_ple_projections(model: nn.Module) -> int:
+    """Freeze quantized PLE projection weights before XNNPACK lowering.
+
+    ConvertToLinearPass can walk through a weight-only dequantize_affine
+    when recovering the Linear source partition and use its integer input as
+    a floating-point weight. Materializing only these small projection tables
+    preserves their quantized eager weights and prevents that rewrite. Main
+    and PLE embedding tables retain their packed quantized representation;
+    dynamically quantized linears retain their delegate kernels.
+
+    Returns the number of replaced projections.
+    """
+    count = 0
+    for name, module in list(model.named_modules()):
+        if "_ple_per_layer_projs." not in name:
+            continue
+        if not isinstance(module, nn.Linear) or not _is_torchao_parametrized(module):
+            continue
+        weight = module.weight
+        if weight.activation_quantization is not None:
+            continue
+        with torch.no_grad():
+            frozen_weight = weight.dequantize().detach().contiguous()
+            replacement = nn.Linear(
+                module.in_features, module.out_features,
+                bias=module.bias is not None,
+                device=frozen_weight.device, dtype=frozen_weight.dtype,
+            )
+            replacement.weight = nn.Parameter(frozen_weight, requires_grad=False)
+            if module.bias is not None:
+                replacement.bias = nn.Parameter(module.bias.detach().clone(), requires_grad=False)
+            replacement.train(module.training)
+        parent, _, attr = name.rpartition(".")
+        setattr(model.get_submodule(parent) if parent else model, attr, replacement)
+        count += 1
+    return count

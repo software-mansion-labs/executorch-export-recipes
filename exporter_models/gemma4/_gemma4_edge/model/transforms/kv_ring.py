@@ -126,7 +126,10 @@ def compute_shared_ring_state(
     Also drops the dead `where(arange<start_pos, cache_positions, -1)`
     block from the original `_calc_ring_indices` (validated bit-identical).
     """
-    start_pos = kv_cache_pos[0].item()
+    # The caller may rewind after a tool call or reset a session without
+    # clearing native buffers. Its explicit position is authoritative; an
+    # independently advancing counter would write into the wrong ring slots.
+    start_pos = input_pos[0].item()
     torch._check_is_size(start_pos)
     seq_len = input_pos.shape[0]
 
@@ -222,7 +225,7 @@ class Gemma4RingKVCache(nn.Module):
             indices = precomputed_indices
         else:
             seq_len = input_pos.shape[0]
-            start_pos = self.kv_cache_pos[0].item()
+            start_pos = input_pos[0].item()
             torch._check_is_size(start_pos)
             indices = _calc_ring_indices(
                 self.cache_positions, start_pos, seq_len, self.max_context_length,
@@ -366,7 +369,7 @@ class Gemma4QuantizedRingKVCache(QuantizedKVCache):
             # Take seq_len from input_pos (symbolic dim) rather than from
             # k_val_bshd.shape[1] — same reason as the float ring variant.
             seq_len = input_pos.shape[0]
-            start_pos = self.kv_cache_pos[0].item()
+            start_pos = input_pos[0].item()
             torch._check_is_size(start_pos)
             indices = _calc_ring_indices(
                 self.cache_positions, start_pos, seq_len, self.max_context_length,
