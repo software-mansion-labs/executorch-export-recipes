@@ -9,6 +9,70 @@
   "license": "apache-2.0",
   "variants": [
     {
+      "file": "whisper_tiny_xnnpack_int8.pte",
+      "precision": "int8",
+      "quantized": true,
+      "quantize": "8da8w-pc",
+      "default": true,
+      "methods": {
+        "decode": {
+          "inputs": [
+            {
+              "shape": [
+                1,
+                128
+              ],
+              "dtype": "int64"
+            },
+            {
+              "shape": [
+                128
+              ],
+              "dtype": "int64"
+            },
+            {
+              "shape": [
+                1,
+                1500,
+                384
+              ],
+              "dtype": "float32"
+            }
+          ],
+          "outputs": [
+            {
+              "shape": [
+                1,
+                128,
+                51865
+              ],
+              "dtype": "float32"
+            }
+          ]
+        },
+        "encode": {
+          "inputs": [
+            {
+              "shape": [
+                480000
+              ],
+              "dtype": "float32"
+            }
+          ],
+          "outputs": [
+            {
+              "shape": [
+                1,
+                1500,
+                384
+              ],
+              "dtype": "float32"
+            }
+          ]
+        }
+      }
+    },
+    {
       "file": "whisper_tiny_xnnpack_fp32.pte",
       "precision": "fp32",
       "quantized": false,

@@ -10,6 +10,22 @@
       "file": "multi_qa_mpnet_base_dot_v1_xnnpack_fp32.pte",
       "precision": "fp32",
       "quantized": false,
+      "default": false,
+      "methods": {
+        "forward": {
+          "inputs": [
+            { "shape": [1, 510], "dtype": "int64" },
+            { "shape": [1, 510], "dtype": "int64" }
+          ],
+          "outputs": [{ "shape": [1, 768], "dtype": "float32" }]
+        }
+      }
+    },
+    {
+      "file": "multi_qa_mpnet_base_dot_v1_xnnpack_8da4w.pte",
+      "precision": "8da4w",
+      "quantized": true,
+      "embedding_quantize": "int8",
       "default": true,
       "methods": {
         "forward": {
