@@ -10,6 +10,23 @@
       "file": "all_minilm_l6_v2_xnnpack_fp32.pte",
       "precision": "fp32",
       "quantized": false,
+      "default": false,
+      "methods": {
+        "forward": {
+          "inputs": [
+            { "shape": [1, 254], "dtype": "int64" },
+            { "shape": [1, 254], "dtype": "int64" }
+          ],
+          "outputs": [{ "shape": [1, 384], "dtype": "float32" }]
+        }
+      }
+    },
+    {
+      "file": "all_minilm_l6_v2_xnnpack_int8.pte",
+      "precision": "int8",
+      "quantized": true,
+      "quantize": "8da8w-pc",
+      "embedding_quantize": "int8",
       "default": true,
       "methods": {
         "forward": {

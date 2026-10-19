@@ -12,6 +12,7 @@
       "file": "whisper_small_en_xnnpack_int8.pte",
       "precision": "int8",
       "quantized": true,
+      "quantize": "8da8w-pc",
       "default": true,
       "methods": {
         "decode": {

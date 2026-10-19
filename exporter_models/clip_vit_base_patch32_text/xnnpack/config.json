@@ -10,6 +10,23 @@
       "file": "clip_vit_base_patch32_text_xnnpack_fp32.pte",
       "precision": "fp32",
       "quantized": false,
+      "default": false,
+      "methods": {
+        "forward": {
+          "inputs": [
+            { "shape": [1, 74], "dtype": "int64" },
+            { "shape": [1, 74], "dtype": "int64" }
+          ],
+          "outputs": [{ "shape": [1, 512], "dtype": "float32" }]
+        }
+      }
+    },
+    {
+      "file": "clip_vit_base_patch32_text_xnnpack_int8.pte",
+      "precision": "int8",
+      "quantized": true,
+      "quantize": "8da8w-pc",
+      "embedding_quantize": "int8",
       "default": true,
       "methods": {
         "forward": {
