@@ -80,14 +80,15 @@ Tracks react-native-executorch issue #1373.
   not exist yet), so no timings are recorded here; 512 was noticeably less
   than 4x the cost of 256, a fixed cost the profiler run below pins on the
   partition split around the portable `upsample_nearest2d` ops.
-- **Delegation:** everything lands on XNNPACK except `upsample_nearest2d` (12
-  ops at 256, 14 at 512), which the partitioner does not take with or without
-  `extended_ops=True`. The fp16 build additionally carries 65 / 73 portable
-  `_to_dim_order_copy` casts: the three fp32-I/O casts of the wrapper plus one
-  zero-dim fp32 to fp16 cast per scalar constant (gains, clamp bounds), i.e.
-  negligible work. The upstream `Upsample2d` is nearest-x2 followed by a
-  `[[1,0],[0,0]]` checkerboard multiply, i.e. zero insertion; what the split
-  costs and what would remove it is in "Profiling" below.
+- **Delegation** (PyPI ExecuTorch 1.4.1, the env this model pins): everything
+  lands on XNNPACK except `upsample_nearest2d` (12 ops at 256, 14 at 512),
+  which that partitioner does not take, so the graph is 7 / 8 partitions. The
+  upstream `Upsample2d` is nearest-x2 followed by a `[[1,0],[0,0]]`
+  checkerboard multiply, i.e. zero insertion. Fixed in the ET fork, see
+  "Profiling" below. The export folds constants before partitioning
+  (`_fold_constants` in `xnnpack/export.py`), so the only portable casts left
+  are the three fp32 I/O casts of the wrapper; before that the fp16 build
+  carried one zero-dim fp32 to fp16 cast per scalar constant (65 / 73).
 - **Testing trap:** when checking a `.pte` from a PIL/numpy image, `permute`
   leaves the tensor non-contiguous and the ET runtime reads the raw buffer as
   contiguous NCHW — call `.contiguous()` first or the output is garbage (and
@@ -185,14 +186,39 @@ host-side and not recorded.
   the 11 to 14% spent in the upsample kernels. Roughly 35 to 40% of XNNPACK
   time is partitioning overhead. That is the fixed cost suspected from the
   256 vs 512 smoke test.
-- **What would remove it:** one XNNPACK partition, which needs the nearest
-  x2 upsample inside the delegate. XNNPACK has no nearest resize node;
-  `Upsample2d` is nearest-x2 followed by a zero-insertion checkerboard, which
-  is a `pixel_shuffle` (depth-to-space) of `[x, 0, 0, 0]` along channels, or a
-  depthwise `conv_transpose2d(stride=2)`. The conv_transpose rewrite was
-  tried during the int8 bisection: one partition, but slower on the S23 than
-  the split graph, so it is not the answer; pixel_shuffle / depth_to_space
-  support in the XNNPACK partitioner is the candidate ExecuTorch change.
+- **Fixed in the ET fork (2026-10-19, branch `xnnpack-upsample-nearest2d`,
+  commit 223d80999, not yet merged):** `upsample_nearest2d` x2 is lowered to
+  XNNPACK as `concatenate4` + `depth_to_space_2d` (XNNPACK has no nearest
+  resize node and its `static_broadcast` is not implemented at run time),
+  and the channels-last pass no longer lets a scalar operand (`x * gain` in
+  `lrelu_agc`) or a `[H, W]` operand (the noise map) drag the activation back
+  to NCHW. Inspecting the pass showed the transposes were mostly caused by
+  those scalars, not by the partition boundaries: 128 layout conversions per
+  forward at 256, of which 90 sat around the 45 scalar multiplies and only
+  24 at the upsample boundaries. A depthwise `conv_transpose2d(stride=2)`
+  rewrite of `Upsample2d`, tried earlier, gave one partition but was slower
+  on the S23. Re-profiled with the patched fork on the same inputs:
+
+| | 256 | 512 | faces_256 |
+| --- | --- | --- | --- |
+| delegated (XNNPACK) | 97.6% | 94.5% | 97.5% |
+| XNNPACK partitions per forward | 1 | 1 | 1 |
+| portable `_to_dim_order_copy` (the 3 fp32 I/O casts) | 2.5% | 5.5% | 2.5% |
+| `Transpose` (26 / 30 small ones on `[1,1,H,W]` constants) | <1% | <1% | <1% |
+| nearest upsample (`Copy` + `Depth To Space`) | 5% | 5% | 5% |
+| GEMM (1x1 convs) | 40% | 30% | 41% |
+| `Constant Pad` | 13% | 22% | 14% |
+| `Method::execute` vs the shipped build (host) | -29% | -28% | -31% |
+
+  Output is unchanged (max abs diff 2e-3 vs the shipped files, fp16 noise,
+  same error vs fp32 eager). The `.pte` files on HF are still the PyPI-ET
+  build: the single-partition graph needs the fork's partitioner at export
+  time and the new `XNNDepthToSpace2d` node in the runtime, so it ships once
+  the branch is merged and the RNE native libs are rebuilt. Left on the
+  table: the three I/O casts (XNNPACK could take fp32<->fp16 as a `Convert`
+  node, which would put 512 over 95% as well) and `Constant Pad`, 2-3x slower
+  in NHWC than it was in NCHW, which could be folded into the following
+  depthwise conv as asymmetric padding.
 - **GEMM, not 3x3 conv**: MI-GAN's `SeparableConv2d` is depthwise 3x3 +
   pointwise 1x1, so the heavy op is the 1x1 GEMM; depthwise convs are 10%.
 
@@ -213,9 +239,24 @@ as compiled; what the CoreML runtime on this Mac would choose, iOS may differ):
   indistinguishable: the ANE carries the bulk, the GPU takes the
   full-resolution ends.
 
-**Vulkan**: the profiler drives the host runtime and has no Vulkan
-backend, so only the static check applies (one `VulkanBackend` call, zero
-portable ops, for all three sizes).
+**Vulkan fp16 and CoreML fp16, per op (2026-10-19)**: the profiler's ET
+build was rebuilt with `EXECUTORCH_BUILD_VULKAN=ON` and runs on MoltenVK
+(`DYLD_LIBRARY_PATH=/opt/homebrew/lib`); with the event tracer on, the
+fork's `VulkanBackend` enables its query pool and logs one row per shader
+dispatch, and the CoreML delegate reports its ops the same way. Both are
+single-delegate graphs with no portable ops at any size. Shares of the
+per-op sum (Apple GPU / ANE, so shares only):
+
+| | Vulkan 256 / 512 / faces_256 | CoreML 256 / 512 / faces_256 |
+| --- | --- | --- |
+| 1x1 convs (`conv2d_pw_tiled` / `conv`) | 55 / 43 / 54% | 34 / 34 / 34% |
+| depthwise convs | 12 / 14 / 12% | inside `conv` |
+| `lrelu_agc` as three passes (leaky_relu, mul, clamp) | 26 / 33 / 26% | 54 / 53 / 54% |
+| nearest upsample | 1 / 1 / 1% | 2 / 2 / 2% |
+
+Upsample is a non-issue on both. After the convolutions the next item is
+`lrelu_agc` running as three elementwise passes (a kernel-fusion candidate
+in ET; the gain multiply could also be folded into the next conv at export).
 
 ## XNNPACK precision study: fp32 vs fp16 vs int8 (2026-10-14)
 
