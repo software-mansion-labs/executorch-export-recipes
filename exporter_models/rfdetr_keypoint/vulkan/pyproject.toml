@@ -1,5 +1,7 @@
 # Per-model Vulkan export environment for rfdetr_keypoint.
-#   uv run --project exporter_models/rfdetr_keypoint/vulkan exporter export rfdetr_keypoint --backend vulkan --output-dir <dir>
+#   Not uv-runnable: the executorch fork pin below cannot be built by uv (see
+#   skills/backends/vulkan, "Environment"). From a source-built fork checkout:
+#   PYTHONPATH=src python -m exporter.cli export rfdetr_keypoint --backend vulkan --output-dir <dir>
 #
 # NOTE (VULKAN EXPORTER SOURCE PIN):
 # executorch comes from software-mansion-labs/executorch, branch

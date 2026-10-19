@@ -1,5 +1,7 @@
 # Per-model Vulkan export environment for paddleocr_doc_helpers.
-#   uv run --project exporter_models/paddleocr_doc_helpers/vulkan exporter export paddleocr_doc_helpers --backend vulkan --output-dir <dir>
+#   Not uv-runnable: the executorch fork pin below cannot be built by uv (see
+#   skills/backends/vulkan, "Environment"). From a source-built fork checkout:
+#   PYTHONPATH=src python -m exporter.cli export paddleocr_doc_helpers --backend vulkan --output-dir <dir>
 #
 # NOTE (VULKAN EXPORTER SOURCE PIN):
 # executorch comes from software-mansion-labs/executorch, branch
