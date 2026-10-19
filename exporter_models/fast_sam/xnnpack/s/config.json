@@ -57,6 +57,56 @@
           ]
         }
       }
+    },
+    {
+      "file": "fast_sam_s_xnnpack_int8.pte",
+      "precision": "int8",
+      "quantized": true,
+      "default": true,
+      "methods": {
+        "forward": {
+          "inputs": [
+            {
+              "shape": [
+                1,
+                3,
+                640,
+                640
+              ],
+              "dtype": "float32"
+            }
+          ],
+          "outputs": [
+            {
+              "shape": [
+                300,
+                4
+              ],
+              "dtype": "float32"
+            },
+            {
+              "shape": [
+                300
+              ],
+              "dtype": "float32"
+            },
+            {
+              "shape": [
+                300
+              ],
+              "dtype": "float32"
+            },
+            {
+              "shape": [
+                300,
+                160,
+                160
+              ],
+              "dtype": "float32"
+            }
+          ]
+        }
+      }
     }
   ]
 }
