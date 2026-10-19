@@ -13,7 +13,7 @@ exporter_models/<model>/
   model.json                 # pointer: hf url, repo, config path, sizes, backends
   <backend>/export.py        # the engine: export(config, out_dir) writes the .pte(s)
   <backend>/config.json      # local spec (only when not fetched from HF)
-  <size>/<backend>/config.json   # for sized models
+  <backend>/<size>/config.json   # for sized models
   _vendored_code.py          # model code, vendored at the model-dir top
 ```
 

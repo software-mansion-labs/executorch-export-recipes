@@ -4,7 +4,7 @@
     "quant"
   ],
   "repo": "software-mansion/react-native-executorch-gemma-4-multimodal",
-  "config": "{size}/{backend}/config.json",
+  "config": "{backend}/{size}/config.json",
   "sizes": [
     "e2b"
   ],

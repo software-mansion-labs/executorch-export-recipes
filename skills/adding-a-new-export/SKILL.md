@@ -29,13 +29,13 @@ and an `export.py` per backend. See `skills/model-conventions` for the full
    - `hf` — the published HF repo URL (always set it).
    - `repo` — the repo the export fetches the config / weights from. Omit for
      a purely-local model. May differ from `hf` (e.g. an upstream source repo).
-   - `config` — path template; use `{size}/{backend}/config.json` for a sized
+   - `config` — path template; use `{backend}/{size}/config.json` for a sized
      model and add `"sizes": [...]`. Put `{size}` in `repo` too if each size is
      a separate HF repo.
 
 3. **Source the config.** If the HF `repo` already ships a correct
    `{backend}/config.json`, the registry fetches it — author nothing. Otherwise
-   vendor a local `<model>/<backend>/config.json` (or `<size>/<backend>/...`).
+   vendor a local `<model>/<backend>/config.json` (or `<backend>/<size>/...`).
    Required fields: `$schema`, `model`, `family`, `capabilities`, `backend`,
    `license`, `variants[]`. Each variant: `file` (output .pte name),
    `precision`, `quantized`, `default`, and per-method `{inputs,outputs}` with
