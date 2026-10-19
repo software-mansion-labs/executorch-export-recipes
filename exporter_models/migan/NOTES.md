@@ -187,12 +187,14 @@ host-side and not recorded.
   time is partitioning overhead. That is the fixed cost suspected from the
   256 vs 512 smoke test.
 - **Fixed in the ET fork (2026-10-19, branch `xnnpack-upsample-nearest2d`,
-  commit 223d80999, not yet merged):** `upsample_nearest2d` x2 is lowered to
-  XNNPACK as `concatenate4` + `depth_to_space_2d` (XNNPACK has no nearest
-  resize node and its `static_broadcast` is not implemented at run time),
-  and the channels-last pass no longer lets a scalar operand (`x * gain` in
-  `lrelu_agc`) or a `[H, W]` operand (the noise map) drag the activation back
-  to NCHW. Inspecting the pass showed the transposes were mostly caused by
+  commits 223d80999 + 59b1b7c6c, not yet merged):** `upsample_nearest2d` x2
+  is lowered to XNNPACK as `concatenate4` + `depth_to_space_2d` (XNNPACK has
+  no nearest resize node and its `static_broadcast` is not implemented at
+  run time); the channels-last pass no longer lets a scalar operand
+  (`x * gain` in `lrelu_agc`) or a `[H, W]` operand (the noise map) drag the
+  activation back to NCHW; the zero `F.pad(2, 1, 2, 1)` before each 4x4 blur
+  filter is folded into that convolution's (asymmetric) padding, and the
+  fp32/fp16 I/O casts are lowered as XNNPACK `Convert` nodes. Inspecting the pass showed the transposes were mostly caused by
   those scalars, not by the partition boundaries: 128 layout conversions per
   forward at 256, of which 90 sat around the 45 scalar multiplies and only
   24 at the upsample boundaries. A depthwise `conv_transpose2d(stride=2)`
@@ -201,24 +203,27 @@ host-side and not recorded.
 
 | | 256 | 512 | faces_256 |
 | --- | --- | --- | --- |
-| delegated (XNNPACK) | 97.6% | 94.5% | 97.5% |
-| XNNPACK partitions per forward | 1 | 1 | 1 |
-| portable `_to_dim_order_copy` (the 3 fp32 I/O casts) | 2.5% | 5.5% | 2.5% |
-| `Transpose` (26 / 30 small ones on `[1,1,H,W]` constants) | <1% | <1% | <1% |
-| nearest upsample (`Copy` + `Depth To Space`) | 5% | 5% | 5% |
-| GEMM (1x1 convs) | 40% | 30% | 41% |
-| `Constant Pad` | 13% | 22% | 14% |
-| `Method::execute` vs the shipped build (host) | -29% | -28% | -31% |
+| delegated (XNNPACK) | 100% | 100% | 100% |
+| XNNPACK partitions per forward / portable ops | 1 / 0 | 1 / 0 | 1 / 0 |
+| GEMM (1x1 convs) | 47% | 41% | 47% |
+| depthwise conv (blur + 3x3), pad folded in | 16% | 19% | 16% |
+| `lrelu_agc` as Multiply + LeakyReLU + Clamp | 26% | 27% | 26% |
+| nearest upsample (`Copy` + `Depth To Space`) | 6% | 7% | 6% |
+| `Convert` (3 I/O casts), `Transpose`, `Static Reshape` | <1% | <1% | <1% |
+| `Constant Pad` | 0 | 0 | 0 |
+| `Method::execute` vs the shipped build (host) | -45% | -51% | -45% |
 
   Output is unchanged (max abs diff 2e-3 vs the shipped files, fp16 noise,
-  same error vs fp32 eager). The `.pte` files on HF are still the PyPI-ET
-  build: the single-partition graph needs the fork's partitioner at export
-  time and the new `XNNDepthToSpace2d` node in the runtime, so it ships once
-  the branch is merged and the RNE native libs are rebuilt. Left on the
-  table: the three I/O casts (XNNPACK could take fp32<->fp16 as a `Convert`
-  node, which would put 512 over 95% as well) and `Constant Pad`, 2-3x slower
-  in NHWC than it was in NCHW, which could be folded into the following
-  depthwise conv as asymmetric padding.
+  same error vs fp32 eager). Before the pad fold and the casts, with only
+  the first commit, the forward was -29 / -28 / -31% with 97.6 / 94.5 /
+  97.5% delegated: the NHWC `Constant Pad` alone had grown to 13 / 22 / 14%.
+  The `.pte` files on HF are still the PyPI-ET build: the single-partition
+  graph needs the fork's partitioner at export time and the new
+  `XNNDepthToSpace2d` node in the runtime, so it ships once the branch is
+  merged and the RNE native libs are rebuilt. What is left is the model's
+  own arithmetic; the only structural item is `lrelu_agc` running as three
+  elementwise passes (kernel fusion in ET, or folding the gain into the next
+  conv at export).
 - **GEMM, not 3x3 conv**: MI-GAN's `SeparableConv2d` is depthwise 3x3 +
   pointwise 1x1, so the heavy op is the 1x1 GEMM; depthwise convs are 10%.
 
