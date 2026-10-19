@@ -1,13 +1,21 @@
 from .errors import BackendError
 
 
-def lower(exported_program, backend: str, constant_methods: dict | None = None):
+def lower(
+    exported_program,
+    backend: str,
+    constant_methods: dict | None = None,
+    transform_passes: list | None = None,
+):
+    """`transform_passes` run on the edge program before partitioning (e.g. a
+    constant-folding pass), see `to_edge_transform_and_lower`."""
     if backend == "xnnpack":
         from executorch.backends.xnnpack.partition.xnnpack_partitioner import XnnpackPartitioner
         from executorch.exir import to_edge_transform_and_lower
 
         return to_edge_transform_and_lower(
             exported_program,
+            transform_passes=transform_passes,
             partitioner=[XnnpackPartitioner()],
             constant_methods=constant_methods,
         ).to_executorch()
