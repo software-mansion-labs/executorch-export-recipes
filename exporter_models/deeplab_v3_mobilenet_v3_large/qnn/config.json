@@ -169,8 +169,8 @@
       }
     },
     {
-      "file": "deeplab_v3_resnet50_qnn_a16w8_v69.pte",
-      "precision": "a16w8",
+      "file": "deeplab_v3_resnet50_qnn_a8w8_v69.pte",
+      "precision": "a8w8",
       "quantized": true,
       "default": false,
       "size": "resnet50",
@@ -201,8 +201,8 @@
       }
     },
     {
-      "file": "deeplab_v3_resnet50_qnn_a16w8_v73.pte",
-      "precision": "a16w8",
+      "file": "deeplab_v3_resnet50_qnn_a8w8_v73.pte",
+      "precision": "a8w8",
       "quantized": true,
       "default": false,
       "size": "resnet50",
@@ -233,8 +233,8 @@
       }
     },
     {
-      "file": "deeplab_v3_resnet50_qnn_a16w8_v75.pte",
-      "precision": "a16w8",
+      "file": "deeplab_v3_resnet50_qnn_a8w8_v75.pte",
+      "precision": "a8w8",
       "quantized": true,
       "default": false,
       "size": "resnet50",
@@ -265,8 +265,8 @@
       }
     },
     {
-      "file": "deeplab_v3_resnet50_qnn_a16w8_v79.pte",
-      "precision": "a16w8",
+      "file": "deeplab_v3_resnet50_qnn_a8w8_v79.pte",
+      "precision": "a8w8",
       "quantized": true,
       "default": false,
       "size": "resnet50",
@@ -329,8 +329,8 @@
       }
     },
     {
-      "file": "deeplab_v3_resnet101_qnn_a16w8_v69.pte",
-      "precision": "a16w8",
+      "file": "deeplab_v3_resnet101_qnn_a8w8_v69.pte",
+      "precision": "a8w8",
       "quantized": true,
       "default": false,
       "size": "resnet101",
@@ -361,8 +361,8 @@
       }
     },
     {
-      "file": "deeplab_v3_resnet101_qnn_a16w8_v73.pte",
-      "precision": "a16w8",
+      "file": "deeplab_v3_resnet101_qnn_a8w8_v73.pte",
+      "precision": "a8w8",
       "quantized": true,
       "default": false,
       "size": "resnet101",
@@ -393,8 +393,8 @@
       }
     },
     {
-      "file": "deeplab_v3_resnet101_qnn_a16w8_v75.pte",
-      "precision": "a16w8",
+      "file": "deeplab_v3_resnet101_qnn_a8w8_v75.pte",
+      "precision": "a8w8",
       "quantized": true,
       "default": false,
       "size": "resnet101",
@@ -425,8 +425,8 @@
       }
     },
     {
-      "file": "deeplab_v3_resnet101_qnn_a16w8_v79.pte",
-      "precision": "a16w8",
+      "file": "deeplab_v3_resnet101_qnn_a8w8_v79.pte",
+      "precision": "a8w8",
       "quantized": true,
       "default": false,
       "size": "resnet101",

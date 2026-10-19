@@ -12,9 +12,9 @@ On an S26 Ultra (v81), 200 VOC2012 val images: ResNet50 71.21% mIoU at 15.5 ms
 and ResNet101 74.93% at 29.7 ms, against 71.36% and 74.99% for the published
 XNNPACK int8 files.
 
-The v81 variants are a8w8, which halves latency at the same mIoU on the same
+The variants are a8w8, which halves latency at the same mIoU on the same
 device and images: ResNet50 71.23% at 8.9 ms, ResNet101 74.98% at 15.3 ms.
-TODO: re-export the v69-v79 variants as a8w8 too; only v81 is validated.
+Only v81 is device-validated; v69-v79 target SoCs we do not have.
 """
 
 import logging
