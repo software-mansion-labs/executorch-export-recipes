@@ -49,7 +49,7 @@ def export(config: dict, out_dir: str):
 
     convert = xn._load_convert()
     models = convert.load_models(onnx_dir=xn._download_onnx_dir())
-    all_schemas = json.loads(load_and_validate_schema(_MODEL_DIR / "schema.json"))
+    all_schemas = xn._with_t_bound(json.loads(load_and_validate_schema(_MODEL_DIR / "schema.json")))
 
     out_dir = Path(out_dir)
     out_dir.mkdir(parents=True, exist_ok=True)
