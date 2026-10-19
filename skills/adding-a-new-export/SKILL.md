@@ -67,10 +67,16 @@ and an `export.py` per backend. See `skills/model-conventions` for the full
 
 5. **Author the model's uv project:** add `exporter_models/<model>/pyproject.toml`
    pinning the exact stack this model needs (see the "Per-model dependencies"
-   section in `skills/model-conventions` for the full recipe — nightly torch
-   index, date-matched torch/torchvision, `safetensors` always, environments
-   pinned to this host, overrides for rfdetr/ultralytics). Then `uv lock` it and
-   commit the `uv.lock`. The per-model `.venv` is gitignored.
+   section in `skills/model-conventions` for the full recipe — stable torch
+   from PyPI (as facemesh does), or a wheel URL if a nightly is
+   unavoidable; matched torch/torchvision; `safetensors` always; environments
+   pinned to this host; overrides for rfdetr/ultralytics). Then `uv lock` it and
+   commit the `uv.lock`. The per-model `.venv` is gitignored. The projects
+   that pin executorch to the software-mansion-labs fork (gemma*, lfm2_5_vl,
+   `sdxs_512_dreamshaper/mlx`, every `<model>/vulkan/`) are the exception:
+   the pin is declared but not uv-buildable, and the export runs in a
+   source-built dev env — the build recipe is in `skills/backends/vulkan` (it
+   applies to the MLX ones too).
 
 6. **Run it inside that env:**
    `uv run --project exporter_models/<model> exporter export <model> [--size S] [--backend B]`.
@@ -78,6 +84,35 @@ and an `export.py` per backend. See `skills/model-conventions` for the full
    Use `exporter describe <model>` / `--dry-run` to inspect the plan first.
    Sanity of the produced `.pte` (I/O shapes, runtime parity) is the author's
    responsibility — check it against the authored `methods` / a reference run.
+   Read "Export and verification traps" below before trusting a parity failure.
+
+## Export and verification traps
+
+Two mistakes that cost hours on migan and are invisible to the harness:
+
+- **A numpy scalar stored on a module is traced as a tensor.** Upstream code
+  that keeps `self.gain = np.sqrt(2)` (a `np.float64`) and later does
+  `if act_gain != 1:` exports fine in eager but `torch.export` wraps the numpy
+  scalar into a tensor, so the comparison becomes data-dependent control flow
+  and the export fails on it. Patch the vendored module to keep a Python
+  float (`self.gain = float(np.sqrt(2))`), mark the change with an
+  `# EXPORT PATCH` comment so it stays greppable, and note it in the model's
+  `NOTES.md`. Nothing to fix upstream; this is how
+  `torch.export` treats numpy values. In-place ops (`leaky_relu(inplace=True)`,
+  `add_`) are NOT a problem — export functionalises them, bit-identically.
+- **A non-contiguous input makes every `.pte` look broken.** The ExecuTorch
+  pybindings ignore tensor strides and read the raw buffer as contiguous NCHW
+  (upstream bug: [pytorch/executorch#18562](https://github.com/pytorch/executorch/issues/18562),
+  "`Method.execute()` silently produces wrong results for non-contiguous input
+  tensors", open, assigned to a maintainer). The usual PIL -> numpy ->
+  `torch.from_numpy(...).permute(2, 0, 1)` pipeline produces exactly such a
+  tensor, so the runtime output is garbage while nothing errors — and the
+  "parity failure" is the same for every variant you try, which is the tell.
+  Confirm with the lowered program on the Python side
+  (`program.exported_program().module()(*inputs)` matches eager while the
+  loaded `.pte` does not), then call `.contiguous()` on every input before
+  `execute`/`forward`. Until the runtime rejects strided inputs, treat
+  `.contiguous()` as part of the verification recipe for every backend.
 
 ## Notes
 
