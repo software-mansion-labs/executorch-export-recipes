@@ -31,6 +31,26 @@ class _Fp16IO(torch.nn.Module):
         return self.inner(image.to(torch.float16), mask.to(torch.float16)).to(torch.float32)
 
 
+def _fold_constants():
+    """Constant-fold the edge program before partitioning.
+
+    The fp16 build multiplies by Python scalars (lrelu_agc gain, clamp bounds,
+    noise strength); the edge dialect lifts each one to an fp32 tensor and
+    casts it to fp16 at run time: 60-odd portable `_to_dim_order_copy` ops per
+    forward whose outputs enter the XNNPACK partition as 0-dim inputs.
+    Folding them makes the scalars fp16 constants inside the partition and
+    folds `noise_const * noise_strength` into one tensor.
+    """
+    from executorch.exir.pass_base import ExportedProgramPassBase, ExportedProgramPassResult
+    from executorch.exir.passes.constant_prop_pass import constant_prop_pass
+
+    class FoldConstants(ExportedProgramPassBase):
+        def call(self, exported_program):
+            return ExportedProgramPassResult(constant_prop_pass(exported_program), True)
+
+    return FoldConstants()
+
+
 def export(config: dict, out_dir: str) -> str:
     from torch.export import export as torch_export
 
@@ -70,7 +90,7 @@ def export(config: dict, out_dir: str) -> str:
         model = _Fp16IO(model.half()).eval()
 
     ep = torch_export(model, inputs, strict=True)
-    program = lower(ep, config["backend"])
+    program = lower(ep, config["backend"], transform_passes=[_fold_constants()])
 
     out_path = Path(out_dir) / variant["file"]
     out_path.parent.mkdir(parents=True, exist_ok=True)
