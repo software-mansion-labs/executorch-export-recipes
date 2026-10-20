@@ -18,8 +18,8 @@ The variants are a8w8 with a histogram activation observer: 66.26% at 0.80 ms
 against a16w8's 65.83% at 1.89 ms on the same device and 200 VOC2012 val images.
 Min/max is wrong at 8 bits here: one outlier stretches the range and costs ~11 mIoU.
 Only v81 is device-validated; v69-v79 target SoCs we do not have.
-In the x86 HTP simulator v73-v79 match v81, while v69 a8w8 is ~2 mIoU below
-v69 a16w8 (QAIRT's v69 compile; the quantization is identical).
+In the x86 HTP simulator v73-v79 match v81; v69 differs per pixel but scores the
+same over 200 VOC images (LR-ASPP a8w8 65.62%, a16w8 65.69%).
 """
 
 import logging
