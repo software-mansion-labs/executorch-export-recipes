@@ -31,6 +31,22 @@ class _Fp16IO(torch.nn.Module):
         return self.inner(image.to(torch.float16), mask.to(torch.float16)).to(torch.float32)
 
 
+def _has_polyphase_deconv() -> bool:
+    """Whether this ExecuTorch lowers a depthwise transposed conv as polyphase
+    depthwise convs (SWM fork, `DecomposeDepthwiseConvTransposePass`).
+
+    `Upsample2dDeconv` is the cleanest graph for the upsampling filter, but
+    stock XNNPACK runs a depthwise deconvolution through its per-group IGEMM
+    path, ~8x the whole forward on the host, so on an ExecuTorch without that
+    pass the upstream `Upsample2d` (nearest + mask + conv) stays in.
+    """
+    try:
+        import executorch.backends.xnnpack._passes.decompose_depthwise_conv_transpose  # noqa: F401
+    except ImportError:
+        return False
+    return True
+
+
 def _fold_constants():
     """Constant-fold the edge program before partitioning.
 
@@ -70,6 +86,9 @@ def export(config: dict, out_dir: str) -> str:
     generator = mg.Generator(resolution=resolution)
     weights = mg.fetch_weights(mg.CHECKPOINT_FOR_SIZE[size])
     generator.load_state_dict(torch.load(weights, map_location="cpu", weights_only=True), strict=True)
+    generator = mg.fold_activation_gain(generator)  # see LreluClampFolded in _migan.py
+    if _has_polyphase_deconv():
+        generator = mg.upsample_as_deconv(generator)  # see Upsample2dDeconv in _migan.py
     model = mg.InpaintingWrapper(generator)
     model.eval()
 

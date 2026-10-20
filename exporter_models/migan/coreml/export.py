@@ -41,6 +41,8 @@ def export(config: dict, out_dir: str) -> str:
     generator = mg.Generator(resolution=resolution)
     weights = mg.fetch_weights(mg.CHECKPOINT_FOR_SIZE[size])
     generator.load_state_dict(torch.load(weights, map_location="cpu", weights_only=True), strict=True)
+    generator = mg.fold_activation_gain(generator)  # see LreluClampFolded in _migan.py
+    generator = mg.upsample_as_deconv(generator)  # see Upsample2dDeconv in _migan.py
     model = mg.InpaintingWrapper(generator)
     model.eval()
 

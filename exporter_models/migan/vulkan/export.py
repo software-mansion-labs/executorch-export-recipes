@@ -40,6 +40,7 @@ def export(config: dict, out_dir: str) -> str:
     weights = mg.fetch_weights(mg.CHECKPOINT_FOR_SIZE[size])
     generator.load_state_dict(torch.load(weights, map_location="cpu", weights_only=True), strict=True)
     generator = mg.vulkanize(generator)  # see Downsample2dVulkan in _migan.py
+    generator = mg.fold_activation_gain(generator)  # see LreluClampFolded in _migan.py
     model = mg.InpaintingWrapper(generator)
     model.eval()
 

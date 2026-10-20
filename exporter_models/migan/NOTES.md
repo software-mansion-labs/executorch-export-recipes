@@ -85,7 +85,8 @@ Tracks react-native-executorch issue #1373.
   which that partitioner does not take, so the graph is 7 / 8 partitions. The
   upstream `Upsample2d` is nearest-x2 followed by a `[[1,0],[0,0]]`
   checkerboard multiply, i.e. zero insertion. Fixed in the ET fork, see
-  "Profiling" below. The export folds constants before partitioning
+  "Profiling" below; with the fork the export also swaps `Upsample2d` for a
+  depthwise transposed conv, see "Export-time graph rewrites". The export folds constants before partitioning
   (`_fold_constants` in `xnnpack/export.py`), so the only portable casts left
   are the three fp32 I/O casts of the wrapper; before that the fp16 build
   carried one zero-dim fp32 to fp16 cast per scalar constant (65 / 73).
@@ -95,6 +96,62 @@ Tracks react-native-executorch issue #1373.
   the "parity failure" looks identical for every build you try).
 - Env pins stable `torch==2.14.0` from PyPI rather than a dated nightly (the
   nightly index prunes old builds; facemesh does the same).
+
+## Export-time graph rewrites (2026-10-20)
+
+Two numerically identical rewrites of the vendored model, applied after
+`load_state_dict` in the export scripts (both live in `_migan.py` next to
+`vulkanize`), after the per-op profiles of all three backends showed the
+remaining time outside the convolutions sitting in `lrelu_agc` and in the
+upsampling filter:
+
+- **`fold_activation_gain()`** (all three backends). Upstream's `lrelu_agc`
+  is `clamp(sqrt(2) * leaky_relu(y), -256, 256)`: three elementwise passes
+  after every conv, 26% of the forward on XNNPACK and Vulkan, ~54% of the
+  CoreML op time. `leaky_relu` is positively homogeneous and monotonic, so
+  `clamp(g * lrelu(y), -c, c) == lrelu(hardtanh(g * y, -c / alpha, c))`, and
+  every `y` is a conv output (optionally through the nearest upsample and
+  the constant noise add, both linear): the gain goes into the conv weight
+  and bias (and `noise_strength`), the clamp moves in front of the
+  `leaky_relu` with bounds `(-1280, 256)`, and is written as `hardtanh`
+  because that is what the conv-activation fusion passes of XNNPACK
+  (`FuseActivationPass`) and Vulkan (`FuseClampPass`) match; `aten.clamp`
+  would stay a separate op. fp32 eager, folded vs original: max abs diff
+  3e-5 / 1e-5 / 1e-5 (256 / 512 / faces_256); the fp16 error vs fp32 is
+  unchanged (1.3e-2 / 2.2e-2 / 8e-3 vs 1.1e-2 / 2.6e-2 / 5.5e-3 before).
+  Two traps: coremltools rejects an `int` clip bound against an fp tensor
+  (`beta must have the same data type as x`), so the bounds are floats; and
+  the Vulkan graph builder keyed its constant-scalar cache by Python value,
+  so `256.0` collided with `groups=256` and the runtime failed at load with
+  `Expected value to have type Int, got DOUBLE` (fixed in the fork, branch
+  `vulkan-scalar-cache-float-int`, commit af3a5336c; export-side only).
+- **`upsample_as_deconv()`** (XNNPACK with the fork, CoreML). Upstream's
+  `Upsample2d` is nearest x2, the checkerboard multiply (zero insertion),
+  `F.pad(2, 1, 2, 1)` and a 4x4 depthwise FIR conv at full resolution. Zero
+  insertion followed by a FIR filter is a stride-2 transposed conv:
+  `conv_transpose2d(x, w.flip(-1, -2), stride=2, padding=1, groups=C)`
+  matches to 5e-7 for every (channels, resolution) in the model, runs on the
+  low-resolution input (a quarter of the filter MACs) and removes the
+  upsample, mask and pad passes. Backend support decides where it is used:
+  - XNNPACK runs a transposed conv through its per-group subconvolution
+    IGEMM; with one channel per group that was 88% of the forward, ~8x the
+    whole model at 256 on the host. Fixed in the fork
+    (commit 47a301242 on `xnnpack-upsample-nearest2d`):
+    `DecomposeDepthwiseConvTransposePass` lowers a depthwise transposed conv
+    that is a clean x s upscale into s*s stride-1 depthwise convs on the
+    low-resolution input (polyphase: phase (ay, ax) correlates with every
+    s-th tap, through an asymmetric zero pad that `FusePadIntoConvPass`
+    folds), a channel concat and XNNPACK's block-major `depth_to_space_2d`
+    (new `et_xnnpack` custom op + visitor; `aten.pixel_shuffle` is
+    channel-major and does not map). `xnnpack/export.py` applies the rewrite
+    only when that pass is importable, so a stock PyPI ExecuTorch still
+    exports the upstream block (fold only, 7 / 8 partitions as before)
+    instead of a correct but ~8x slower file.
+  - Vulkan keeps the upstream block: the fork's generic `conv_transpose2d`
+    shader took 52% of GPU time for the twelve filters, 1.6x the shader
+    time of the whole model at 256, far worse than nearest + mul + `conv2d_dw`.
+  - CoreML takes the transposed conv natively (`conv_transpose`, 0.4% of op
+    time, on the ANE): 231 ops instead of 324 at 256.
 
 ## Backends beyond XNNPACK (2026-10-13)
 
@@ -226,6 +283,26 @@ host-side and not recorded.
   conv at export).
 - **GEMM, not 3x3 conv**: MI-GAN's `SeparableConv2d` is depthwise 3x3 +
   pointwise 1x1, so the heavy op is the 1x1 GEMM; depthwise convs are 10%.
+- **Re-profiled after the export-time rewrites (2026-10-20)**, fork with
+  commit 47a301242, same inputs, 10 forwards. XNNPACK `Method::execute` on
+  the host: -16 / -18 / -15% vs the fork build above and -54 / -60 / -53%
+  vs the shipped PyPI build. Still one partition, no portable ops. Shares of the delegate's op time:
+
+| | 256 | 512 | faces_256 |
+| --- | --- | --- | --- |
+| GEMM (1x1 convs) | 56% | 50% | 56% |
+| depthwise conv (3x3, down blur, 4 polyphase filters per upsample) | 19% | 20% | 18% |
+| `LeakyReLU` | 10% | 11% | 10% |
+| `Copy` (channel concat of the 4 phases) + `Depth To Space` | 7% | 9% | 7% |
+| `Add` (noise, skips, RGB) | 4% | 5% | 4% |
+| `Clamp` (12 hardtanh after the noise add + the output clamp) | 2% | 3% | 3% |
+| `Multiply` (3 wrapper muls), `Convert`, `Transpose`, `Reshape` | <1% each | <1% | <1% |
+
+  The 57 gain multiplies are gone; 45 of the 57 clamps fused into their
+  conv (`output_min/max`), the 12 after the noise add fuse into XNNPACK's
+  `add` only nominally (XNNPACK re-emits a `Clamp` node for a clamped
+  fp16 binary op). What is left is the model's arithmetic plus `LeakyReLU`,
+  which XNNPACK has no fused form for.
 
 **CoreML fp16, compute plan** (`coreml_compute_plan.py`, compute units `ALL`
 as compiled; what the CoreML runtime on this Mac would choose, iOS may differ):
@@ -235,6 +312,8 @@ as compiled; what the CoreML runtime on this Mac would choose, iOS may differ):
 | ops on ANE | 274 / 324 (85%) | 283 / 370 (77%) | 274 / 324 (85%) |
 | ops on GPU | 50 (15%) | 87 (23%) | 50 (15%) |
 | ops on CPU | 0 | 0 | 0 |
+| after the rewrites (2026-10-20): ops on ANE | 227 / 231 (98%) | 246 / 263 (94%) | 227 / 231 (98%) |
+| after the rewrites: ops on GPU | 4 | 17 | 4 |
 
 - The split follows resolution: at 256 the first 272 ops run on the ANE and
   the last 50, the full-resolution decoder block plus the RGB output, on the
@@ -259,9 +338,25 @@ per-op sum (Apple GPU / ANE, so shares only):
 | `lrelu_agc` as three passes (leaky_relu, mul, clamp) | 26 / 33 / 26% | 54 / 53 / 54% |
 | nearest upsample | 1 / 1 / 1% | 2 / 2 / 2% |
 
-Upsample is a non-issue on both. After the convolutions the next item is
-`lrelu_agc` running as three elementwise passes (a kernel-fusion candidate
-in ET; the gain multiply could also be folded into the next conv at export).
+Upsample is a non-issue on both. After the convolutions the next item was
+`lrelu_agc` running as three elementwise passes; see "Export-time graph
+rewrites" for the fold. Re-profiled with it (2026-10-20), shares of the
+per-op sum:
+
+| | Vulkan 256 / 512 / faces_256 | CoreML 256 / 512 / faces_256 |
+| --- | --- | --- |
+| 1x1 convs (`conv2d_pw_tiled`, 47% of them with the clamp fused) | 66 / 54 / 65% | 33 / 31 / 33% (`conv`) |
+| depthwise convs (`conv2d_dw`, `..._3x3_clamp`) | 14 / 18 / 14% | inside `conv` |
+| `leaky_relu` | 9 / 12 / 9% | 26 / 27 / 26% |
+| `hardtanh` left standalone (after the noise add) | 2 / 3 / 2% | 26 / 28 / 26% (`clip`, none fused) |
+| `mul` (mask + wrapper) | 2 / 2 / 2% | <1% |
+| `add` | 4 / 6 / 4% | 15 / 13 / 15% |
+| nearest upsample + pad | 3 / 4 / 3% | `conv_transpose` <1% |
+
+Vulkan shader time on the host dropped 18 / 22 / 18%. CoreML is
+dispatch-bound: the op count fell from 324 to 231 at 256 and the ANE share
+rose to 98%, but `clip` and `leaky_relu` stay separate ops and the host
+op-sum moved only ~3%; the on-device check is what counts there.
 
 ## XNNPACK precision study: fp32 vs fp16 vs int8 (2026-10-14)
 

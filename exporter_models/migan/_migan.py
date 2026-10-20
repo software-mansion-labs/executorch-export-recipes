@@ -10,7 +10,9 @@ The upstream file is reproduced between the VENDORED markers, verbatim except
 for the one block marked `EXPORT PATCH` (the in-place ops upstream uses export
 fine: torch.export functionalises them, verified bit-identical through the
 ExecuTorch runtime, so they are left as-is). Our
-additions (source pin, weight table, export wrapper) live below them.
+additions (source pin, weight table, export wrapper, export-time graph
+rewrites: `fold_activation_gain`, `upsample_as_deconv`, `vulkanize`) live below
+them.
 """
 # --- VENDORED: begin (upstream lib/model_zoo/migan_inference.py) -------------
 import numpy as np
@@ -471,6 +473,101 @@ class InpaintingWrapper(nn.Module):
         x = torch.cat([mask - 0.5, img * mask], dim=1)
         out = self.generator(x)
         return (out * 0.5 + 0.5).clamp(0.0, 1.0)
+
+
+class LreluClampFolded:
+    """`lrelu_agc` after `fold_activation_gain`: clamp first, then leaky_relu, no gain.
+
+    `hardtanh` rather than `clamp` because the conv-activation fusion passes of
+    both XNNPACK (`FuseActivationPass`) and Vulkan (`FuseClampPass`) match
+    `aten.hardtanh` (and relu) only; `aten.clamp` would stay a separate op.
+    """
+
+    def __init__(self, alpha: float, clamp: float):
+        self.alpha = alpha
+        # float, not int: coremltools rejects an int32 clip bound on an fp tensor
+        self.clamp = float(clamp)
+
+    def __call__(self, x, gain=1):
+        assert gain == 1, "fold_activation_gain assumes the activation is called without a gain"
+        x = F.hardtanh(x, -self.clamp / self.alpha, self.clamp)
+        return F.leaky_relu(x, negative_slope=self.alpha, inplace=True)
+
+
+def fold_activation_gain(generator: Generator) -> Generator:
+    """Fold every `lrelu_agc` gain into the layer before it and move the clamp
+    ahead of the leaky_relu (in place). Numerically identical, one elementwise
+    pass fewer per activation, and the remaining clamp fuses into the conv.
+
+    lrelu_agc(y) = clamp(g * lrelu(y), -c, c). leaky_relu is positively
+    homogeneous (lrelu(g*y) = g*lrelu(y) for g > 0) and monotonic, so
+
+        clamp(g * lrelu(y), -c, c) = lrelu(hardtanh(g * y, -c / alpha, c)).
+
+    Every `y` the activation sees is the output of a conv, optionally followed
+    by the nearest x2 upsample and the constant-noise add of the synthesis
+    blocks, all linear, so `g` goes into the conv weight (and bias) and into
+    `noise_strength`. The per-op profiles on all three backends showed the
+    three elementwise passes of lrelu_agc (mul, leaky_relu, clamp) at 26% of
+    the forward on XNNPACK and Vulkan and ~54% of the op time on CoreML.
+    """
+    with torch.no_grad():
+        for module in generator.modules():
+            if isinstance(module, SeparableConv2d) and isinstance(module.activation, lrelu_agc):
+                act = module.activation
+                module.conv1.weight.mul_(act.gain)
+                module.conv1.bias.mul_(act.gain)
+                module.conv2.weight.mul_(act.gain)  # bias=False
+                if module.use_noise:
+                    module.noise_strength.mul_(act.gain)
+                module.activation = LreluClampFolded(act.alpha, act.clamp)
+            elif isinstance(module, EncoderBlock) and module.fromrgb is not None and isinstance(module.activation, lrelu_agc):
+                act = module.activation
+                module.fromrgb.weight.mul_(act.gain)
+                module.fromrgb.bias.mul_(act.gain)
+                module.activation = LreluClampFolded(act.alpha, act.clamp)
+    return generator
+
+
+class Upsample2dDeconv(nn.Module):
+    """`Upsample2d` as one depthwise transposed conv, numerically identical.
+
+    Upstream builds the StyleGAN upfirdn step out of four ops: nearest x2
+    upsample, multiply by a [[1, 0], [0, 0]] checkerboard (which turns the
+    nearest copy into zero insertion), pad (2, 1, 2, 1) and a 4x4 depthwise
+    FIR conv. Zero insertion followed by a FIR filter *is* a stride-2
+    transposed conv: with the filter flipped and padding 1 the two agree to
+    fp32 rounding (checked for every (channels, resolution) in the model).
+    The transposed conv runs on the low-resolution input, so it does a quarter
+    of the filter MACs and skips the upsample / mask / pad passes entirely.
+    """
+
+    def __init__(self, upsample: "Upsample2d"):
+        super().__init__()
+        channels = upsample.filter.in_channels
+        self.filter = nn.ConvTranspose2d(
+            in_channels=channels,
+            out_channels=channels,
+            kernel_size=4,
+            stride=2,
+            padding=1,
+            groups=channels,
+            bias=False,
+        )
+        with torch.no_grad():
+            self.filter.weight.copy_(upsample.filter.weight.flip(-1, -2))
+
+    def forward(self, x):
+        return self.filter(x)
+
+
+def upsample_as_deconv(generator: Generator) -> Generator:
+    """Swap every `Upsample2d` in `generator` for `Upsample2dDeconv` (in place)."""
+    for module in generator.modules():
+        for name, child in list(module.named_children()):
+            if isinstance(child, Upsample2d):
+                setattr(module, name, Upsample2dDeconv(child))
+    return generator
 
 
 class Downsample2dVulkan(nn.Module):
