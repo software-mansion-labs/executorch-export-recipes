@@ -157,6 +157,156 @@
       },
       "quantized": true,
       "default": true
+    },
+    {
+      "file": "efficientnet_v2_s_qnn_a8w8_v69.pte",
+      "precision": "a8w8",
+      "methods": {
+        "forward": {
+          "inputs": [
+            {
+              "shape": [
+                1,
+                3,
+                384,
+                384
+              ],
+              "dtype": "float32"
+            }
+          ],
+          "outputs": [
+            {
+              "shape": [
+                1,
+                1000
+              ],
+              "dtype": "float32"
+            }
+          ]
+        }
+      },
+      "quantized": true,
+      "default": false
+    },
+    {
+      "file": "efficientnet_v2_s_qnn_a8w8_v73.pte",
+      "precision": "a8w8",
+      "methods": {
+        "forward": {
+          "inputs": [
+            {
+              "shape": [
+                1,
+                3,
+                384,
+                384
+              ],
+              "dtype": "float32"
+            }
+          ],
+          "outputs": [
+            {
+              "shape": [
+                1,
+                1000
+              ],
+              "dtype": "float32"
+            }
+          ]
+        }
+      },
+      "quantized": true,
+      "default": false
+    },
+    {
+      "file": "efficientnet_v2_s_qnn_a8w8_v75.pte",
+      "precision": "a8w8",
+      "methods": {
+        "forward": {
+          "inputs": [
+            {
+              "shape": [
+                1,
+                3,
+                384,
+                384
+              ],
+              "dtype": "float32"
+            }
+          ],
+          "outputs": [
+            {
+              "shape": [
+                1,
+                1000
+              ],
+              "dtype": "float32"
+            }
+          ]
+        }
+      },
+      "quantized": true,
+      "default": false
+    },
+    {
+      "file": "efficientnet_v2_s_qnn_a8w8_v79.pte",
+      "precision": "a8w8",
+      "methods": {
+        "forward": {
+          "inputs": [
+            {
+              "shape": [
+                1,
+                3,
+                384,
+                384
+              ],
+              "dtype": "float32"
+            }
+          ],
+          "outputs": [
+            {
+              "shape": [
+                1,
+                1000
+              ],
+              "dtype": "float32"
+            }
+          ]
+        }
+      },
+      "quantized": true,
+      "default": false
+    },
+    {
+      "file": "efficientnet_v2_s_qnn_a8w8_v81.pte",
+      "precision": "a8w8",
+      "methods": {
+        "forward": {
+          "inputs": [
+            {
+              "shape": [
+                1,
+                3,
+                384,
+                384
+              ],
+              "dtype": "float32"
+            }
+          ],
+          "outputs": [
+            {
+              "shape": [
+                1,
+                1000
+              ],
+              "dtype": "float32"
+            }
+          ]
+        }
+      },
+      "quantized": true,
+      "default": false
     }
   ]
 }

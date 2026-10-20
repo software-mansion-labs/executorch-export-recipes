@@ -9,8 +9,8 @@
   "license": "bsd-3-clause",
   "variants": [
     {
-      "file": "lraspp_mobilenet_v3_large_qnn_a16w8_v69.pte",
-      "precision": "a16w8",
+      "file": "lraspp_mobilenet_v3_large_qnn_a8w8_v69.pte",
+      "precision": "a8w8",
       "quantized": true,
       "default": false,
       "methods": {
@@ -40,8 +40,8 @@
       }
     },
     {
-      "file": "lraspp_mobilenet_v3_large_qnn_a16w8_v73.pte",
-      "precision": "a16w8",
+      "file": "lraspp_mobilenet_v3_large_qnn_a8w8_v73.pte",
+      "precision": "a8w8",
       "quantized": true,
       "default": false,
       "methods": {
@@ -71,8 +71,8 @@
       }
     },
     {
-      "file": "lraspp_mobilenet_v3_large_qnn_a16w8_v75.pte",
-      "precision": "a16w8",
+      "file": "lraspp_mobilenet_v3_large_qnn_a8w8_v75.pte",
+      "precision": "a8w8",
       "quantized": true,
       "default": false,
       "methods": {
@@ -102,8 +102,8 @@
       }
     },
     {
-      "file": "lraspp_mobilenet_v3_large_qnn_a16w8_v79.pte",
-      "precision": "a16w8",
+      "file": "lraspp_mobilenet_v3_large_qnn_a8w8_v79.pte",
+      "precision": "a8w8",
       "quantized": true,
       "default": false,
       "methods": {
@@ -133,8 +133,8 @@
       }
     },
     {
-      "file": "lraspp_mobilenet_v3_large_qnn_a16w8_v81.pte",
-      "precision": "a16w8",
+      "file": "lraspp_mobilenet_v3_large_qnn_a8w8_v81.pte",
+      "precision": "a8w8",
       "quantized": true,
       "default": true,
       "methods": {

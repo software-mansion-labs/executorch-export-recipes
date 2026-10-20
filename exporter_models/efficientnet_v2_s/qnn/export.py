@@ -17,6 +17,11 @@ JPEGs; ImageNetV2 matched-frequency works and is what these were calibrated on:
 
     QNN_CALIBRATION_DIR   directory of calibration images (required)
     QNN_CALIBRATION_SIZE  how many to use (default 100)
+
+a16w8 is the default. a8w8, with a histogram activation observer, is 1.75x faster
+for 1.4 top-1 on an S26 Ultra over 500 ImageNetV2 images: 70.40% at 1.34 ms against
+71.80% at 2.34 ms. Min/max is wrong at 8 bits here: outlier activations stretch the
+range until the logits carry nothing (0% top-1). Only v81 is device-validated.
 """
 
 import logging
@@ -98,6 +103,9 @@ def _calibrate(prepared, size: int, resize: list):
             prepared(F.convert_image_dtype(img, torch.float))
 
 
+_QUANT_DTYPE = {"a16w8": "use_16a8w", "a8w8": "use_8a8w"}
+
+
 def export(config: dict, out_dir: str) -> str:
     # Checked before the imports below: without the SDK those fail deep in the
     # QNN AOT chain with an unrelated-looking error.
@@ -118,13 +126,14 @@ def export(config: dict, out_dir: str) -> str:
     )
     from executorch.exir.capture._config import ExecutorchBackendConfig
     from executorch.exir.passes.memory_planning_pass import MemoryPlanningPass
-    from torchao.quantization.pt2e.observer import MinMaxObserver
+    from torchao.quantization.pt2e.observer import HistogramObserver, MinMaxObserver
     from torchao.quantization.pt2e.quantize_pt2e import convert_pt2e, prepare_pt2e
 
     variant = config["variant"]
     shape = tuple(variant["methods"]["forward"]["inputs"][0]["shape"])
     soc = _soc_for(variant["file"])
     quantized = variant["quantized"]
+    a8w8 = variant["precision"] == "a8w8"
     inputs = (torch.randn(shape, dtype=torch.float32),)
 
     model = _EfficientNetWrapper(
@@ -139,14 +148,16 @@ def export(config: dict, out_dir: str) -> str:
     if quantized:
         prepared = prepare_pt2e(
             torch_export(model, inputs, strict=False).module(),
-            # MinMaxObserver rather than make_quantizer's
+            # a16w8: MinMaxObserver rather than make_quantizer's
             # MovingAverageMinMaxObserver default: the moving average trails the
             # real activation range. See the note in the deeplab_v3 qnn export,
-            # where it was worth 1.59 mIoU on device.
+            # where it was worth 1.59 mIoU on device. a8w8: histogram, see the
+            # module docstring.
             make_quantizer(
-                quant_dtype=QuantDtype.use_16a8w,
+                quant_dtype=getattr(QuantDtype, _QUANT_DTYPE[variant["precision"]]),
                 soc_model=soc,
-                act_observer=MinMaxObserver,
+                act_observer=HistogramObserver if a8w8 else MinMaxObserver,
+                per_channel_linear=a8w8,
             ),
         )
         _calibrate(

@@ -13,6 +13,11 @@ channels that still carry a folded bias (up to 0.93), and the int32 bias scale
 s_in * s_w is so small at a floored s_w that the bias saturates to ~0. That cost
 3.6 mIoU: on an S26 Ultra 61.48% at the default, 65.83% at 1e-5 (XNNPACK int8
 65.06%, fp32 65.76%), 2.06 ms.
+
+The variants are a8w8 with a histogram activation observer: 66.26% at 0.80 ms
+against a16w8's 65.83% at 1.89 ms on the same device and 200 VOC2012 val images.
+Min/max is wrong at 8 bits here: one outlier stretches the range and costs ~11 mIoU.
+Only v81 is device-validated; v69-v79 target SoCs we do not have.
 """
 
 import logging
@@ -88,6 +93,9 @@ def _calibrate(prepared):
             prepared(F.normalize(img, mean=_IMAGENET_MEAN, std=_IMAGENET_STD))
 
 
+_QUANT_DTYPE = {"a16w8": "use_16a8w", "a8w8": "use_8a8w"}
+
+
 def export(config: dict, out_dir: str) -> str:
     # Checked before the imports below: without the SDK those fail deep in the
     # QNN AOT chain with an unrelated-looking error.
@@ -108,13 +116,14 @@ def export(config: dict, out_dir: str) -> str:
     )
     from executorch.exir.capture._config import ExecutorchBackendConfig
     from executorch.exir.passes.memory_planning_pass import MemoryPlanningPass
-    from torchao.quantization.pt2e.observer import MinMaxObserver
+    from torchao.quantization.pt2e.observer import HistogramObserver, MinMaxObserver
     from torchao.quantization.pt2e.quantize_pt2e import convert_pt2e, prepare_pt2e
 
     variant = config["variant"]
     shape = tuple(variant["methods"]["forward"]["inputs"][0]["shape"])
     soc = _soc_for(variant["file"])
     quantized = variant["quantized"]
+    a8w8 = variant["precision"] == "a8w8"
     inputs = (torch.randn(shape, dtype=torch.float32),)
 
     model = _IndexMapWrapper(
@@ -123,8 +132,8 @@ def export(config: dict, out_dir: str) -> str:
         )
     ).eval()
 
-    # fp16 is an HTP compile-time precision, not a quantization pass; a16w8 is
-    # 16-bit activations over 8-bit weights, done here before lowering.
+    # fp16 is an HTP compile-time precision, not a quantization pass; a16w8 and
+    # a8w8 are 16-/8-bit activations over 8-bit weights, done here before lowering.
     compiler_specs = generate_qnn_executorch_compiler_spec(
         soc_model=getattr(QcomChipset, soc),
         backend_options=generate_htp_compiler_spec(use_fp16=not quantized),
@@ -133,13 +142,15 @@ def export(config: dict, out_dir: str) -> str:
     if quantized:
         prepared = prepare_pt2e(
             torch_export(model, inputs, strict=False).module(),
-            # MinMaxObserver, not the make_quantizer default of
+            # a16w8: MinMaxObserver, not the make_quantizer default of
             # MovingAverageMinMaxObserver, whose moving average trails the real
-            # activation range: it cost DeepLabV3 1.59 mIoU.
+            # activation range: it cost DeepLabV3 1.59 mIoU. a8w8: histogram, see
+            # the module docstring.
             make_quantizer(
-                quant_dtype=QuantDtype.use_16a8w,
+                quant_dtype=getattr(QuantDtype, _QUANT_DTYPE[variant["precision"]]),
                 soc_model=soc,
-                act_observer=MinMaxObserver,
+                act_observer=HistogramObserver if a8w8 else MinMaxObserver,
+                per_channel_linear=a8w8,
                 eps=1e-5,
             ),
         )

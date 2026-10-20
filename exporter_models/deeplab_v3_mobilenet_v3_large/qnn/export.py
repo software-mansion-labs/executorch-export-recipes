@@ -18,10 +18,11 @@ error 1007, and no compiler option avoids it (pytorch/executorch#23096). The
 fp16 path below is kept because the failure is specific to that layer shape, but
 config.json declares a16w8 only.
 
-The ResNet variants are a8w8: at the same mIoU it halves latency on an S26
+All variants are a8w8: at the same mIoU it halves latency on an S26
 Ultra (200 VOC2012 val images; a16w8 -> a8w8): ResNet50 76.74% / 20.4 ms ->
-76.44% / 9.9 ms, ResNet101 78.90% / 29.4 ms -> 78.96% / 14.9 ms. MobileNetV3
-stays a16w8: a8w8 costs it 11 mIoU in host fake-quant (67.22% -> 55.77%).
+76.44% / 9.9 ms, ResNet101 78.90% / 29.4 ms -> 78.96% / 14.9 ms, MobileNetV3
+69.02% / 2.98 ms -> 69.14% / 1.34 ms. MobileNetV3 needs a histogram activation
+observer at 8 bits; with min/max one outlier stretches the range and costs ~11 mIoU.
 Only v81 is device-validated; v69-v79 target SoCs we do not have.
 """
 
@@ -237,7 +238,7 @@ def export(config: dict, out_dir: str) -> str:
     )
     from executorch.exir.capture._config import ExecutorchBackendConfig
     from executorch.exir.passes.memory_planning_pass import MemoryPlanningPass
-    from torchao.quantization.pt2e.observer import MinMaxObserver
+    from torchao.quantization.pt2e.observer import HistogramObserver, MinMaxObserver
     from torchao.quantization.pt2e.quantize_pt2e import convert_pt2e, prepare_pt2e
 
     variant = config["variant"]
@@ -245,6 +246,9 @@ def export(config: dict, out_dir: str) -> str:
     builder, weights = _arch_for(variant["file"])
     soc = _soc_for(variant["file"])
     quantized = variant["quantized"]
+    histogram = (
+        variant["precision"] == "a8w8" and variant["size"] == "mobilenet_v3_large"
+    )
     inputs = (torch.randn(shape, dtype=torch.float32),)
 
     model = _DeeplabWrapper(_split_wide_aspp_convs(builder(weights=weights()))).eval()
@@ -264,11 +268,13 @@ def export(config: dict, out_dir: str) -> str:
             # activation range on this model and costs 1.59 mIoU. Measured on an
             # S26 Ultra over 200 VOC2012 val images: 64.96% with the default,
             # 66.55% with plain min/max, which matches the published XNNPACK
-            # int8 file (66.56%) at 3.20 ms/inference.
+            # int8 file (66.56%) at 3.20 ms/inference. MobileNetV3 a8w8 is the
+            # exception, see the module docstring.
             make_quantizer(
                 quant_dtype=getattr(QuantDtype, _QUANT_DTYPE[variant["precision"]]),
                 soc_model=soc,
-                act_observer=MinMaxObserver,
+                act_observer=HistogramObserver if histogram else MinMaxObserver,
+                per_channel_linear=variant["precision"] == "a8w8",
                 eps=_eps_for(variant["file"]),
             ),
         )
