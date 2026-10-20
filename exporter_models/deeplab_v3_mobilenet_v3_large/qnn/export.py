@@ -24,6 +24,8 @@ Ultra (200 VOC2012 val images; a16w8 -> a8w8): ResNet50 76.74% / 20.4 ms ->
 69.02% / 2.98 ms -> 69.14% / 1.34 ms. MobileNetV3 needs a histogram activation
 observer at 8 bits; with min/max one outlier stretches the range and costs ~11 mIoU.
 Only v81 is device-validated; v69-v79 target SoCs we do not have.
+In the x86 HTP simulator v73-v79 match v81, while v69 a8w8 is ~2 mIoU below
+v69 a16w8 (QAIRT's v69 compile; the quantization is identical).
 """
 
 import logging
