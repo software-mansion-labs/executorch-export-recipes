@@ -1,0 +1,74 @@
+{
+  "$schema": "https://huggingface.co/software-mansion/react-native-executorch-spec/resolve/main/config.schema.json",
+  "model": "depth_anything_v2_small",
+  "family": "depth-anything-v2",
+  "capabilities": [
+    "depth-estimation"
+  ],
+  "backend": "xnnpack",
+  "license": "apache-2.0",
+  "variants": [
+    {
+      "file": "depth_anything_v2_small_xnnpack_fp32.pte",
+      "precision": "fp32",
+      "quantized": false,
+      "default": true,
+      "methods": {
+        "forward": {
+          "inputs": [
+            {
+              "shape": [
+                1,
+                3,
+                518,
+                518
+              ],
+              "dtype": "float32"
+            }
+          ],
+          "outputs": [
+            {
+              "shape": [
+                1,
+                518,
+                518
+              ],
+              "dtype": "float32"
+            }
+          ]
+        }
+      }
+    },
+    {
+      "file": "depth_anything_v2_small_xnnpack_int8.pte",
+      "precision": "int8",
+      "quantized": true,
+      "default": false,
+      "methods": {
+        "forward": {
+          "inputs": [
+            {
+              "shape": [
+                1,
+                3,
+                518,
+                518
+              ],
+              "dtype": "float32"
+            }
+          ],
+          "outputs": [
+            {
+              "shape": [
+                1,
+                518,
+                518
+              ],
+              "dtype": "float32"
+            }
+          ]
+        }
+      }
+    }
+  ]
+}
