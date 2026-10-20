@@ -7,7 +7,7 @@ from .errors import SpecError
 _CAPABILITIES = frozenset({
     "text-generation", "vision", "speech-to-text", "text-to-speech",
     "classification", "object-detection", "semantic-segmentation",
-    "instance-segmentation", "style-transfer", "text-embedding",
+    "instance-segmentation", "style-transfer", "depth-estimation", "text-embedding",
     "image-embedding", "image-generation", "voice-activity-detection",
     "text-detection", "text-recognition",
     "image-text-to-text", "audio-text-to-text",

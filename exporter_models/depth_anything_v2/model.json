@@ -1,0 +1,13 @@
+{
+  "hf": "https://huggingface.co/software-mansion/react-native-executorch-depth-anything-v2",
+  "repo": "depth-anything/Depth-Anything-V2-Small-hf",
+  "config": "{size}/{backend}/config.json",
+  "sizes": [
+    "small"
+  ],
+  "backends": [
+    "xnnpack",
+    "coreml",
+    "vulkan"
+  ]
+}
