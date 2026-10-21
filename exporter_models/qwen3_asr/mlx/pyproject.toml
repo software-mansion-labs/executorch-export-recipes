@@ -16,6 +16,7 @@ dependencies = [
     "exporter",
     "torch==2.14.0",
     "executorch",
+    "coremltools==9.0",
     "torchao==0.18.0",
     "transformers==5.14.1",
     "safetensors==0.8.0",

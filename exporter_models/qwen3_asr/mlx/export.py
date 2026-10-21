@@ -36,7 +36,7 @@ class _CastIO(torch.nn.Module):
     MLX has no compile-time precision switch: the compute dtype is the torch
     model's dtype. The RNE task exchanges fp32 tensors between methods, so the
     float input is cast down on the way in and the output back up. `aux` is the
-    integer second input (`n_valid` / `start_pos`).
+    integer second input (`start_pos`).
     """
 
     def __init__(self, inner: torch.nn.Module, dtype: torch.dtype):
@@ -61,6 +61,9 @@ class _CastOut(torch.nn.Module):
 
 def export(config: dict, out_dir: str) -> str:
     import executorch.backends.mlx.llm.et_attention  # noqa: F401  registers attention_type="mlx"
+    import coremltools as ct
+    from executorch.backends.apple.coreml.compiler import CoreMLBackend
+    from executorch.backends.apple.coreml.partition import CoreMLPartitioner
     from executorch.backends.mlx.llm.quantization import quantize_model_
     from executorch.backends.mlx.partitioner import MLXPartitioner
     from executorch.backends.mlx.passes import get_default_passes
@@ -82,10 +85,12 @@ def export(config: dict, out_dir: str) -> str:
     m = q.Qwen3Asr()
     params = m.text_params()
 
-    # The STFT front end stays on XNNPACK, which every iOS build links; the
-    # tower runs on the GPU in fp16.
+    # The STFT front end stays on XNNPACK, which every iOS build links. The
+    # tower goes to Core ML (fp16) on one static 8 s window, n_valid masking
+    # the tail: on an iPhone 16 it runs 2.4x faster there than on MLX
+    # (NOTES.md), so this file needs both the MLX and the Core ML backend.
     ep_pre = ex.export_preprocess(m.preprocessor())
-    ep_enc = ex.export_audio_encoder(_CastIO(m.audio_encoder(), torch.float16).eval(), dynamic=True)
+    ep_enc = ex.export_audio_encoder(m.audio_encoder().eval(), dynamic=False)
 
     # attention_type="mlx" builds MLX's own attention + KV cache inside
     # construct_transformer, so none of the llama custom-op source transforms
@@ -133,23 +138,28 @@ def export(config: dict, out_dir: str) -> str:
 
     schema = ex.model_schema(
         dim=params["dim"], vocab=params["vocab_size"], max_context=max_context,
-        max_prefill=max_prefill, dynamic_encoder=True,
+        max_prefill=max_prefill, dynamic_encoder=False,
     )
     consts = dict(variant.get("constants", {}))
     consts["get_model_schema"] = schema
 
     mlx_passes = get_default_passes()
+    tower_specs = CoreMLBackend.generate_compile_specs(
+        compute_unit=ct.ComputeUnit.ALL,
+        minimum_deployment_target=ct.target.iOS18,
+        compute_precision=ct.precision.FLOAT16,
+    )
     program = to_edge_transform_and_lower(
         {"preprocess": ep_pre, "audio_encoder": ep_enc, "token_embedding": ep_tok, "text_decoder": ep_dec},
         partitioner={
             "preprocess": [XnnpackPartitioner()],
-            "audio_encoder": [MLXPartitioner()],
+            "audio_encoder": [CoreMLPartitioner(compile_specs=tower_specs)],
             "token_embedding": [MLXPartitioner()],
             "text_decoder": [MLXPartitioner()],
         },
         transform_passes={
             "preprocess": [],
-            "audio_encoder": mlx_passes,
+            "audio_encoder": [],
             "token_embedding": mlx_passes,
             "text_decoder": mlx_passes,
         },

@@ -2,8 +2,9 @@
 audio_encoder -> token_embedding/text_decoder greedy loop. Writes {clip: text}.
 
 usage: pte_run.py model.pte out.json clip.wav... (16 kHz mono int16)
+Q3_STATIC=1 pads every window to 800 frames, for a static tower (Core ML).
 """
-import json, math, sys, time, wave
+import json, math, os, sys, time, wave
 import numpy as np, torch
 from executorch.extension.pybindings.portable_lib import _load_for_executorch
 from executorch.extension.llm.custom_ops import custom_ops  # noqa: F401  (custom sdpa / kv cache kernels)
@@ -16,6 +17,7 @@ tok = AutoTokenizer.from_pretrained("Qwen/Qwen3-ASR-0.6B")
 pre_ids = tok("<|im_start|>system\n<|im_end|>\n<|im_start|>user\n<|audio_start|>").input_ids
 post_ids = tok("<|audio_end|><|im_end|>\n<|im_start|>assistant\n").input_ids
 EOS = {151643, 151645}
+STATIC = os.environ.get("Q3_STATIC") == "1"
 
 def ntok(frames):
     rem = frames % 100
@@ -38,7 +40,7 @@ for c in clips:
     F = mel.shape[2]; pieces = []
     for w0 in range(0, F, 800):
         w = mel[:, :, w0:w0 + 800]; f = w.shape[2]
-        w = torch.nn.functional.pad(w, (0, math.ceil(f / 100) * 100 - f))
+        w = torch.nn.functional.pad(w, (0, (800 if STATIC else math.ceil(f / 100) * 100) - f))
         n = ntok(f)
         pieces.append(run("audio_encoder", w, torch.tensor([n]))[0, :n])
     audio = torch.cat(pieces).unsqueeze(0)

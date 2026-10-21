@@ -122,12 +122,32 @@ activation quantization 7%, RMSNorm 7%, layout copies 6%.
 `conv:8da8w`. XNNPACKQuantizer cannot target convs by module type until
 pytorch/executorch#24056, hence the name filter in `exportable.py`.
 
-## mlx
+## mlx: Core ML tower + MLX decoder
 
-`attention_type="mlx"` builds MLX's own attention and KV cache. Compute is
-bf16 (fp16 for the tower) behind fp32 method IO (`_CastIO`), so the runtime
-exchanges fp32 tensors with every backend. Needs the software-mansion-labs fork
-(`mlx/pyproject.toml`). Not measured on device yet.
+`attention_type="mlx"` builds MLX's own attention and KV cache. The decoder
+computes in bf16 behind fp32 method IO (`_CastIO`), so the runtime exchanges
+fp32 tensors with every backend. Needs the software-mansion-labs fork
+(`mlx/pyproject.toml`).
+
+The audio tower goes to Core ML (fp16, `ComputeUnit.ALL`) on one static 8 s
+window; `n_valid` masks the tail, so static shapes cost nothing. The file
+therefore needs both the MLX and the Core ML backend. A Core ML decoder was not
+tried: a 0.6B KV-cache decoder there is a separate project, and Whisper's
+decode was fastest on CPU_ONLY.
+
+iPhone 16, 8 clips (3-17 s) x 2 rounds in alternating order, 20 s cool-downs,
+medians; WER on the same 100 clips as above:
+
+| variant | WER | whole clip | encoder | prefill | decode |
+|---|---|---|---|---|---|
+| xnnpack (shipped) | 2.46% | 468 ms | 103 ms | 217 ms | 10.6 ms/token |
+| mlx, tower on MLX | 2.73% | 330 ms | 59 ms | 109 ms | 11.4 ms/token |
+| Core ML tower + xnnpack | 2.57% | 387 ms | 23 ms | 215 ms | 10.6 ms/token |
+| Core ML tower + mlx (shipped) | 2.51% | 293 ms | 24 ms | 109 ms | 11.3 ms/token |
+
+MLX wins on prefill (GPU), Core ML on the tower (2.4x MLX). The host Python
+runtime has no build with both backends, so the hybrid's WER comes from running
+the tower and the decoder in two processes (`tools/split_run.py`).
 
 ## Device: Galaxy S26 Ultra (Adreno 840)
 
