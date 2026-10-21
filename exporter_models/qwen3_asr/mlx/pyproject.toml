@@ -1,0 +1,29 @@
+# Per-model MLX export environment for qwen3_asr.
+#   Not uv-runnable: the executorch fork pin below cannot be built by uv (see
+#   skills/backends/vulkan, "Environment"). From a fork-overlaid env:
+#   PYTHONPATH=src python -m exporter.cli export qwen3_asr --backend mlx --output-dir <dir>
+#
+# NOTE (MLX EXPORTER SOURCE PIN):
+# executorch comes from software-mansion-labs/executorch, branch
+# @ms/separate-backends-1.4.1, matching the MLX runtime these .pte files
+# target; upstream MLX serialization is opcode-shifted against it (CumMaxNode).
+# Same pin is used by vulkan/
+[project]
+name = "exporter-model-qwen3-asr-mlx"
+version = "0"
+requires-python = "==3.10.*"
+dependencies = [
+    "exporter",
+    "torch==2.14.0",
+    "executorch",
+    "torchao==0.18.0",
+    "transformers==5.14.1",
+    "safetensors==0.8.0",
+]
+
+[tool.uv]
+environments = ["sys_platform == 'darwin' and platform_machine == 'arm64'"]
+
+[tool.uv.sources]
+exporter = { path = "../../..", editable = true }
+executorch = { git = "https://github.com/software-mansion-labs/executorch", branch = "@ms/separate-backends-1.4.1" }

@@ -1,0 +1,12 @@
+{
+  "hf": "https://huggingface.co/software-mansion/react-native-executorch-qwen-3-asr",
+  "config": "{size}/{backend}/config.json",
+  "sizes": [
+    "0_6b"
+  ],
+  "backends": [
+    "xnnpack",
+    "mlx",
+    "vulkan"
+  ]
+}
