@@ -111,7 +111,11 @@ class _DecoderLayer(nn.Module):
     # "index_put" keeps the self-attention cache in plain buffers written with
     # index_put (portable on XNNPACK, model state on Core ML). "mlx" uses the
     # MLX delegate's mlx::kv_cache_update + mlx::custom_sdpa, which keep the
-    # cache write and the attention inside the delegate. Set before building.
+    # cache write and the attention inside the delegate. "slice_scatter" is
+    # index_put routed through a full-range slice_scatter: Core ML drops a
+    # runtime-offset slice_update applied straight to read_state (every write
+    # lands in row 0), and the extra no-op slice_update avoids that, which is
+    # what makes an fp16 Core ML cache correct. Set before building.
     cache_ops = "index_put"
 
     def __init__(self, d_model, n_heads, ffn_dim, max_target_len):
@@ -146,6 +150,12 @@ class _DecoderLayer(nn.Module):
                 is_causal=True, scale=a.scale,
             )
             return out[0].transpose(0, 1).contiguous().view(1, -1, a.n_heads * a.head_dim)
+        if self.cache_ops == "slice_scatter":
+            n = self.k_cache.shape[0]
+            for cache, val in ((self.k_cache, k), (self.v_cache, v)):
+                written = torch.ops.aten.index_put(cache, [None, cache_position], val)
+                cache.copy_(torch.ops.aten.slice_scatter(cache, written, 0, 0, n))
+            return a.attend(q, self.k_cache, self.v_cache, causal_bias)
         # index_put with a leading null index: portable has no index_copy.
         self.k_cache[:, cache_position] = k
         self.v_cache[:, cache_position] = v

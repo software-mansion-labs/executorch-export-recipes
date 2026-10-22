@@ -44,6 +44,13 @@ def export(config: dict, out_dir: str) -> str:
 
     marian = _load("_marian")
     variant = config["variant"]
+    # Per-method compute units and the decode precision; fp16 decode needs the
+    # slice_scatter cache write (see _marian._DecoderLayer.cache_ops).
+    units = {m: getattr(ct.ComputeUnit, variant.get(f"{m}_compute_unit", d))
+             for m, d in (("encode", "ALL"), ("decode", "CPU_ONLY"))}
+    decode_precision = variant.get("decode_precision", "fp32")
+    if decode_precision == "fp16":
+        marian._DecoderLayer.cache_ops = "slice_scatter"
     precision = {"fp16": ct.precision.FLOAT16, "fp32": ct.precision.FLOAT32}[variant["precision"]]
     model, cfg = marian.load(marian.source_repo(config["size"]), MAX_TARGET_LEN)
 
@@ -63,8 +70,9 @@ def export(config: dict, out_dir: str) -> str:
     program = to_edge_transform_and_lower(
         methods,
         partitioner={
-            "encode": [partitioner(ct.ComputeUnit.ALL, precision)],
-            "decode": [partitioner(ct.ComputeUnit.CPU_ONLY, ct.precision.FLOAT32)],
+            "encode": [partitioner(units["encode"], precision)],
+            "decode": [partitioner(units["decode"], {"fp16": ct.precision.FLOAT16,
+                                                      "fp32": ct.precision.FLOAT32}[decode_precision])],
         },
         compile_config=EdgeCompileConfig(_check_ir_validity=False),
         constant_methods={"get_model_schema": schema_json},

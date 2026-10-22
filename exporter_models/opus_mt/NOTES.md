@@ -151,3 +151,24 @@ outputs identical across rounds:
 
 XNNPACK int8 is the fastest on iOS too; Core ML's fp32 CPU decode is 3.9x slower.
 
+### Core ML compute units (iPhone 16)
+
+`coreml/export.py` takes `encode_compute_unit`, `decode_compute_unit` and `decode_precision`
+per variant. fp16 decode needs `_DecoderLayer.cache_ops = "slice_scatter"`: Core ML ignores
+the runtime offset of a slice_update applied straight to read_state (every write lands in
+row 0), and a full-range slice_scatter after the index_put avoids it (BLEU 4 -> 29.3, file
+313 -> 150 MB). en_de, medians of 3 rounds, ~21 decode steps per sentence:
+
+| encode / decode | encode | decode/step | per sentence | BLEU |
+|---|---|---|---|---|
+| xnnpack int8 (reference) | 3.6 ms | 2.0 ms | ~46 ms | 29.32 |
+| CPU_AND_NE fp16 / CPU_AND_NE fp16 | 2.65 ms | 3.77 ms | ~84 ms | 29.28 |
+| ALL fp16 / CPU_ONLY fp16 | 3.8 ms | 3.75 ms | ~84 ms | 29.43 |
+| ALL fp16 / CPU_ONLY fp32 | 4.66 ms | 7.69 ms | ~170 ms | 29.40 |
+| CPU_AND_GPU fp16 / ALL fp16 | 17.5 ms | 20.9 ms | ~465 ms | 29.24 |
+| CPU_ONLY fp16 / CPU_AND_GPU fp16 | 20.9 ms | 24.3 ms | ~540 ms | 29.16 |
+| ALL fp16 / CPU_AND_GPU fp32 | 8.1 ms | 30.0 ms | ~650 ms | 29.40 |
+
+The ANE encoder is the fastest encoder measured, but a one-token decode step costs 1.9x
+XNNPACK int8 on CPU or ANE and 10-15x on the GPU, so Core ML loses end to end.
+
