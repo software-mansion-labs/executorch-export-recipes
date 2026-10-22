@@ -38,7 +38,20 @@ one delegate, 169 `_weight_int8pack_mm` + 24 fused `sdpa_with_kv_cache`, 1.76
 GB. The torchao `8da8w` recipe is unusable here: Vulkan fuses only 4-bit torchao
 weights, so each int8 linear keeps a `torchao.dequantize_affine` that the runtime
 has no kernel for (the .pte would abort at load), and the activation quant is
-dropped. Not yet measured on device.
+dropped.
+
+**Not published.** On a Galaxy S26 Ultra it decodes garbage from the first token, and is
+slow even so: 93 ms/token, 79 of 83 ms of GPU time in `linear_q8csw_tiled`, which takes
+as long at M=1 as at M=44 (no GEMV path for int8 weights). The garbage is fp16 overflow:
+the PT2E path leaves RMSNorm decomposed (mul/mean/rsqrt), and EuroLLM's residual stream
+has outliers up to |x| = 1749, so `x*x` overflows fp16 in 33 of 49 norms. The fork's
+rms_norm fusion did not match this graph.
+
+## Galaxy S26 Ultra (2026-10-22)
+
+xnnpack 8da8w, 50 WMT13 en->de sentences, greedy, no BOS: BLEU 29.72, 28.5 ms/token
+(35 tok/s), prefill ~565 tok/s, load 2.8 s. Opus-MT int8 does the same pair at
+BLEU 29.13 in ~30 ms per sentence, so EuroLLM is for language coverage, not speed.
 
 ## Tokenizer streaming
 

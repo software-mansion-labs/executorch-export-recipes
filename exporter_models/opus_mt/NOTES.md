@@ -106,3 +106,23 @@ Host medians across pairs: Core ML encode 2.0-2.2 ms, decode 3.1-4.3 ms/step;
 MLX encode 3.5-5.4 ms, decode 2.5-3.6 ms/step. Plans are the same for every
 pair: Core ML and MLX one delegate per method; Vulkan encode one Vulkan
 delegate (+ host embedding lookup), decode 7 XNNPACK delegates.
+
+## Galaxy S26 Ultra (2026-10-22)
+
+`xbench` (Module API greedy encode/decode, fork 1.4.1 runtime, md5 d21dcf92), 100 WMT13
+sentences, 2 warmup. en_de, medians of 4 interleaved rounds (order reversed each round):
+
+| variant | encode | decode/step | load | BLEU |
+|---|---|---|---|---|
+| xnnpack int8 | 1.66 ms | 1.39 ms | ~105 ms | 29.13 |
+| xnnpack fp32 | 3.6 ms | 3.9 ms | ~115 ms | 29.23 |
+| vulkan fp16 | 6.0 ms | 1.42 ms | ~280 ms | 29.26 |
+
+Outputs were identical across rounds for every arm. **Vulkan is not published**: its
+decoder is the same XNNPACK int8 graph, and the GPU encoder is 3.6x slower than XNNPACK
+int8 on these short (~20 token) sources, so it only adds load time.
+
+xnnpack int8, other pairs (BLEU / encode / decode per step): de_en 38.48 / 2.43 / 1.45,
+en_es 36.29 / 2.28 / 1.48, es_en 40.17 / 2.16 / 1.49, en_fr 56.86 / 1.71 / 1.41,
+fr_en 53.46 / 1.88 / 1.44 ms.
+
