@@ -172,3 +172,9 @@ row 0), and a full-range slice_scatter after the index_put avoids it (BLEU 4 -> 
 The ANE encoder is the fastest encoder measured, but a one-token decode step costs 1.9x
 XNNPACK int8 on CPU or ANE and 10-15x on the GPU, so Core ML loses end to end.
 
+## Published
+
+Only `xnnpack` int8 is published (HF and RNE): it is the fastest variant on both the
+Galaxy S26 Ultra and the iPhone 16 at the same BLEU. The coreml, mlx and vulkan exporters
+stay so the comparison can be rerun.
+
