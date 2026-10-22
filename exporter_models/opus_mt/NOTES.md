@@ -87,3 +87,22 @@ host, against ~1.8 for XNNPACK int8.
 Encode is one Vulkan fp16 delegate; decode stays on XNNPACK int8 (one token,
 latency bound, and the 58k-wide logits row exceeds a texture). Not verifiable
 on the host; needs an Android device run before it can be the Android default.
+
+## All pairs: Core ML and MLX quality
+
+WMT13, first 100 sentences, host. In parentheses: outputs identical to XNNPACK
+fp32 out of 100. Every backend is within ~1 BLEU of fp32 on every pair.
+
+| pair | xnnpack fp32 | xnnpack int8 | coreml fp16 | mlx bf16 | mlx int8 |
+|---|---|---|---|---|---|
+| en_de | 29.23 | 29.32 | 29.40 (98) | 29.26 (94) | 29.13 (77) |
+| de_en | 38.71 | 38.19 | 38.73 (98) | 37.67 (83) | 37.64 (81) |
+| en_es | 35.94 | 36.20 | 35.88 (97) | 35.86 (93) | 36.05 (85) |
+| es_en | 39.89 | 40.43 | 40.36 (96) | 40.18 (87) | 40.28 (82) |
+| en_fr | 56.96 | 56.89 | 56.96 (99) | 57.32 (94) | 57.14 (90) |
+| fr_en | 52.75 | 53.93 | 53.01 (97) | 53.41 (91) | 53.83 (84) |
+
+Host medians across pairs: Core ML encode 2.0-2.2 ms, decode 3.1-4.3 ms/step;
+MLX encode 3.5-5.4 ms, decode 2.5-3.6 ms/step. Plans are the same for every
+pair: Core ML and MLX one delegate per method; Vulkan encode one Vulkan
+delegate (+ host embedding lookup), decode 7 XNNPACK delegates.
