@@ -1,0 +1,59 @@
+{
+  "$schema": "https://huggingface.co/software-mansion/react-native-executorch-spec/resolve/main/config.schema.json",
+  "model": "qwen_3_5",
+  "family": "qwen",
+  "capabilities": [
+    "text-generation"
+  ],
+  "backend": "mlx",
+  "license": "apache-2.0",
+  "size": "0_8b",
+  "variants": [
+    {
+      "file": "qwen_3_5_0_8b_mlx_4w.pte",
+      "precision": "4w",
+      "quantized": true,
+      "default": true,
+      "methods": {
+        "forward": {
+          "inputs": [
+            {
+              "shape": [
+                1,
+                1
+              ],
+              "dtype": "int64"
+            },
+            {
+              "shape": [
+                1
+              ],
+              "dtype": "int64"
+            }
+          ],
+          "outputs": [
+            {
+              "shape": [
+                1,
+                248320
+              ],
+              "dtype": "float32"
+            }
+          ]
+        },
+        "get_bos_id": 248045,
+        "get_eos_ids": [
+          248046,
+          248044
+        ],
+        "get_max_seq_len": 1,
+        "get_max_context_len": 2048,
+        "get_vocab_size": 248320,
+        "get_n_layers": 24,
+        "use_kv_cache": true,
+        "enable_dynamic_shape": false,
+        "use_sdpa_with_kv_cache": false
+      }
+    }
+  ]
+}
