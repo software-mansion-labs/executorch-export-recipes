@@ -1,0 +1,45 @@
+# Per-model Vulkan export environment for all_mpnet_base_v2.
+#   Not uv-runnable: the executorch fork pin below cannot be built by uv (see
+#   skills/backends/vulkan, "Environment"). From a source-built fork checkout:
+#   PYTHONPATH=src python -m exporter.cli export all_mpnet_base_v2 --backend vulkan --output-dir <dir>
+#
+# NOTE (VULKAN EXPORTER SOURCE PIN):
+# executorch is pinned to software-mansion-labs/executorch, branch
+# @ms/separate-backends-1.4.1, matching the Vulkan runtime this .pte targets.
+# Unlike the whisper Vulkan export, nothing here needs a fork-only AOT pass: a
+# released 1.4.1 serializes the same program. The pin is a version lock against
+# the runtime, which does need the branch. Without
+# pytorch/executorch#22326 (do not return early before the barrier in the reduce
+# shader) the mean-pool reduction hangs the GPU on Mali with
+# VK_ERROR_DEVICE_LOST.
+#
+# Drop the pin back to a released executorch once that lands.
+[project]
+name = "exporter-model-all-mpnet-base-v2-vulkan"
+version = "0"
+requires-python = "==3.10.*"
+dependencies = [
+    "exporter",
+    "torch==2.14.0.dev20260702",
+    "executorch",
+    "transformers==5.14.1",
+    "safetensors==0.8.0",
+]
+
+[tool.uv]
+# Exports run only on this macOS arm64 host; limit resolution to it so the
+# nightly torch/torchvision +cpu-vs-plain platform split can't fail the lock.
+environments = ["sys_platform == 'darwin' and platform_machine == 'arm64'"]
+
+[tool.uv.sources]
+exporter = { path = "../../.." , editable = true }
+# Pinned by wheel URL, not by index: this nightly was delisted from the
+# index listing (the file is still served), so an index resolve can no
+# longer find it and the lock cannot be refreshed.
+torch = { url = "https://download.pytorch.org/whl/nightly/cpu/torch-2.14.0.dev20260702-cp310-cp310-macosx_14_0_arm64.whl" }
+executorch = { git = "https://github.com/software-mansion-labs/executorch", branch = "@ms/separate-backends-1.4.1" }
+
+[[tool.uv.index]]
+name = "pytorch-nightly"
+url = "https://download.pytorch.org/whl/nightly/cpu"
+explicit = true

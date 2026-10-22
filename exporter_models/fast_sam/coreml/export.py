@@ -49,6 +49,19 @@ def export(config: dict, out_dir: str) -> str:
     specs = CoreMLBackend.generate_compile_specs(
         minimum_deployment_target=ct.target.iOS18,
         compute_precision=precision,
+        # Pin the ANE explicitly. ExecuTorch defaults to ComputeUnit.ALL, which
+        # here splits the graph across GPU and ANE and pays the transitions.
+        # Measured on an iPhone 16 (ET 1.4.1, 10 warmup + 200 timed, median of
+        # three interleaved repetitions, reps fully separated):
+        #
+        # fast_sam s:  ALL 54.10 ms -> CPU_AND_NE 8.17 ms  (6.6x)
+        #
+        # Not a general rule: the same panel showed ALL already optimal for
+        # efficientnet, ssdlite, fcn, selfie and yolo26, and CPU_AND_GPU worse
+        # than ALL almost everywhere (fcn r50 47.7 -> 210.8 ms). lraspp looked
+        # like a 1.2x win at 15 runs and was exactly 5.90 vs 5.90 ms at 200.
+        # Re-measure before pinning anything else.
+        compute_unit=ct.ComputeUnit.CPU_AND_NE,
     )
     program = to_edge_transform_and_lower(
         ep, partitioner=[CoreMLPartitioner(compile_specs=specs)]

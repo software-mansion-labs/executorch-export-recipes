@@ -18,6 +18,7 @@ converted to PyTorch state dicts by the vendored ``_supertonic`` package.
 """
 
 import contextlib
+import copy
 import importlib.util
 import json
 import sys
@@ -41,7 +42,8 @@ _ONNX_FILES = [
 ]
 
 # Sub-model dynamic-shape bounds (min, max) for the text length T and latent
-# length L, matching the shipped spec.
+# length L, matching the shipped spec. The published XNNPACK .pte declare T up to
+# 512; the shared schema.json carries MLX's 256, so the T ranges are raised here.
 _T_MIN, _T_MAX = 8, 512
 _L_MIN, _L_MAX = 4, 1000
 
@@ -143,6 +145,35 @@ def _method_spec(models, ex):
     }
 
 
+def _with_t_bound(node):
+    """Copy of a schema with every T range (min _T_MIN) raised to _T_MAX."""
+    if isinstance(node, list):
+        return [_with_t_bound(n) for n in node]
+    if not isinstance(node, dict):
+        return node
+    if node.get("kind") == "range" and node["range"]["min"] == _T_MIN:
+        return {**node, "range": {**node["range"], "max": _T_MAX}}
+    return {k: _with_t_bound(v) for k, v in node.items()}
+
+
+def _quantize(model):
+    """8da8w-pc: dynamic int8 activations, int8 per-channel weights on every Linear,
+    with the ConvNeXt pointwise convs moved onto Linears first. Depthwise convs stay fp32."""
+    from torchao.quantization.granularity import PerAxis
+    from torchao.quantization.quant_api import Int8DynamicActivationIntxWeightConfig, quantize_
+
+    from supertonic3_xnnpack_supertonic.modules import ConvNeXtBlock
+
+    for block in model.modules():
+        if isinstance(block, ConvNeXtBlock):
+            block.use_linear_pointwise()
+    quantize_(
+        model,
+        Int8DynamicActivationIntxWeightConfig(weight_dtype=torch.int8, weight_granularity=PerAxis(0)),
+        filter_fn=lambda mod, fqn: type(mod) is torch.nn.Linear,
+    )
+
+
 def _submodel_for(file_name: str) -> str:
     for name in ("duration_predictor", "text_encoder", "vector_estimator", "vocoder"):
         if file_name.startswith(name):
@@ -159,38 +190,44 @@ def export(config: dict, out_dir: str):
     onnx_dir = _download_onnx_dir()
     models = convert.load_models(onnx_dir=onnx_dir)
 
-    all_schemas = json.loads(load_and_validate_schema(_MODEL_DIR / "schema.json"))
+    all_schemas = _with_t_bound(json.loads(load_and_validate_schema(_MODEL_DIR / "schema.json")))
 
     out_dir = Path(out_dir)
     out_dir.mkdir(parents=True, exist_ok=True)
     written = []
 
     # Size-oblivious mode wraps both export and lowering (see _size_oblivious_export).
-    with _size_oblivious_export(), torch.inference_mode():
-        ex = _example_inputs()
-        specs = _method_spec(models, ex)
-
+    with _size_oblivious_export():
         for variant in config["variants"]:
             name = _submodel_for(variant["file"])
-            model, inputs, dynamic_shapes = specs[name]
+            # torchao's quantized tensors cannot be traced under inference_mode.
+            grad_ctx = torch.inference_mode
+            sub_models = models
+            if variant.get("quantize"):
+                assert variant["quantize"] == "8da8w-pc", variant["quantize"]
+                assert name in ("vector_estimator", "vocoder"), variant["file"]
+                sub_models = {**models, name: copy.deepcopy(models[name])}
+                _quantize(sub_models[name])
+                grad_ctx = torch.no_grad
+            with grad_ctx():
+                model, inputs, dynamic_shapes = _method_spec(sub_models, _example_inputs())[name]
+                ep = torch.export.export(model, inputs, dynamic_shapes=dynamic_shapes, strict=False)
 
-            ep = torch.export.export(model, inputs, dynamic_shapes=dynamic_shapes, strict=False)
+                sub_schema_json = json.dumps({"forward": all_schemas[name]})
 
-            sub_schema_json = json.dumps({"forward": all_schemas[name]})
+                program = to_edge_transform_and_lower(
+                    {"forward": ep},
+                    partitioner=[XnnpackPartitioner()],
+                    compile_config=EdgeCompileConfig(
+                        _check_ir_validity=False,
+                        _core_aten_ops_exception_list=[torch.ops.aten.linear.default],
+                    ),
+                    transform_passes=[AddmmToLinearTransform()],
+                    constant_methods={"get_model_schema": sub_schema_json},
+                ).to_executorch()
 
-            program = to_edge_transform_and_lower(
-                {"forward": ep},
-                partitioner=[XnnpackPartitioner()],
-                compile_config=EdgeCompileConfig(
-                    _check_ir_validity=False,
-                    _core_aten_ops_exception_list=[torch.ops.aten.linear.default],
-                ),
-                transform_passes=[AddmmToLinearTransform()],
-                constant_methods={"get_model_schema": sub_schema_json},
-            ).to_executorch()
-
-            out_path = out_dir / variant["file"]
-            out_path.write_bytes(program.buffer)
+                out_path = out_dir / variant["file"]
+                out_path.write_bytes(program.buffer)
             written.append(str(out_path))
 
     return written

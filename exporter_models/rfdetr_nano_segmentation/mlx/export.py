@@ -64,7 +64,7 @@ class _Fp16IO(torch.nn.Module):
 def export(config: dict, out_dir: str) -> str:
     from executorch.backends.mlx.partitioner import MLXPartitioner
     from executorch.backends.mlx.passes import get_default_passes
-    from executorch.exir import to_edge_transform_and_lower
+    from executorch.exir import EdgeCompileConfig, to_edge_transform_and_lower
 
     _apply_patches()
     from rfdetr import RFDETRSegNano
@@ -87,6 +87,9 @@ def export(config: dict, out_dir: str) -> str:
         {"forward": ep},
         transform_passes=get_default_passes(),
         partitioner=[MLXPartitioner()],
+        compile_config=EdgeCompileConfig(
+            _check_ir_validity=False, _skip_dim_order=True
+        ),
     ).to_executorch()
 
     out_path = Path(out_dir) / variant["file"]

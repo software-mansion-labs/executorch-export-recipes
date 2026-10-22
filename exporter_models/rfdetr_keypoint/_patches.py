@@ -144,8 +144,12 @@ def _ms_deform_attn_core_grid_free(
     requires) so the per-level ``narrow`` lengths stay static under torch.export.
     """
     batch_size, n_heads, head_dim, _ = value.shape
-    _, len_query, _, num_levels, num_points, _ = sampling_locations.shape
+    # sampling_locations is rank 5 -- (batch, len_q, n_heads, n_levels*n_points, 2) --
+    # to stay under Core ML's rank<=5 cap; see _ms_deform_attn_forward.
+    _, len_query, _, levels_points, _ = sampling_locations.shape
     shapes = value_spatial_shapes_hw if value_spatial_shapes_hw is not None else value_spatial_shapes
+    num_levels = len(shapes)
+    num_points = levels_points // num_levels
 
     sampling_grids = 2 * sampling_locations - 1
     sampling_value_list = []
@@ -155,7 +159,11 @@ def _ms_deform_attn_core_grid_free(
         value_l_ = value.narrow(3, offset, height * width).reshape(batch_size * n_heads, head_dim, height, width)
         offset += height * width
         # batch_size, len_query, n_heads, num_points, 2 -> batch_size*n_heads, len_query, num_points, 2
-        sampling_grid_l_ = sampling_grids[:, :, :, level_index].transpose(1, 2).flatten(0, 1)
+        sampling_grid_l_ = (
+            sampling_grids[:, :, :, level_index * num_points : (level_index + 1) * num_points, :]
+            .transpose(1, 2)
+            .flatten(0, 1)
+        )
         sampling_value_l_ = _manual_bilinear_grid_sample(
             value_l_, sampling_grid_l_, padding_mode="zeros", align_corners=False
         )
@@ -285,14 +293,17 @@ def apply_patches(
         transformer_mod.TransformerDecoderLayer.forward_post = _decoder_layer_forward_post
     if ms_deform_attn_forward:
         deform_attn_mod.MSDeformAttn.forward = _ms_deform_attn_forward
+    global _ACTIVE_CORE
     if ms_deform_attn_core:
         deform_attn_func_mod.ms_deform_attn_core_pytorch = _ms_deform_attn_core_pytorch
         deform_attn_mod.ms_deform_attn_core_pytorch = _ms_deform_attn_core_pytorch
+        _ACTIVE_CORE = _ms_deform_attn_core_pytorch
     if ms_deform_attn_grid_free:
         # MLX path: replace grid_sample + split with gather + narrow so the
         # deformable-attention core lowers fully to the MLX delegate.
         deform_attn_func_mod.ms_deform_attn_core_pytorch = _ms_deform_attn_core_grid_free
         deform_attn_mod.ms_deform_attn_core_pytorch = _ms_deform_attn_core_grid_free
+        _ACTIVE_CORE = _ms_deform_attn_core_grid_free
     if pos_embed_compile_safe:
         # MLX path: gen_sineembed_for_position's dim_t is constant; precomputing it
         # drops aten.floor_divide (forces the delegate into the slow interpreter)
@@ -709,6 +720,11 @@ def _decoder_layer_forward(
     )
 
 
+# Set by apply_patches(); _ms_deform_attn_forward calls the module-level core
+# directly, so rebinding the rfdetr module attribute alone would not reach it.
+_ACTIVE_CORE = None
+
+
 def _ms_deform_attn_forward(
     self,
     query,
@@ -787,7 +803,8 @@ def _ms_deform_attn_forward(
     attention_weights = F.softmax(attention_weights, -1)
 
     value = value.transpose(1, 2).contiguous().view(n, self.n_heads, self.d_model // self.n_heads, len_in)
-    output = _ms_deform_attn_core_pytorch(
+    core = _ACTIVE_CORE if _ACTIVE_CORE is not None else _ms_deform_attn_core_pytorch
+    output = core(
         value,
         input_spatial_shapes,
         sampling_locations,

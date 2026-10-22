@@ -1,0 +1,8 @@
+{
+  "hf": "https://huggingface.co/software-mansion/react-native-executorch-phi-4-mini",
+  "config": "{backend}/config.json",
+  "backends": [
+    "xnnpack",
+    "mlx"
+  ]
+}

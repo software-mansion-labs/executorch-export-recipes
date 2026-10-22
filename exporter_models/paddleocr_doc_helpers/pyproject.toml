@@ -1,0 +1,37 @@
+# Per-model export environment for paddleocr_doc_helpers (PP-LCNet doc-orientation
+# + UVDoc dewarp + SLANet_plus table) — pinned, verified stack.
+#   uv run --project exporter_models/paddleocr_doc_helpers exporter export paddleocr_doc_helpers --backend <b> --output-dir <dir>
+#
+# `PPLCNetForImageClassification` / `UVDocModel` / `SLANetForTableRecognition` live
+# in UPSTREAM transformers (landed in 5.14.x) — the PaddlePaddle transformers fork
+# the exporter originally needed is obsolete. opencv + numpy back the int8
+# calibration loader (`_helpers/calib.py`).
+[project]
+name = "exporter-model-paddleocr-doc-helpers"
+version = "0"
+requires-python = "==3.10.*"
+dependencies = [
+    "exporter",
+    "torch==2.14.0.dev20260702",
+    "torchao==0.18.0",
+    "executorch==1.4.1",
+    "transformers==5.14.1",
+    "safetensors==0.8.0",
+    "coremltools==9.0",
+    "opencv-python-headless==4.12.0.88",
+    "numpy==2.0.0",
+]
+
+[tool.uv]
+# Exports run only on this macOS arm64 host; limit resolution to it so the
+# nightly torch +cpu-vs-plain platform split can't fail the lock.
+environments = ["sys_platform == 'darwin' and platform_machine == 'arm64'"]
+
+[tool.uv.sources]
+exporter = { path = "../..", editable = true }
+torch = { index = "pytorch-nightly" }
+
+[[tool.uv.index]]
+name = "pytorch-nightly"
+url = "https://download.pytorch.org/whl/nightly/cpu"
+explicit = true

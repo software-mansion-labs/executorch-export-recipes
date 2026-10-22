@@ -57,6 +57,57 @@
           ]
         }
       }
+    },
+    {
+      "file": "rfdetr_nano_xnnpack_int8.pte",
+      "precision": "int8",
+      "quantized": true,
+      "quantize": "8da8w-pc",
+      "default": true,
+      "methods": {
+        "forward": {
+          "inputs": [
+            {
+              "shape": [
+                1,
+                3,
+                312,
+                312
+              ],
+              "dtype": "float32"
+            }
+          ],
+          "outputs": [
+            {
+              "shape": [
+                100,
+                4
+              ],
+              "dtype": "float32"
+            },
+            {
+              "shape": [
+                100
+              ],
+              "dtype": "float32"
+            },
+            {
+              "shape": [
+                100
+              ],
+              "dtype": "float32"
+            },
+            {
+              "shape": [
+                100,
+                78,
+                78
+              ],
+              "dtype": "float32"
+            }
+          ]
+        }
+      }
     }
   ]
 }

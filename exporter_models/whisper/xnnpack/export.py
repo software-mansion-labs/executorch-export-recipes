@@ -32,6 +32,47 @@ def _set_default_tensor_type(dtype: torch.dtype):
         torch.set_default_dtype(torch.float)
 
 
+_DEFAULT_SCHEME = "8da4w-g64"
+
+
+def _parse_quantize(spec: str | None) -> dict:
+    if not spec:
+        return {"enc": _DEFAULT_SCHEME, "dec": _DEFAULT_SCHEME}
+    if ":" not in spec:
+        return {"enc": spec, "dec": spec}
+    recipe = {"enc": "none", "dec": "none"}
+    for item in spec.split(","):
+        part, scheme = item.strip().split(":")
+        if part not in recipe:
+            raise ValueError(f"unknown quantize part '{part}' in '{spec}' (use enc/dec)")
+        recipe[part] = scheme
+    return recipe
+
+
+def _quant_config(scheme: str):
+    if scheme == "none":
+        return None
+    from torchao.quantization import MappingType
+    from torchao.quantization.granularity import PerAxis, PerGroup
+    from torchao.quantization.quant_api import Int8DynamicActivationIntxWeightConfig
+
+    act_w, _, gran = scheme.partition("-")
+    dtypes = {"8da4w": torch.int4, "8da8w": torch.int8}
+    if act_w not in dtypes:
+        raise ValueError(f"unknown quantize scheme '{scheme}'")
+    if gran == "pc":
+        granularity = PerAxis(0)
+    elif gran.startswith("g") and gran[1:].isdigit():
+        granularity = PerGroup(int(gran[1:]))
+    else:
+        raise ValueError(f"unknown granularity in quantize scheme '{scheme}'")
+    return Int8DynamicActivationIntxWeightConfig(
+        weight_dtype=dtypes[act_w],
+        weight_granularity=granularity,
+        weight_mapping_type=MappingType.SYMMETRIC,
+    )
+
+
 def export(config: dict, out_dir: str) -> str:
     from executorch.backends.xnnpack.partition.xnnpack_partitioner import XnnpackPartitioner
     from executorch.backends.transforms.addmm_mm_to_linear import AddmmToLinearTransform
@@ -98,18 +139,16 @@ def export(config: dict, out_dir: str) -> str:
         decoder_wrapper = DecoderWrapper(decoder)
 
         if config["variant"]["quantized"]:
-            import torch as _torch
-            from torchao.quantization import MappingType, quantize_
-            from torchao.quantization.granularity import PerGroup
-            from torchao.quantization.quant_api import Int8DynamicActivationIntxWeightConfig
+            from torchao.quantization import quantize_
 
-            qcfg = Int8DynamicActivationIntxWeightConfig(
-                weight_dtype=_torch.int4,
-                weight_granularity=PerGroup(64),
-                weight_mapping_type=MappingType.SYMMETRIC,
-            )
-            quantize_(encoder_wrapper, qcfg)
-            quantize_(decoder_wrapper, qcfg)
+            # `quantize` picks a scheme per half: "enc:<s>,dec:<s>", or one <s> for
+            # both. <s> = "none" | "8da4w-g<N>" | "8da8w-pc" | "8da8w-g<N>".
+            # Unset keeps the original recipe: 8da4w, PerGroup(64), both halves.
+            recipe = _parse_quantize(config["variant"].get("quantize"))
+            for part, module in (("enc", encoder_wrapper), ("dec", decoder_wrapper)):
+                qcfg = _quant_config(recipe[part])
+                if qcfg is not None:
+                    quantize_(module, qcfg)
 
     SAMPLE_RATE = 16000
     encode_inputs = (torch.randn(16 * SAMPLE_RATE, dtype=torch_dtype),)

@@ -2,5 +2,10 @@
   "hf": "https://huggingface.co/software-mansion/react-native-executorch-selfie-segmentation",
   "repo": "software-mansion/react-native-executorch-selfie-segmentation",
   "config": "{backend}/config.json",
-  "backends": ["xnnpack"]
+  "backends": [
+    "xnnpack",
+    "coreml",
+    "mlx",
+    "vulkan"
+  ]
 }

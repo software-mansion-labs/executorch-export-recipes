@@ -11,9 +11,9 @@
   "tokenizer_config": "../tokenizer_config.json",
   "variants": [
     {
-      "file": "distiluse_base_multilingual_cased_v2_coreml_fp32.pte",
-      "precision": "fp32",
-      "quantized": false,
+      "file": "distiluse_base_multilingual_cased_v2_coreml_int8.pte",
+      "precision": "int8",
+      "quantized": true,
       "default": true,
       "methods": {
         "forward": {
@@ -43,13 +43,14 @@
             }
           ]
         }
-      }
+      },
+      "quantize": "int8"
     },
     {
       "file": "distiluse_base_multilingual_cased_v2_coreml_fp16.pte",
       "precision": "fp16",
       "quantized": false,
-      "default": false,
+      "default": true,
       "methods": {
         "forward": {
           "inputs": [

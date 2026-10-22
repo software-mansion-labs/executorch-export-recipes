@@ -1,0 +1,50 @@
+{
+  "$schema": "https://huggingface.co/software-mansion/react-native-executorch-spec/resolve/main/config.schema.json",
+  "model": "lfm2_5_colbert_350m",
+  "family": "lfm2",
+  "capabilities": [
+    "text-embedding"
+  ],
+  "backend": "coreml",
+  "license": "other",
+  "tokenizer": "../tokenizer.json",
+  "tokenizer_config": "../tokenizer_config.json",
+  "variants": [
+    {
+      "file": "lfm_2_5_colbert_350m_coreml_fp16.pte",
+      "precision": "fp16",
+      "quantized": false,
+      "default": true,
+      "methods": {
+        "forward": {
+          "inputs": [
+            {
+              "shape": [
+                1,
+                512
+              ],
+              "dtype": "int64"
+            },
+            {
+              "shape": [
+                1,
+                512
+              ],
+              "dtype": "int64"
+            }
+          ],
+          "outputs": [
+            {
+              "shape": [
+                1,
+                512,
+                128
+              ],
+              "dtype": "float32"
+            }
+          ]
+        }
+      }
+    }
+  ]
+}

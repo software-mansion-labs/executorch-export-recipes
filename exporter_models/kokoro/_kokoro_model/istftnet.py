@@ -203,6 +203,33 @@ class TorchSTFT(nn.Module):
         return reconstruction
 
 
+def _shift_right(x: torch.Tensor, k: int, fill: float) -> torch.Tensor:
+    """x shifted right by k along dim 1, padded with `fill`."""
+    pad = torch.full(
+        (x.shape[0], k) + tuple(x.shape[2:]), fill, dtype=x.dtype, device=x.device
+    )
+    return torch.cat([pad, x[:, :-k]], dim=1)
+
+
+def _segmented_wrapped_phase(rad_values: torch.Tensor, u_loc: torch.Tensor) -> torch.Tensor:
+    """Phase accumulated since the start of the current voiced segment, mod 1.
+
+    Hillis-Steele prefix sum over dim 1, segmented on `u_loc` (the last unvoiced
+    step before each voiced segment) and wrapped with x - floor(x) after every
+    step, so no intermediate ever leaves [0, 1). Static shapes only.
+    """
+    length = rad_values.shape[1]
+    value = rad_values * (1 - u_loc)
+    head = torch.maximum(u_loc, _shift_right(u_loc, 1, 0.0))
+    step = 1
+    while step < length:
+        value = value + _shift_right(value, step, 0.0) * (1 - head)
+        value = value - torch.floor(value)
+        head = torch.clamp(head + _shift_right(head, step, 1.0) * (1 - head), max=1.0)
+        step *= 2
+    return value
+
+
 class SineGen(nn.Module):
     """Definition of sine generator
     SineGen(samp_rate, harmonic_num = 0,
@@ -250,12 +277,16 @@ class SineGen(nn.Module):
         """
         # convert to F0 in rad. The interger part n can be ignored
         # because 2 * torch.pi * n doesn't affect phase
-        rad_values = (f0_values / self.sampling_rate) % 1
+        # NOTE: written as x - floor(x) rather than `x % 1`. coremltools converts
+        # `% 1` to a tensor of zeros (apple/coremltools#2836), which silently
+        # collapses the excitation; every other divisor is fine.
+        _quot = f0_values / self.sampling_rate
+        rad_values = _quot - torch.floor(_quot)
         # initial phase noise (no noise for fundamental component)
         rand_ini = torch.rand(
             f0_values.shape[0], f0_values.shape[2], device=f0_values.device
         )
-        rand_ini[:, 0] = 0
+        rand_ini[:, 0] = 0.0
         rad_values[:, 0, :] = rad_values[:, 0, :] + rand_ini
         # instantanouse phase sine[t] = sin(2*pi \sum_i=1 ^{t} rad)
         if not self.flag_for_pulse:
@@ -278,22 +309,19 @@ class SineGen(nn.Module):
             # identify the last time step in unvoiced segments
             uv = self._f02uv(f0_values)
             uv_1 = torch.roll(uv, shifts=-1, dims=1)
-            uv_1[:, -1, :] = 1
-            u_loc = (uv < 1) * (uv_1 > 0)
-            # get the instantanouse phase
-            tmp_cumsum = torch.cumsum(rad_values, dim=1)
-            # TODO(jz): can manually unroll to one iteration (bsz)
-            # different batch needs to be processed differently
-            for idx in range(f0_values.shape[0]):
-                temp_sum = tmp_cumsum[idx, u_loc[idx, :, 0], :]
-                temp_sum[1:, :] = temp_sum[1:, :] - temp_sum[0:-1, :]
-                # stores the accumulation of i.phase within
-                # each voiced segments
-                tmp_cumsum[idx, :, :] = 0
-                tmp_cumsum[idx, u_loc[idx, :, 0], :] = temp_sum
-            # rad_values - tmp_cumsum: remove the accumulation of i.phase
-            # within the previous voiced segment.
-            i_phase = torch.cumsum(rad_values - tmp_cumsum, dim=1)
+            uv_1[:, -1, :] = 1.0
+            u_loc = ((uv < 1) * (uv_1 > 0)).to(rad_values.dtype)
+            # Phase within each voiced segment, as a segmented prefix sum of
+            # rad_values wrapped mod 1 at every step. Two reasons not to use the
+            # original `tmp_cumsum[idx, u_loc[idx, :, 0], :]` formulation:
+            #  - the boolean-mask select gives a data-dependent size, and ET's
+            #    view -> view_copy pass then fails to guard on it ("Could not
+            #    guard on data-dependent expression u7 < 1"), which is what used
+            #    to block re-exporting this model;
+            #  - the raw cumsum grows to hundreds of cycles, which fp16 cannot
+            #    represent finely enough for cos(2*pi*phase).
+            # cos() of this phase matches the original to <5e-6 in fp32.
+            i_phase = _segmented_wrapped_phase(rad_values, u_loc)
             # get the sines
             sines = torch.cos(i_phase * 2 * torch.pi)
         return sines

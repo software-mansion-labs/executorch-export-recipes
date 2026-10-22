@@ -14,7 +14,7 @@
       "file": "distiluse_base_multilingual_cased_v2_xnnpack_fp32.pte",
       "precision": "fp32",
       "quantized": false,
-      "default": true,
+      "default": false,
       "methods": {
         "forward": {
           "inputs": [
@@ -49,7 +49,8 @@
       "file": "distiluse_base_multilingual_cased_v2_xnnpack_8da4w.pte",
       "precision": "8da4w",
       "quantized": true,
-      "default": false,
+      "embedding_quantize": "int8",
+      "default": true,
       "methods": {
         "forward": {
           "inputs": [

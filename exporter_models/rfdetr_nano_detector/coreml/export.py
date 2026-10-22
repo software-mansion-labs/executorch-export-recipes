@@ -40,11 +40,22 @@ def _lower(exported, precision: str):
     from executorch.backends.transforms.addmm_mm_to_linear import AddmmToLinearTransform
     from executorch.exir import EdgeCompileConfig, to_edge_transform_and_lower
 
-    # int8 is weight-only (per-channel linear-symmetric); compute stays fp32.
+    # fp16, not int8. The previous int8 build was weight-only quantization on top
+    # of compute_precision=FLOAT32, which got the accuracy cost of quantization
+    # and none of the benefit: fp32 compute is the one precision the ANE refuses,
+    # so the model was locked onto CPU/GPU. Measured on an iPhone 16 (3 warmup +
+    # 15 timed, median):
+    #   detector      int8 33.2 ms -> fp16  8.2 ms   4.0x
+    #   segmentation  int8 50.3 ms -> fp16 31.0 ms   1.6x
+    # int8 was also measurably less accurate: confident detections (score > 0.3)
+    # agreed with fp16 on only 71.9% of boxes at IoU 0.9 for the detector. fp16
+    # costs about 2x the file size (27.7 -> 54.7 MB detector).
     quant = {"mode": "linear_symmetric", "dtype": "int8", "granularity": "per_channel"}
     specs = CoreMLBackend.generate_compile_specs(
         minimum_deployment_target=ct.target.iOS18,
-        compute_precision=ct.precision.FLOAT32,
+        compute_precision=(
+            ct.precision.FLOAT16 if precision == "fp16" else ct.precision.FLOAT32
+        ),
         op_linear_quantizer_config=quant if precision == "int8" else None,
     )
     # lower_full_graph=False lets the partitioner leave ops CoreML can't take

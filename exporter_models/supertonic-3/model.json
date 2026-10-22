@@ -3,5 +3,10 @@
   "repo": "software-mansion/react-native-executorch-supertonic",
   "config": "{backend}/config.json",
   "multi_pte": true,
-  "backends": ["xnnpack"]
+  "backends": [
+    "xnnpack",
+    "vulkan",
+    "mlx",
+    "coreml"
+  ]
 }

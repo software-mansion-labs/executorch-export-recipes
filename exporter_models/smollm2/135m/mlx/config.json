@@ -1,0 +1,61 @@
+{
+  "$schema": "https://huggingface.co/software-mansion/react-native-executorch-spec/resolve/main/config.schema.json",
+  "model": "smollm2",
+  "family": "smollm",
+  "capabilities": [
+    "text-generation"
+  ],
+  "backend": "mlx",
+  "license": "apache-2.0",
+  "variants": [
+    {
+      "file": "smollm2_135m_mlx_int8.pte",
+      "precision": "8w",
+      "quantized": true,
+      "default": true,
+      "methods": {
+        "enable_dynamic_shape": true,
+        "forward": {
+          "inputs": [
+            {
+              "shape": [
+                1,
+                {
+                  "min": 1,
+                  "max": 2047
+                }
+              ],
+              "dtype": "int64"
+            },
+            {
+              "shape": [
+                1
+              ],
+              "dtype": "int64"
+            }
+          ],
+          "outputs": [
+            {
+              "shape": [
+                1,
+                49152
+              ],
+              "dtype": "bfloat16"
+            }
+          ]
+        },
+        "get_bos_id": 1,
+        "get_eos_ids": [
+          2
+        ],
+        "get_max_context_len": 2048,
+        "get_max_seq_len": 2048,
+        "get_n_layers": 30,
+        "get_vocab_size": 49152,
+        "use_kv_cache": true,
+        "use_sdpa_with_kv_cache": true
+      }
+    }
+  ],
+  "size": "135m"
+}

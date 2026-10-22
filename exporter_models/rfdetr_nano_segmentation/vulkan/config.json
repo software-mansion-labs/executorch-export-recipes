@@ -1,0 +1,62 @@
+{
+  "$schema": "https://huggingface.co/software-mansion/react-native-executorch-spec/resolve/main/config.schema.json",
+  "model": "rfdetr_nano_segmentation",
+  "family": "rfdetr",
+  "capabilities": [
+    "instance-segmentation"
+  ],
+  "backend": "vulkan",
+  "license": "apache-2.0",
+  "variants": [
+    {
+      "file": "rfdetr_nano_vulkan_fp16.pte",
+      "precision": "fp16",
+      "quantized": false,
+      "default": true,
+      "methods": {
+        "forward": {
+          "inputs": [
+            {
+              "shape": [
+                1,
+                3,
+                312,
+                312
+              ],
+              "dtype": "float32"
+            }
+          ],
+          "outputs": [
+            {
+              "shape": [
+                100,
+                4
+              ],
+              "dtype": "float32"
+            },
+            {
+              "shape": [
+                100
+              ],
+              "dtype": "float32"
+            },
+            {
+              "shape": [
+                100
+              ],
+              "dtype": "float32"
+            },
+            {
+              "shape": [
+                100,
+                78,
+                78
+              ],
+              "dtype": "float32"
+            }
+          ]
+        }
+      }
+    }
+  ]
+}

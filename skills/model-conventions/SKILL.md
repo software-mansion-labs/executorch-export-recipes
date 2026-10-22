@@ -73,12 +73,13 @@ or lfm's model_class), not via config.
 
 ## Nested / umbrella models
 
-A dir whose children are models — not a model itself — groups related models.
-`easyocr/` holds `easyocr/craft` and `easyocr/crnn`, each with its own
-`model.json` and contract (craft is `multi_pte`, crnn is sized). The registry
-discovers one level of nesting: a top dir that isn't itself a model is scanned
-for child model dirs, emitted as `parent/child`. The rest of the registry
-handles slash-bearing model names via path joins.
+A dir whose children are models — not a model itself — groups related models
+(e.g. a `family/` dir holding `family/detector` and `family/recognizer`, each
+with its own `model.json` and contract). The registry discovers one level of
+nesting: a top dir that isn't itself a model is scanned for child model dirs,
+emitted as `parent/child`. The rest of the registry handles slash-bearing model
+names via path joins. (No current model uses this: the old `easyocr/craft` +
+`easyocr/crnn` pair was superseded by the fused, sized `easyocr` model.)
 
 ## LLM runner constants
 
@@ -92,14 +93,36 @@ as `config["variant"]["constants"]`. LLM exports embed these into the `.pte`
 from the config (the single source of truth) — NOT hardcoded:
 
 - MLX (gemma4, gemma4_omni): `constant_methods=config["variant"]["constants"]`.
-- export_llama path (lfm2_5_text): `cfg.base.metadata` is built from the
-  config's `get_bos_id`/`get_eos_ids` (export_llama derives seq_len/vocab from
-  params). These per-(size,backend) values genuinely differ (e.g. text
-  `get_max_seq_len` is 2048 on xnnpack but 65 on mlx), which is why they live
-  in the config, not a shared constant.
+- export_llama path (lfm2_5_text, llama3_2, qwen2_5, qwen3, hammer2_1, smollm2,
+  phi_4_mini): `cfg.base.metadata` is built from the config's
+  `get_bos_id`/`get_eos_ids`, and `cfg.export.max_seq_length` /
+  `max_context_length` from `get_max_seq_len` / `get_max_context_len`
+  (export_llama derives vocab from params). These per-(size,backend) values
+  genuinely differ (e.g. lfm2_5_text's `get_max_seq_len` is 2048 on xnnpack but
+  65 on mlx), which is why they live in the config, not a shared constant.
 
 When a model's config carries these, set them there — never re-hardcode in
 export.py.
+
+## export_llama models: params, weights, and the auto-download trap
+
+The `export_llama` families keep a `_params.py` at the model-dir top holding, per
+size, the architecture `params` (mirroring `examples/models/<m>/config/*.json`
+where executorch ships one, carried locally where it does not), the
+`model_class`, the upstream `source` checkpoint, and the `quant` recipe.
+
+**Always set `cfg.base.checkpoint` explicitly.** Left empty, `export_llama`
+resolves `model_class` through its own `HUGGING_FACE_REPO_IDS` table, which
+points at the **base** weights (`Qwen/Qwen2.5-0.5B`,
+`HuggingFaceTB/SmolLM2-135M`) while we publish the **Instruct** ones — and a
+fine-tune that borrows another family's `model_class` (hammer2_1 rides on
+qwen2_5) would silently export the wrong model entirely. `export.py` downloads
+the pinned `source` and runs executorch's HF->Meta `convert_weights`, caching
+the result under `~/.cache/exporter_meta_checkpoints/`. Llama is the exception:
+Meta ships native-format `params.json` + `consolidated.00.pth`, so it needs no
+conversion table at all. `lfm2_5_text` is the one model still relying on the
+auto-download; it is safe only because the table happens to name the repos we
+publish from.
 
 ## Per-model dependencies (pinned uv projects)
 
@@ -112,28 +135,46 @@ Run an export inside the model's locked env:
 uv run --project exporter_models/<model> exporter export <model> --backend <b> --output-dir <dir>
 ```
 
-Why per-model (not one shared env): the models genuinely conflict — the torch
-2.14 nightly (matched to executorch 1.3.1) vs `rfdetr==1.8.2`'s `torch<=2.13`
-pin, funasr's undeclared torchaudio, the MLX models' executorch source build.
-A single lock can't satisfy them.
+Why per-model (not one shared env): the models genuinely conflict — torch 2.14
+(what executorch 1.4.1 runs on) vs `rfdetr==1.8.2`'s `torch<=2.13` pin,
+funasr's undeclared torchaudio, the MLX and Vulkan models' executorch source
+build. A single lock can't satisfy them.
 
 Conventions when authoring a model's `pyproject.toml`:
 - `requires-python = "==3.10.*"`; repo-root `.python-version` is `3.10`.
-- Torch-family (`torch`, `torchvision`, `torchaudio`, `torchao`) come from the
-  PyTorch **nightly** index via `[tool.uv.sources] <pkg> = { index = "pytorch-nightly" }`
-  + a `[[tool.uv.index]]` block. **Date-match** torch and torchvision (a nightly
-  torchvision hard-pins its same-day torch). torchao is the pure-python
-  `py3-none-any` nightly wheel (no C++ build).
+- Torch-family (`torch`, `torchvision`, `torchaudio`, `torchao`): from now
+  on, pin the **stable release from PyPI** (as facemesh does —
+  `torch==2.14.0`, `torchvision==0.29.0`; executorch 1.4.1 only asks for
+  `torch>=2.13.0a0`), with no `[tool.uv.sources]` entry for them. Match torch
+  and torchvision (torchvision hard-pins its torch). Use a **wheel URL** only
+  if a nightly is unavoidable:
+  `torch = { url = "https://download.pytorch.org/whl/nightly/cpu/torch-2.14.0.dev20260702-cp310-cp310-macosx_14_0_arm64.whl" }`
+  Do not add new dated pins against the `pytorch-nightly` index. The index
+  keeps a rolling window and prunes old dev builds, so `torch==2.14.0.devYYYYMMDD`
+  stops resolving a few months on (the wheel file itself stays served, which is
+  what the `<model>/vulkan/` sub-projects rely on). Most existing models still
+  carry such a pin; they stay as they are until the model is next re-exported,
+  and their locks keep working because they record wheel URLs. torchao, if
+  needed, is the pure-python
+  `py3-none-any` wheel (no C++ build); `docs/executorch-1.4.1-bump.md` has its
+  `.dev`-sorts-below-release trap.
 - `[tool.uv] environments = ["sys_platform == 'darwin' and platform_machine == 'arm64'"]`
-  pins the lock to this host and avoids the nightly +cpu/plain platform split.
+  pins the lock to this host and avoids the torch +cpu/plain platform split.
 - rfdetr/ultralytics under-constrain torch, so add
-  `override-dependencies = ["torch==…", "torchvision==…"]` to force the nightly.
+  `override-dependencies = ["torch==…", "torchvision==…"]` to force the pinned
+  torch.
 - `safetensors` is effectively always needed (the ET `export_llama` path reads
   it); funasr also needs `torchaudio`.
-- MLX-backend models (gemma*/lfm2_5_vl) need executorch built from the
-  software-mansion-labs fork (`branch = "@ms/separate-backends"`) — a native
-  source build; their pyproject **declares** the fork source but is not
-  uv-buildable here (run in the ET-source dev env; `.pte` ships on HF).
+- The MLX models gemma*, lfm2_5_vl and `sdxs_512_dreamshaper/mlx`, and every
+  `<model>/vulkan/` sub-project, need executorch built from the
+  software-mansion-labs fork (`branch = "@ms/separate-backends-1.4.1"`) — a
+  native source build. Their
+  pyproject **declares** the fork source but is not uv-buildable here: besides
+  the build itself, upstream's CMake refuses a checkout directory not named
+  exactly `executorch` (pytorch/executorch#6475) and uv names git checkouts by
+  commit hash, so `uv sync` dies before compiling. Run these exports in the
+  ET-source dev env (recipe in `skills/backends/vulkan`, which covers MLX
+  too); the `.pte` ships on HF.
 
 The `model.json` `extras` survive only as human-readable stack labels; the
 `export` preflight (`registry.check_extras`) is a light presence sanity-check.

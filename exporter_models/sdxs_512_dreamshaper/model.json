@@ -1,0 +1,16 @@
+{
+  "hf": "https://huggingface.co/software-mansion/react-native-executorch-sdxs-512-dreamshaper",
+  "extras": [
+    "diffusion",
+    "coreml",
+    "quant"
+  ],
+  "repo": "software-mansion/react-native-executorch-sdxs-512-dreamshaper",
+  "config": "{backend}/config.json",
+  "backends": [
+    "xnnpack",
+    "coreml",
+    "mlx",
+    "vulkan"
+  ]
+}

@@ -1,0 +1,47 @@
+# Per-model Vulkan export environment for yolo26_seg.
+#   Not uv-runnable: the executorch fork pin below cannot be built by uv (see
+#   skills/backends/vulkan, "Environment"). From a source-built fork checkout:
+#   PYTHONPATH=src python -m exporter.cli export yolo26_seg --backend vulkan --output-dir <dir>
+#
+# NOTE (VULKAN EXPORTER SOURCE PIN):
+# executorch comes from software-mansion-labs/executorch, branch
+# @ms/separate-backends-1.4.1, matching the Vulkan runtime these .pte files
+# target. A released executorch does not carry the ET-VK fixes the Vulkan
+# exports depend on, so this pin is not optional. Drop it back to a released
+# executorch once those land upstream and ship in a release.
+#
+# NOTE (TORCH WHEEL URLs):
+# torch and torchvision are pinned by wheel URL, not by the nightly index. The
+# nightly index only keeps a rolling window and 2.14.0.dev20260702 has already
+# been dropped from it, so an index pin can no longer be resolved even though
+# the wheel itself is still served. These projects already resolve for darwin
+# arm64 + cpython 3.10 only, so a single wheel per package is exact.
+[project]
+name = "exporter-model-yolo26-seg-vulkan"
+version = "0"
+requires-python = "==3.10.*"
+dependencies = [
+    "exporter",
+    "torch==2.14.0.dev20260702",
+    "torchvision==0.29.0.dev20260702",
+    "executorch",
+    "safetensors==0.8.0",
+    "ultralytics==8.4.107",
+]
+
+[tool.uv]
+# Exports run only on this macOS arm64 host; limit resolution to it so the
+# nightly torch/torchvision +cpu-vs-plain platform split can't fail the lock.
+environments = ["sys_platform == 'darwin' and platform_machine == 'arm64'"]
+override-dependencies = ["torch==2.14.0.dev20260702", "torchvision==0.29.0.dev20260702"]
+
+[tool.uv.sources]
+executorch = { git = "https://github.com/software-mansion-labs/executorch", branch = "@ms/separate-backends-1.4.1" }
+exporter = { path = "../../..", editable = true }
+torch = { url = "https://download.pytorch.org/whl/nightly/cpu/torch-2.14.0.dev20260702-cp310-cp310-macosx_14_0_arm64.whl" }
+torchvision = { url = "https://download.pytorch.org/whl/nightly/cpu/torchvision-0.29.0.dev20260702-cp310-cp310-macosx_14_0_arm64.whl" }
+
+[[tool.uv.index]]
+name = "pytorch-nightly"
+url = "https://download.pytorch.org/whl/nightly/cpu"
+explicit = true

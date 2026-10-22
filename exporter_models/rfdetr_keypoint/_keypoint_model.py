@@ -14,13 +14,16 @@ import torch.nn as nn
 _MODEL_DIR = Path(__file__).resolve().parent
 
 
-def apply_patches():
+def apply_patches(**flags):
+    """Apply the export patches. ``flags`` are forwarded to _patches.apply_patches
+    so a backend can opt into its own set (the MLX path needs the grid-free
+    deformable-attention core and the compile-safe positional embedding)."""
     spec = importlib.util.spec_from_file_location(
         "rfdetr_kp_patches", _MODEL_DIR / "_patches.py"
     )
     mod = importlib.util.module_from_spec(spec)
     spec.loader.exec_module(mod)
-    mod.apply_patches()
+    mod.apply_patches(**flags)
 
 
 class RFDETRKeypointWrapper(nn.Module):
@@ -47,9 +50,9 @@ class RFDETRKeypointWrapper(nn.Module):
         return boxes, scores, keypoints
 
 
-def build_wrapper():
+def build_wrapper(patch_flags=None):
     """Returns (wrapper, example_inputs) ready for torch.export."""
-    apply_patches()
+    apply_patches(**(patch_flags or {}))
     variants = importlib.import_module("rfdetr.variants")
     wrapper_meta = variants.RFDETRKeypointPreview()
     inner = deepcopy(wrapper_meta.model.model.to("cpu")).eval()

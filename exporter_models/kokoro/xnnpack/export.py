@@ -21,6 +21,14 @@ def _load_kokoro_model():
 
 
 def export(config: dict, out_dir: str) -> None:
+    # The Polish and German .pte published for this backend were produced
+    # outside this repo, so only the base weights are exported here. The Core ML
+    # exporter covers all three sizes.
+    size = config.get("size") or "standard"
+    if size != "standard":
+        raise NotImplementedError(
+            f"the 'xnnpack' kokoro export covers the standard weights only, got size {size!r}"
+        )
     from executorch.backends.xnnpack.partition.xnnpack_partitioner import XnnpackPartitioner
     from executorch.exir import to_edge_transform_and_lower
 

@@ -1,0 +1,45 @@
+# Per-model export environment for smollm2 (XNNPACK), via executorch's export_llama.
+#   uv run --project exporter_models/smollm2 exporter export smollm2 --size 135m --backend xnnpack --output-dir <dir>
+#
+# NOTE (EXECUTORCH SOURCE PIN):
+# executorch is pinned to Software Mansion's repository and branch
+# (software-mansion-labs/executorch, branch @ms/separate-backends-1.4.1) on top of
+# ExecuTorch 1.4.1 -- the same source the other uv-run exports here use.
+# It matters more than usual on this path: export_llama dlopens the ET runtime
+# pybindings (_portable_lib), so the runtime lib has to be built against the same
+# torch as the rest of the env. A released wheel next to a torch nightly is not
+# (that ABI break is what pinned lfm2_5_text to a date-matched ET nightly).
+#
+# torchtune is not a direct import of export.py: executorch's HF->Meta weight
+# converter for this family pulls it in (torchtune.training.FullModelHFCheckpointer
+# / torchtune.models.convert_weights.get_mapped_key), so it has to be in the env.
+# (It asks for huggingface_hub[hf_transfer]; that extra is gone in hub 1.x, so uv
+# warns and skips it -- harmless, nothing on this path uses hf_transfer.)
+
+[project]
+name = "exporter-model-smollm2"
+version = "0"
+requires-python = "==3.10.*"
+dependencies = [
+    "exporter",
+    "torch==2.14.0.dev20260702",
+    "executorch",
+    "torchao==0.18.0",
+    "safetensors==0.8.0",
+    "torchtune==0.6.1",
+]
+
+[tool.uv]
+# Exports run only on this macOS arm64 host; limit resolution to it so the
+# nightly torch +cpu-vs-plain platform split can't fail the lock.
+environments = ["sys_platform == 'darwin' and platform_machine == 'arm64'"]
+
+[tool.uv.sources]
+exporter = { path = "../..", editable = true }
+torch = { index = "pytorch-nightly" }
+executorch = { git = "https://github.com/software-mansion-labs/executorch", branch = "@ms/separate-backends-1.4.1" }
+
+[[tool.uv.index]]
+name = "pytorch-nightly"
+url = "https://download.pytorch.org/whl/nightly/cpu"
+explicit = true

@@ -1,4 +1,3 @@
-import random
 from pathlib import Path
 
 import torch
@@ -9,7 +8,6 @@ from torch.export import export as torch_export
 from exporter.backends import lower
 
 _SOURCE = "openai/clip-vit-base-patch32"
-_CALIBRATION_SIZE = 1000
 
 
 class _ClipVisionEncoder(torch.nn.Module):
@@ -25,22 +23,6 @@ class _ClipVisionEncoder(torch.nn.Module):
         return F.normalize(projected, p=2, dim=1)
 
 
-def _calibrate(prepared):
-    from transformers import AutoProcessor
-    from torchvision import datasets
-    from torchvision.io import decode_image
-
-    processor = AutoProcessor.from_pretrained(_SOURCE)
-    random.seed(0)
-    ds = datasets.VOCSegmentation(
-        root="datasets/VOCSegmentation", year="2012", image_set="train", download=True
-    )
-    for img_path in random.sample(ds.images, k=_CALIBRATION_SIZE):
-        img = decode_image(img_path)
-        pixel_values = processor(images=img, return_tensors="pt")["pixel_values"]
-        prepared(pixel_values)
-
-
 def export(config: dict, out_dir: str) -> str:
     variant = config["variant"]
     shape = tuple(variant["methods"]["forward"]["inputs"][0]["shape"])
@@ -48,18 +30,18 @@ def export(config: dict, out_dir: str) -> str:
     module = _ClipVisionEncoder().eval()
     inputs = (torch.zeros(shape, dtype=torch.float32),)
 
-    if variant["quantized"]:
-        from executorch.backends.xnnpack.quantizer.xnnpack_quantizer import (
-            XNNPACKQuantizer,
-            get_symmetric_quantization_config,
-        )
-        from torchao.quantization.pt2e.quantize_pt2e import convert_pt2e, prepare_pt2e
+    if variant.get("quantize"):
+        # Static PT2E int8 measured 0.879 cosine vs fp32 here; the tower is 97%
+        # Linear, so dynamic int8 activations + int8 per-channel weights instead.
+        import torch.nn as nn
+        from torchao.quantization.granularity import PerAxis
+        from torchao.quantization.quant_api import Int8DynamicActivationIntxWeightConfig, quantize_
 
-        quantizer = XNNPACKQuantizer()
-        quantizer.set_global(get_symmetric_quantization_config(is_per_channel=True))
-        prepared = prepare_pt2e(torch_export(module, inputs).module(), quantizer)
-        _calibrate(prepared)
-        module = convert_pt2e(prepared)
+        assert variant["quantize"] == "8da8w-pc", variant["quantize"]
+        qcfg = Int8DynamicActivationIntxWeightConfig(
+            weight_dtype=torch.int8, weight_granularity=PerAxis(0)
+        )
+        quantize_(module, qcfg, filter_fn=lambda mod, fqn: type(mod) is nn.Linear)
 
     ep = torch_export(module, inputs)
     program = lower(ep, config["backend"])

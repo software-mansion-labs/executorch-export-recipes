@@ -1,20 +1,21 @@
 # Per-model export environment for lfm2_5_text.
 #   uv run --project exporter_models/lfm2_5_text exporter export lfm2_5_text --size 350m --output-dir <dir>
 #
-# Unlike the other models (executorch 1.3.1 + torch 2.14 nightly), this one uses
-# the executorch export_llama path, which dlopens the ET runtime pybindings
-# (_portable_lib). The 1.3.1 *wheel*'s runtime lib is ABI-incompatible with the
-# torch 2.14 nightly (missing c10::impl::cow::materialize_cow_storage), so pin a
-# date-matched executorch NIGHTLY whose runtime lib matches the torch nightly.
+# This model uses the executorch export_llama path, which dlopens the ET runtime
+# pybindings (_portable_lib), so the wheel's runtime lib must be ABI-compatible
+# with torch. The 1.3.1 wheel was not (missing c10::impl::cow::materialize_cow_storage),
+# which is why this pinned a date-matched executorch NIGHTLY. The 1.4.1 release
+# wheel loads against torch 2.14.0.dev20260702, so it now uses the stable wheel
+# and the same torch nightly as every other model.
 [project]
 name = "exporter-model-lfm2-5-text"
 version = "0"
 requires-python = "==3.10.*"
 dependencies = [
     "exporter",
-    "torch==2.14.0.dev20260729",
-    "executorch==1.4.0.dev20260729",
-    "torchao==0.18.0.dev20260729",
+    "torch==2.14.0.dev20260702",
+    "executorch==1.4.1",
+    "torchao==0.18.0",
     "safetensors==0.8.0",
 ]
 
@@ -24,8 +25,6 @@ environments = ["sys_platform == 'darwin' and platform_machine == 'arm64'"]
 [tool.uv.sources]
 exporter = { path = "../..", editable = true }
 torch = { index = "pytorch-nightly" }
-executorch = { index = "pytorch-nightly" }
-torchao = { index = "pytorch-nightly" }
 
 [[tool.uv.index]]
 name = "pytorch-nightly"

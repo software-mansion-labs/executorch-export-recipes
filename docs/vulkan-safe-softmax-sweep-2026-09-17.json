@@ -1,0 +1,326 @@
+[
+ {
+  "model": "sdxs_512_dreamshaper",
+  "pick": "vulkan/sdxs_512_dreamshaper_vulkan_fp16.pte",
+  "rev": "v0.11.0",
+  "mb": 880.5,
+  "guard": 24,
+  "softmax": 24,
+  "views": 217
+ },
+ {
+  "model": "rfdetr_nano_detector",
+  "pick": "vulkan/rfdetr_nano_vulkan_fp16.pte",
+  "rev": "v0.11.0",
+  "mb": 54.0,
+  "guard": 14,
+  "softmax": 16,
+  "views": 260
+ },
+ {
+  "model": "all_minilm_l6_v2",
+  "pick": "vulkan/all_minilm_l6_v2_vulkan_fp16.pte",
+  "rev": "v0.11.0",
+  "mb": 45.2,
+  "guard": 0,
+  "softmax": 6,
+  "views": 66
+ },
+ {
+  "model": "all_mpnet_base_v2",
+  "pick": "vulkan/all_mpnet_base_v2_vulkan_int8.pte",
+  "rev": "v0.10.0",
+  "mb": 133.2,
+  "guard": 0,
+  "softmax": 12,
+  "views": 132
+ },
+ {
+  "model": "blazeface",
+  "pick": "vulkan/blazeface_vulkan_fp16.pte",
+  "rev": "v0.11.0",
+  "mb": 0.4,
+  "guard": 0,
+  "softmax": 0,
+  "views": 5
+ },
+ {
+  "model": "clip_vision(image)",
+  "pick": "vulkan/clip_vit_base_patch32_image_vulkan_fp16.pte",
+  "rev": "v0.11.0",
+  "mb": 175.8,
+  "guard": 0,
+  "softmax": 12,
+  "views": 85
+ },
+ {
+  "model": "clip_vit_base_patch32_text",
+  "pick": "vulkan/clip_vit_base_patch32_text_vulkan_fp16.pte",
+  "rev": "v0.11.0",
+  "mb": 127.0,
+  "guard": 0,
+  "softmax": 12,
+  "views": 157
+ },
+ {
+  "model": "clip_vit_base_patch32_vision",
+  "pick": "vulkan/clip_vit_base_patch32_text_vulkan_fp16.pte",
+  "rev": "v0.11.0",
+  "mb": 127.0,
+  "guard": 0,
+  "softmax": 12,
+  "views": 157
+ },
+ {
+  "model": "distiluse_base_multilingual_cased_v2",
+  "pick": "vulkan/distiluse_base_multilingual_cased_v2_vulkan_fp16.pte",
+  "rev": "v0.11.0",
+  "mb": 270.3,
+  "guard": 0,
+  "softmax": 6,
+  "views": 66
+ },
+ {
+  "model": "easyocr",
+  "pick": "english/vulkan/easy_ocr_english_vulkan_fp16.pte",
+  "rev": "v0.10.0",
+  "mb": 53.4,
+  "guard": 0,
+  "softmax": 0,
+  "views": 0
+ },
+ {
+  "model": "efficientnet_v2_s",
+  "pick": "vulkan/efficientnet_v2_s_vulkan_fp32.pte",
+  "rev": "v0.11.0",
+  "mb": 85.7,
+  "guard": 0,
+  "softmax": 0,
+  "views": 1
+ },
+ {
+  "model": "fast_sam",
+  "pick": "s/vulkan/fast_sam_s_vulkan_fp16.pte",
+  "rev": "v0.11.0",
+  "mb": 23.7,
+  "guard": 0,
+  "softmax": 1,
+  "views": 12
+ },
+ {
+  "model": "lfm2_5_vl",
+  "pick": "vl_450m/vulkan/lfm_2_5_vl_450m_vulkan_8da4w.pte",
+  "rev": "v0.10.0",
+  "mb": 656.0,
+  "guard": 0,
+  "softmax": 0,
+  "views": 24
+ },
+ {
+  "model": "lraspp",
+  "pick": "vulkan/lraspp_mobilenet_v3_large_vulkan_fp16.pte",
+  "rev": "v0.11.0",
+  "mb": 6.5,
+  "guard": 0,
+  "softmax": 0,
+  "views": 0
+ },
+ {
+  "model": "multi_qa_minilm_l6_cos_v1",
+  "pick": "vulkan/multi_qa_minilm_l6_cos_v1_vulkan_fp16.pte",
+  "rev": "v0.11.0",
+  "mb": 45.2,
+  "guard": 0,
+  "softmax": 6,
+  "views": 66
+ },
+ {
+  "model": "multi_qa_mpnet_base_dot_v1",
+  "pick": "vulkan/multi_qa_mpnet_base_dot_v1_vulkan_int8.pte",
+  "rev": "v0.10.0",
+  "mb": 133.2,
+  "guard": 0,
+  "softmax": 12,
+  "views": 132
+ },
+ {
+  "model": "paddleocr",
+  "pick": "vulkan/pp_ocrv6_vulkan_fp16.pte",
+  "rev": "v0.10.0",
+  "mb": 26.2,
+  "guard": 0,
+  "softmax": 0,
+  "views": 0
+ },
+ {
+  "model": "paddleocr_doc_helpers",
+  "pick": "vulkan/paddle_helpers_vulkan_fp16.pte",
+  "rev": "v0.10.0",
+  "mb": 23.1,
+  "guard": 0,
+  "softmax": 0,
+  "views": 2
+ },
+ {
+  "model": "paddleocr_layout",
+  "pick": "vulkan/pp_doclayout_v3_vulkan_fp16.pte",
+  "rev": "v0.10.0",
+  "mb": 66.6,
+  "guard": 0,
+  "softmax": 13,
+  "views": 500
+ },
+ {
+  "model": "paraphrase_multilingual_minilm_l12_v2",
+  "pick": "vulkan/paraphrase_multilingual_minilm_l12_v2_vulkan_fp16.pte",
+  "rev": "v0.11.0",
+  "mb": 235.1,
+  "guard": 0,
+  "softmax": 12,
+  "views": 132
+ },
+ {
+  "model": "rfdetr_keypoint",
+  "pick": "vulkan/rfdetr_keypoint_preview_vulkan_fp16.pte",
+  "rev": "v0.11.0",
+  "mb": 73.4,
+  "guard": 0,
+  "softmax": 28,
+  "views": 375
+ },
+ {
+  "model": "rfdetr_nano_segmentation",
+  "pick": "vulkan/rfdetr_nano_vulkan_fp16.pte",
+  "rev": "v0.11.0",
+  "mb": 61.4,
+  "guard": 0,
+  "softmax": 20,
+  "views": 193
+ },
+ {
+  "model": "selfie_segmentation",
+  "pick": "vulkan/selfie_segmentation_landscape_vulkan_fp16.pte",
+  "rev": "v0.11.0",
+  "mb": 0.3,
+  "guard": 0,
+  "softmax": 0,
+  "views": 0
+ },
+ {
+  "model": "ssdlite320_mobilenet_v3_large",
+  "pick": "vulkan/ssdlite320_mobilenet_v3_large_vulkan_fp16.pte",
+  "rev": "v0.11.0",
+  "mb": 7.1,
+  "guard": 0,
+  "softmax": 1,
+  "views": 58
+ },
+ {
+  "model": "style_transfer_candy",
+  "pick": "vulkan/style_transfer_candy_vulkan_fp16.pte",
+  "rev": "v0.11.0",
+  "mb": 3.4,
+  "guard": 0,
+  "softmax": 0,
+  "views": 30
+ },
+ {
+  "model": "style_transfer_mosaic",
+  "pick": "vulkan/style_transfer_mosaic_vulkan_fp16.pte",
+  "rev": "v0.11.0",
+  "mb": 3.4,
+  "guard": 0,
+  "softmax": 0,
+  "views": 30
+ },
+ {
+  "model": "style_transfer_rain_princess",
+  "pick": "vulkan/style_transfer_rain_princess_vulkan_fp16.pte",
+  "rev": "v0.11.0",
+  "mb": 3.4,
+  "guard": 0,
+  "softmax": 0,
+  "views": 30
+ },
+ {
+  "model": "style_transfer_udnie",
+  "pick": "vulkan/style_transfer_udnie_vulkan_fp16.pte",
+  "rev": "v0.11.0",
+  "mb": 3.4,
+  "guard": 0,
+  "softmax": 0,
+  "views": 30
+ },
+ {
+  "model": "supertonic-3",
+  "pick": "vulkan/duration_predictor_vulkan_fp16.pte",
+  "rev": "v0.10.0",
+  "mb": 1.8,
+  "guard": 0,
+  "softmax": 2,
+  "views": 41
+ },
+ {
+  "model": "supertonic/text",
+  "pick": "vulkan/text_encoder_vulkan_fp16.pte",
+  "rev": "v0.10.0",
+  "mb": 18.1,
+  "guard": 0,
+  "softmax": 6,
+  "views": 99
+ },
+ {
+  "model": "supertonic/vector_estimator",
+  "pick": "vulkan/vector_estimator_vulkan_fp16.pte",
+  "rev": "v0.10.0",
+  "mb": 128.3,
+  "guard": 0,
+  "softmax": 8,
+  "views": 145
+ },
+ {
+  "model": "supertonic/vocoder",
+  "pick": "vulkan/vocoder_vulkan_fp16.pte",
+  "rev": "v0.10.0",
+  "mb": 50.7,
+  "guard": 0,
+  "softmax": 0,
+  "views": 3
+ },
+ {
+  "model": "whisper",
+  "pick": "vulkan/whisper_tiny_vulkan_int8.pte",
+  "rev": "v0.10.0",
+  "mb": 129.5,
+  "guard": 0,
+  "softmax": 4,
+  "views": 47
+ },
+ {
+  "model": "yolo26",
+  "pick": "n/vulkan/yolo26n_640_vulkan_fp16.pte",
+  "rev": "v0.11.0",
+  "mb": 5.0,
+  "guard": 0,
+  "softmax": 2,
+  "views": 24
+ },
+ {
+  "model": "yolo26_pose",
+  "pick": "384/vulkan/yolo26n_pose_384_vulkan_fp16.pte",
+  "rev": "v0.11.0",
+  "mb": 6.0,
+  "guard": 0,
+  "softmax": 2,
+  "views": 19
+ },
+ {
+  "model": "yolo26_seg",
+  "pick": "n/vulkan/yolo26_seg_n_384_vulkan_fp16.pte",
+  "rev": "v0.11.0",
+  "mb": 5.7,
+  "guard": 0,
+  "softmax": 2,
+  "views": 20
+ }
+]

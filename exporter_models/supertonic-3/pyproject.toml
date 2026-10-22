@@ -1,9 +1,16 @@
 # Per-model export environment for supertonic-3 (pinned, verified stack).
-#   uv run --project exporter_models/supertonic-3 exporter export supertonic-3 --backend xnnpack --output-dir <dir>
+#   uv run --project exporter_models/supertonic-3 exporter export supertonic-3 --backend mlx --output-dir <dir>
 #
 # Weights are the upstream Supertone/supertonic-3 ONNX files: export.py fetches
 # them from HF and convert.py extracts the four sub-model state dicts (needs
 # `onnx`). One export emits four .pte (multi_pte) mirroring the ONNX layout.
+#
+# NOTE (MLX EXPORTER SOURCE PIN):
+# executorch is pinned to Software Mansion's custom repository and branch
+# (software-mansion-labs/executorch, branch @ms/separate-backends-1.4.1) which carries
+# the custom MLX pattern fusions, op handlers, and flatbuffer schema serializer
+# required by react-native-executorch, on top of ExecuTorch 1.4.1. The MR that added
+# this exporter pinned rev 10f535e (labs main); this branch retargets it at 1.4.1.
 [project]
 name = "exporter-model-supertonic-3"
 version = "0"
@@ -11,10 +18,11 @@ requires-python = "==3.10.*"
 dependencies = [
     "exporter",
     "torch==2.14.0.dev20260702",
-    "executorch==1.3.1",
+    "executorch",
     "onnx==1.17.0",
     "numpy==2.0.0",
     "safetensors==0.8.0",
+    "coremltools==9.0",
 ]
 
 [tool.uv]
@@ -25,6 +33,7 @@ environments = ["sys_platform == 'darwin' and platform_machine == 'arm64'"]
 [tool.uv.sources]
 exporter = { path = "../..", editable = true }
 torch = { index = "pytorch-nightly" }
+executorch = { git = "https://github.com/software-mansion-labs/executorch", branch = "@ms/separate-backends-1.4.1" }
 
 [[tool.uv.index]]
 name = "pytorch-nightly"

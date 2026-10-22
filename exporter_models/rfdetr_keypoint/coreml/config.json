@@ -9,8 +9,8 @@
   "license": "apache-2.0",
   "variants": [
     {
-      "file": "rfdetr_keypoint_preview_coreml_fp32.pte",
-      "precision": "fp32",
+      "file": "rfdetr_keypoint_preview_coreml_fp16.pte",
+      "precision": "fp16",
       "quantized": false,
       "default": true,
       "methods": {
@@ -20,8 +20,8 @@
               "shape": [
                 1,
                 3,
-                384,
-                384
+                576,
+                576
               ],
               "dtype": "float32"
             }
@@ -29,20 +29,20 @@
           "outputs": [
             {
               "shape": [
-                300,
+                100,
                 4
               ],
               "dtype": "float32"
             },
             {
               "shape": [
-                300
+                100
               ],
               "dtype": "float32"
             },
             {
               "shape": [
-                300,
+                100,
                 17,
                 3
               ],

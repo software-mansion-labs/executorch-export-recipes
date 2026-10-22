@@ -2,37 +2,80 @@
   "$schema": "https://huggingface.co/software-mansion/react-native-executorch-spec/resolve/main/config.schema.json",
   "model": "paraphrase_multilingual_minilm_l12_v2",
   "family": "sbert",
-  "capabilities": ["text-embedding"],
+  "capabilities": [
+    "text-embedding"
+  ],
   "backend": "coreml",
   "license": "apache-2.0",
   "variants": [
     {
-      "file": "paraphrase_multilingual_minilm_l12_v2_coreml_fp32.pte",
-      "precision": "fp32",
-      "quantized": false,
+      "file": "paraphrase_multilingual_minilm_l12_v2_coreml_int8.pte",
+      "precision": "int8",
+      "quantized": true,
       "default": true,
       "methods": {
         "forward": {
           "inputs": [
-            { "shape": [1, 126], "dtype": "int64" },
-            { "shape": [1, 126], "dtype": "int64" }
+            {
+              "shape": [
+                1,
+                126
+              ],
+              "dtype": "int64"
+            },
+            {
+              "shape": [
+                1,
+                126
+              ],
+              "dtype": "int64"
+            }
           ],
-          "outputs": [{ "shape": [1, 384], "dtype": "float32" }]
+          "outputs": [
+            {
+              "shape": [
+                1,
+                384
+              ],
+              "dtype": "float32"
+            }
+          ]
         }
-      }
+      },
+      "quantize": "int8"
     },
     {
       "file": "paraphrase_multilingual_minilm_l12_v2_coreml_fp16.pte",
       "precision": "fp16",
       "quantized": false,
-      "default": false,
+      "default": true,
       "methods": {
         "forward": {
           "inputs": [
-            { "shape": [1, 126], "dtype": "int64" },
-            { "shape": [1, 126], "dtype": "int64" }
+            {
+              "shape": [
+                1,
+                126
+              ],
+              "dtype": "int64"
+            },
+            {
+              "shape": [
+                1,
+                126
+              ],
+              "dtype": "int64"
+            }
           ],
-          "outputs": [{ "shape": [1, 384], "dtype": "float32" }]
+          "outputs": [
+            {
+              "shape": [
+                1,
+                384
+              ],
+              "dtype": "float32"
+            }
+          ]
         }
       }
     }
