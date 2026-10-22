@@ -17,8 +17,7 @@ N_LAYERS, N_HEADS, HEAD_DIM = 6, 8, 64
 
 # backend -> (source length bound, static?, [(precision, quantized, extra)])
 BACKENDS = {
-    "xnnpack": (256, False, [("fp32", False, {}),
-                             ("int8", True, {"quantize": "8da8w-pc", "embedding_quantize": "int8"})]),
+    "xnnpack": (256, False, [("int8", True, {"quantize": "8da8w-pc", "embedding_quantize": "int8"})]),
     "coreml": (128, True, [("fp16", False, {})]),
     "mlx": (256, False, [("bf16", False, {}), ("int8", True, {"quantize": "8w"})]),
     "vulkan": (256, False, [("fp16", False, {})]),

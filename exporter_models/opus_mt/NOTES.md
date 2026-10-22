@@ -126,3 +126,9 @@ xnnpack int8, other pairs (BLEU / encode / decode per step): de_en 38.48 / 2.43 
 en_es 36.29 / 2.28 / 1.48, es_en 40.17 / 2.16 / 1.49, en_fr 56.86 / 1.71 / 1.41,
 fr_en 53.46 / 1.88 / 1.44 ms.
 
+**fp32 is not published either.** It is 3.9x larger (417 vs 107 MB), 2.2x slower to
+encode and 2.8x slower to decode on the S26 Ultra, and its BLEU is within noise of int8
+on every pair (int8 is higher on 4 of 6). Its only edge is bit-exact agreement with the
+HF model, which is a debugging aid, not a user-facing variant. The exporter still builds
+it: a variant with `"quantized": false` exports fp32.
+
