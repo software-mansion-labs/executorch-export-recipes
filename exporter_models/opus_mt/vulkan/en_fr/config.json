@@ -1,0 +1,268 @@
+{
+  "$schema": "https://huggingface.co/software-mansion/react-native-executorch-spec/resolve/main/config.schema.json",
+  "model": "opus_mt",
+  "family": "marian",
+  "size": "en_fr",
+  "capabilities": [
+    "translation"
+  ],
+  "backend": "vulkan",
+  "license": "apache-2.0",
+  "tokenizer": "tokenizer.json",
+  "variants": [
+    {
+      "file": "opus_mt_en_fr_vulkan_fp16.pte",
+      "precision": "fp16",
+      "quantized": false,
+      "default": true,
+      "methods": {
+        "encode": {
+          "inputs": [
+            {
+              "shape": [
+                1,
+                256
+              ],
+              "dtype": "int64"
+            },
+            {
+              "shape": [
+                1,
+                256
+              ],
+              "dtype": "int64"
+            }
+          ],
+          "outputs": [
+            {
+              "shape": [
+                8,
+                256,
+                64
+              ],
+              "dtype": "float32"
+            },
+            {
+              "shape": [
+                8,
+                256,
+                64
+              ],
+              "dtype": "float32"
+            },
+            {
+              "shape": [
+                8,
+                256,
+                64
+              ],
+              "dtype": "float32"
+            },
+            {
+              "shape": [
+                8,
+                256,
+                64
+              ],
+              "dtype": "float32"
+            },
+            {
+              "shape": [
+                8,
+                256,
+                64
+              ],
+              "dtype": "float32"
+            },
+            {
+              "shape": [
+                8,
+                256,
+                64
+              ],
+              "dtype": "float32"
+            },
+            {
+              "shape": [
+                8,
+                256,
+                64
+              ],
+              "dtype": "float32"
+            },
+            {
+              "shape": [
+                8,
+                256,
+                64
+              ],
+              "dtype": "float32"
+            },
+            {
+              "shape": [
+                8,
+                256,
+                64
+              ],
+              "dtype": "float32"
+            },
+            {
+              "shape": [
+                8,
+                256,
+                64
+              ],
+              "dtype": "float32"
+            },
+            {
+              "shape": [
+                8,
+                256,
+                64
+              ],
+              "dtype": "float32"
+            },
+            {
+              "shape": [
+                8,
+                256,
+                64
+              ],
+              "dtype": "float32"
+            }
+          ]
+        },
+        "decode": {
+          "inputs": [
+            {
+              "shape": [
+                1,
+                1
+              ],
+              "dtype": "int64"
+            },
+            {
+              "shape": [
+                1
+              ],
+              "dtype": "int64"
+            },
+            {
+              "shape": [
+                1,
+                256
+              ],
+              "dtype": "int64"
+            },
+            {
+              "shape": [
+                8,
+                256,
+                64
+              ],
+              "dtype": "float32"
+            },
+            {
+              "shape": [
+                8,
+                256,
+                64
+              ],
+              "dtype": "float32"
+            },
+            {
+              "shape": [
+                8,
+                256,
+                64
+              ],
+              "dtype": "float32"
+            },
+            {
+              "shape": [
+                8,
+                256,
+                64
+              ],
+              "dtype": "float32"
+            },
+            {
+              "shape": [
+                8,
+                256,
+                64
+              ],
+              "dtype": "float32"
+            },
+            {
+              "shape": [
+                8,
+                256,
+                64
+              ],
+              "dtype": "float32"
+            },
+            {
+              "shape": [
+                8,
+                256,
+                64
+              ],
+              "dtype": "float32"
+            },
+            {
+              "shape": [
+                8,
+                256,
+                64
+              ],
+              "dtype": "float32"
+            },
+            {
+              "shape": [
+                8,
+                256,
+                64
+              ],
+              "dtype": "float32"
+            },
+            {
+              "shape": [
+                8,
+                256,
+                64
+              ],
+              "dtype": "float32"
+            },
+            {
+              "shape": [
+                8,
+                256,
+                64
+              ],
+              "dtype": "float32"
+            },
+            {
+              "shape": [
+                8,
+                256,
+                64
+              ],
+              "dtype": "float32"
+            }
+          ],
+          "outputs": [
+            {
+              "shape": [
+                1,
+                1,
+                59514
+              ],
+              "dtype": "float32"
+            }
+          ]
+        }
+      }
+    }
+  ]
+}
