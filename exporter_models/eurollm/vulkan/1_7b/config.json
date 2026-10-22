@@ -13,8 +13,8 @@
   "tokenizer_config": "tokenizer_config.json",
   "variants": [
     {
-      "file": "eurollm_1_7b_vulkan_8w.pte",
-      "precision": "8w",
+      "file": "eurollm_1_7b_vulkan_int8.pte",
+      "precision": "int8",
       "quantized": true,
       "default": true,
       "methods": {

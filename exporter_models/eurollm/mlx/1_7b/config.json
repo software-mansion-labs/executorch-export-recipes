@@ -14,7 +14,7 @@
   "variants": [
     {
       "file": "eurollm_1_7b_mlx_int8.pte",
-      "precision": "8w",
+      "precision": "int8",
       "quantized": true,
       "default": true,
       "methods": {
