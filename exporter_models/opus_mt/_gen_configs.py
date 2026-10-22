@@ -41,7 +41,7 @@ for backend, (src, _static, variants) in BACKENDS.items():
             "$schema": SCHEMA, "model": "opus_mt", "family": "marian", "size": size,
             "capabilities": ["translation"], "backend": backend,
             "license": LICENSE.get(size, "apache-2.0"),
-            "tokenizer": "tokenizer.json",
+            "tokenizer": "../tokenizer.json",
             "variants": [
                 {"file": f"opus_mt_{size}_{backend}_{p}.pte", "precision": p, "quantized": q, **extra,
                  # One default per quantized / non-quantized group: the first listed.

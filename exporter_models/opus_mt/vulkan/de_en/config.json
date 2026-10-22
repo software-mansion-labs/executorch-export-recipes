@@ -8,7 +8,7 @@
   ],
   "backend": "vulkan",
   "license": "apache-2.0",
-  "tokenizer": "tokenizer.json",
+  "tokenizer": "../tokenizer.json",
   "variants": [
     {
       "file": "opus_mt_de_en_vulkan_fp16.pte",

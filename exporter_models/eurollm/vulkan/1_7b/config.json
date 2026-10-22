@@ -9,8 +9,8 @@
   ],
   "backend": "vulkan",
   "license": "apache-2.0",
-  "tokenizer": "tokenizer.json",
-  "tokenizer_config": "tokenizer_config.json",
+  "tokenizer": "../tokenizer.json",
+  "tokenizer_config": "../tokenizer_config.json",
   "variants": [
     {
       "file": "eurollm_1_7b_vulkan_int8.pte",

@@ -8,7 +8,7 @@
   ],
   "backend": "mlx",
   "license": "apache-2.0",
-  "tokenizer": "tokenizer.json",
+  "tokenizer": "../tokenizer.json",
   "variants": [
     {
       "file": "opus_mt_en_es_mlx_bf16.pte",
