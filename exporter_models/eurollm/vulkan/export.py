@@ -76,7 +76,7 @@ def _vulkan_partitioner(*_args, **_kwargs):
 def export(config: dict, out_dir: str) -> str:
     from executorch.examples.models.llama.export_llama_lib import export_llama
     from executorch.extension.llm.export.config.llm_config import (
-        DtypeOverride, LlmConfig, ModelType,
+        DtypeOverride, LlmConfig, ModelType, Pt2eQuantize,
     )
 
     p = _load_params()
@@ -109,7 +109,7 @@ def export(config: dict, out_dir: str) -> str:
         {k: consts[k] for k in ("get_bos_id", "get_eos_ids") if k in consts}
     )
     # A real KV cache. Without one the graph re-runs the whole prefix for every
-    # generated token: at the 2048 bound that is ~865 MB of activations per
+    # generated token: for qwen3 1_7b at its 2048 bound that is ~865 MB of activations per
     # step, which thermally reboots a Galaxy S26 Ultra rather than merely
     # running slowly.
     #
@@ -133,14 +133,13 @@ def export(config: dict, out_dir: str) -> str:
     # `graph_output_allocated not set` on a graph that is in fact fully planned.
     cfg.model.enable_dynamic_shape = True
 
-    # Vulkan is 8da4w only: `get_vulkan_partitioner` asserts the dtype override
-    # is fp32, so there is no bf16 counterpart to the XNNPACK variant.
+    # `get_vulkan_partitioner` asserts the dtype override is fp32; the delegate
+    # still runs in fp16 (`force_fp16`).
     cfg.model.dtype_override = DtypeOverride.fp32
-    # A recipe may name its own qmode (e.g. "torchao:8da8w" for int8 weights);
-    # the rest of the dict are quantization knobs. An unset knob means
-    # "executorch default" (see _params.py).
-    knobs = dict(spec["quant"])
-    cfg.quantization.qmode = knobs.pop("qmode", "8da4w")
+    # int8 weight-only through the VulkanQuantizer (see _params.py); the rest
+    # of the dict are quantization knobs.
+    knobs = dict(spec["vulkan_quant"])
+    cfg.quantization.pt2e_quantize = Pt2eQuantize(knobs.pop("pt2e_quantize"))
     for knob, value in knobs.items():
         if value is not None:
             setattr(cfg.quantization, knob, value)
@@ -151,7 +150,7 @@ def export(config: dict, out_dir: str) -> str:
     # `get_max_seq_len` method still reports `max_seq_length` -- the builder
     # overwrites that entry after the metadata override is applied, so it
     # cannot be corrected from here. The declared IO in config.json carries the
-    # bound the graph really accepts (2047), matching the published XNNPACK
+    # bound the graph really accepts (1023), matching the XNNPACK
     # variant, which is exported through the same path and is off by the same
     # one token.
     cfg.export.max_seq_length = consts["get_max_seq_len"]

@@ -31,6 +31,15 @@ an `8w` qmode: IntxWeightOnlyConfig int8, PerGroup(64), on linears and the
 embedding. One delegate, every op supported. en->de, 50 sentences, no BOS:
 BLEU 27.26, 13.8 ms/token on the host, 1.71 GB.
 
+## Vulkan
+
+int8 weight-only, per channel, via export_llama's `vulkan_8w` PT2E quantizer:
+one delegate, 169 `_weight_int8pack_mm` + 24 fused `sdpa_with_kv_cache`, 1.76
+GB. The torchao `8da8w` recipe is unusable here: Vulkan fuses only 4-bit torchao
+weights, so each int8 linear keeps a `torchao.dequantize_affine` that the runtime
+has no kernel for (the .pte would abort at load), and the activation quant is
+dropped. Not yet measured on device.
+
 ## Tokenizer streaming
 
 The tokenizer's decoder ends with `Fuse` + `Strip`. pytorch/tokenizers decoded

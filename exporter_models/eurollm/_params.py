@@ -12,6 +12,11 @@ un-permuting.
 `quant` is the published recipe: 8da8w with per-channel weights and an 8-bit
 per-channel embedding table. 8da4w (gs32, the qwen3 1_7b recipe) loses 6-9 BLEU
 on WMT13 en->de; see NOTES.md.
+
+`vulkan_quant` is Vulkan's: int8 per-channel weight-only through the
+VulkanQuantizer, which lowers to `_weight_int8pack_mm`. Vulkan fuses torchao
+int8 weights into nothing, so `quant` would serialize a `dequantize_affine` the
+runtime has no kernel for.
 """
 
 SIZES = {
@@ -33,5 +38,6 @@ SIZES = {
             "attention_qkv_bias": False,
         },
         "quant": {"qmode": "8da8w", "group_size": 0, "embedding_quantize": "8,0"},
+        "vulkan_quant": {"pt2e_quantize": "vulkan_8w", "embedding_quantize": "8,0"},
     },
 }
