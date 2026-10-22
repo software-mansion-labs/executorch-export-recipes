@@ -65,3 +65,16 @@ token callback, until that lands.
 `_params.py` reuses qwen3's HF->Meta converter: a plain Llama key map that keeps
 the untied `lm_head` (SmolLM2's ties it to the embedding). `use_hf_rope` keeps
 HF's rotate-half RoPE.
+
+## iPhone 16 (2026-10-22)
+
+50 WMT13 en->de sentences, 2 interleaved rounds, outputs identical across rounds:
+
+| variant | prefill (mean, ~45 tok prompts) | decode | warm load | BLEU |
+|---|---|---|---|---|
+| mlx int8 | 137-237 ms | 33-36 ms/token | 0.11 s | 27.26 |
+| xnnpack 8da8w | 356-372 ms | 52-53 ms/token | 1.1 s | 28.53 |
+
+MLX is 1.55x faster to decode and ~2x faster to prefill for 1.3 BLEU; it is the iOS pick.
+MLX ran fine through the Module API here, unlike RNE's LLMRunner on this device earlier.
+

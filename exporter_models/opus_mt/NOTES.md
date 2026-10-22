@@ -132,3 +132,22 @@ on every pair (int8 is higher on 4 of 6). Its only edge is bit-exact agreement w
 HF model, which is a debugging aid, not a user-facing variant. The exporter still builds
 it: a variant with `"quantized": false` exports fp32.
 
+Runner note: the first S26 runner (md5 d21dcf92) passed decode's token/position tensors
+as freed temporaries. The fixed runner (56181f6c) reproduces every S26 output above
+byte-for-byte, so those results stand.
+
+## iPhone 16 (2026-10-22)
+
+Same `xbench` code in a minimal UIKit host linked against RNE's iOS libs (v0.10.x-libs,
+from the rne-qwen3-asr worktree). en_de, 100 sentences, medians of 3 interleaved rounds,
+outputs identical across rounds:
+
+| variant | encode | decode/step | warm load | BLEU |
+|---|---|---|---|---|
+| xnnpack int8 | 3.41 ms | 1.95 ms | 50 ms | 29.32 |
+| mlx int8 | 3.80 ms | 3.17 ms | 21 ms | 29.13 |
+| mlx bf16 | 4.08 ms | 3.92 ms | 15 ms | 29.26 |
+| coreml fp16 enc / fp32 dec | 4.64 ms | 7.65 ms | 130 ms (2.5 s cold) | 29.40 |
+
+XNNPACK int8 is the fastest on iOS too; Core ML's fp32 CPU decode is 3.9x slower.
+
