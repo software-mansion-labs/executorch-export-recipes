@@ -33,6 +33,35 @@ def _load_params():
     return mod
 
 
+def _patch_8w() -> None:
+    """Teaches export_llama an ``8w`` qmode: int8 weight-only, PerGroup.
+
+    export_llama's weight-only torchao path is hardcoded to int4 (``4w``). The
+    ``8w`` branch is the same IntxWeightOnlyConfig with int8, applied to the
+    embedding too (MLX lowers a torchao-quantized embedding to a quantized
+    gather). Any other qmode falls through to the stock function.
+    """
+    import torch
+    from executorch.examples.models.llama.source_transformation import quantize as q
+
+    if getattr(q.quantize, "_eurollm_8w", False):
+        return
+    stock = q.quantize
+
+    def quantize(model, qmode, *args, group_size=None, **kwargs):
+        if qmode != "8w":
+            return stock(model, qmode, *args, group_size=group_size, **kwargs)
+        from torchao.quantization.granularity import PerGroup
+        from torchao.quantization.quant_api import IntxWeightOnlyConfig, quantize_
+
+        config = IntxWeightOnlyConfig(weight_dtype=torch.int8, granularity=PerGroup(group_size))
+        quantize_(model, config, filter_fn=lambda m, _: isinstance(m, (torch.nn.Linear, torch.nn.Embedding)))
+        return model
+
+    quantize._eurollm_8w = True
+    q.quantize = quantize
+
+
 def _checkpoint(source_repo: str) -> str:
     """Downloads the upstream HF weights and converts them to Meta format."""
     # qwen3's converter is a plain Llama key map that keeps an untied lm_head.
@@ -93,6 +122,9 @@ def export(config: dict, out_dir: str) -> str:
     # lfm2_5_text; the MLX backend takes bf16 activations, unlike the XNNPACK
     # path which overrides to fp32 for its quantized builds.
     cfg.model.dtype_override = DtypeOverride.bf16
+    # Set after construction: LlmConfig validates qmode only in __post_init__,
+    # and its list has no "8w" (see _patch_8w).
+    _patch_8w()
     cfg.quantization.qmode = MLX_QMODE
     cfg.quantization.group_size = MLX_GROUP_SIZE
     cfg.backend.mlx.enabled = True

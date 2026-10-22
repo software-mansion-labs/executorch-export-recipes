@@ -24,6 +24,13 @@ the point of this model, so only 8da8w is published.
 react-native-executorch renders the chat template without `bos_token` and its
 tokenizer adds no specials, so the model runs without BOS there.
 
+## MLX
+
+export_llama's weight-only path is int4 only (`4w`), so `mlx/export.py` adds
+an `8w` qmode: IntxWeightOnlyConfig int8, PerGroup(64), on linears and the
+embedding. One delegate, every op supported. en->de, 50 sentences, no BOS:
+BLEU 27.26, 13.8 ms/token on the host, 1.71 GB.
+
 ## Tokenizer streaming
 
 The tokenizer's decoder ends with `Fuse` + `Strip`. pytorch/tokenizers decoded
