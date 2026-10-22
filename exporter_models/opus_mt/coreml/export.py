@@ -9,6 +9,9 @@ masked by the caller), which is what lets the ANE compile the encoder.
 The decoder's self-attention KV cache is handed to Core ML as model state
 (``take_over_mutable_buffer``, iOS 18), so ``decode`` lowers to a single
 delegate call instead of splitting around a portable ``index_put`` per block.
+``decode`` is always fp32: Core ML's fp16 state corrupts the cache from the
+second step (reproduces in plain coremltools), so ``precision`` only applies to
+``encode``.
 """
 
 import importlib.util
@@ -47,12 +50,12 @@ def export(config: dict, out_dir: str) -> str:
     methods, schema = marian.export_methods(model, cfg, MAX_SOURCE_LEN, static=True)
     schema_json = marian.schema_json(schema)
 
-    def partitioner(compute_unit):
+    def partitioner(compute_unit, compute_precision):
         return CoreMLPartitioner(
             compile_specs=CoreMLBackend.generate_compile_specs(
                 compute_unit=compute_unit,
                 minimum_deployment_target=ct.target.iOS18,
-                compute_precision=precision,
+                compute_precision=compute_precision,
             ),
             take_over_mutable_buffer=True,
         )
@@ -60,8 +63,8 @@ def export(config: dict, out_dir: str) -> str:
     program = to_edge_transform_and_lower(
         methods,
         partitioner={
-            "encode": [partitioner(ct.ComputeUnit.ALL)],
-            "decode": [partitioner(ct.ComputeUnit.CPU_ONLY)],
+            "encode": [partitioner(ct.ComputeUnit.ALL, precision)],
+            "decode": [partitioner(ct.ComputeUnit.CPU_ONLY, ct.precision.FLOAT32)],
         },
         compile_config=EdgeCompileConfig(_check_ir_validity=False),
         constant_methods={"get_model_schema": schema_json},

@@ -65,6 +65,16 @@ from the second step on every compute unit. A plain coremltools repro shows the
 same, so this is not ExecuTorch. fp32 is exact. On the host, fp32 decode costs
 5.4 ms/step on CPU and the encoder 10-12 ms, both slower than XNNPACK int8.
 
+So the one shipped variant is fp16 `encode` (ALL) + fp32 `decode` (CPU_ONLY).
+en_de, 100 WMT13 sentences, host:
+
+| variant | size | BLEU | identical to XNNPACK fp32 | encode | decode/step |
+|---|---|---|---|---|---|
+| fp16 enc + fp32 dec | 313 MB | 29.40 | 98/100 | 2.1 ms | 3.5 ms |
+| fp32 | 298 MB | 29.23 | 100/100 | 8.2 ms | 3.8 ms |
+
+It is larger than fp32 because the two functions no longer share the embedding.
+
 ## MLX
 
 One delegate per method (`mlx::kv_cache_update` + `mlx::custom_sdpa` for the
