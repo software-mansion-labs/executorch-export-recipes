@@ -62,6 +62,31 @@ def _patch_8w() -> None:
     q.quantize = quantize
 
 
+def _patch_fp32_logits() -> None:
+    """Makes ``forward`` return float32 logits, as the other MLX LLMs do.
+
+    With ``dtype_override`` bf16 the output head emits bf16 logits, which the
+    react-native-executorch LLM runner (float32 logits for its sampler) rejects
+    with "Unsupported ScalarType". The cast costs one [1, vocab] AsType.
+    """
+    from executorch.examples.models.llama import llama_transformer as lt
+
+    if getattr(lt.Transformer.forward, "_eurollm_fp32", False):
+        return
+    stock = lt.Transformer.forward
+
+    # Same parameters as the stock forward: torch.export binds dynamic shapes
+    # by signature.
+    def forward(self, tokens=None, attn_options=None, h=None):
+        out = stock(self, tokens, attn_options, h)
+        if isinstance(out, tuple):
+            return (out[0].float(), *out[1:])
+        return out.float()
+
+    forward._eurollm_fp32 = True
+    lt.Transformer.forward = forward
+
+
 def _checkpoint(source_repo: str) -> str:
     """Downloads the upstream HF weights and converts them to Meta format."""
     # qwen3's converter is a plain Llama key map that keeps an untied lm_head.
@@ -125,6 +150,7 @@ def export(config: dict, out_dir: str) -> str:
     # Set after construction: LlmConfig validates qmode only in __post_init__,
     # and its list has no "8w" (see _patch_8w).
     _patch_8w()
+    _patch_fp32_logits()
     cfg.quantization.qmode = MLX_QMODE
     cfg.quantization.group_size = MLX_GROUP_SIZE
     cfg.backend.mlx.enabled = True

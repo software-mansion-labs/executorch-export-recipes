@@ -31,6 +31,10 @@ an `8w` qmode: IntxWeightOnlyConfig int8, PerGroup(64), on linears and the
 embedding. One delegate, every op supported. en->de, 50 sentences, no BOS:
 BLEU 27.26, 13.8 ms/token on the host, 1.71 GB.
 
+`forward` casts the logits to float32 (`_patch_fp32_logits`): bf16 logits fail in
+react-native-executorch with "Unsupported ScalarType", and the other MLX LLMs
+return float32.
+
 ## Vulkan
 
 int8 weight-only, per channel, via export_llama's `vulkan_8w` PT2E quantizer:
