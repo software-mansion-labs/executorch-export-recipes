@@ -35,6 +35,9 @@ BLEU 27.26, 13.8 ms/token on the host, 1.71 GB.
 react-native-executorch with "Unsupported ScalarType", and the other MLX LLMs
 return float32.
 
+Both published exports bake `get_model_schema` (`_params.model_schema`): without
+it RNE reads a constant token dim from MethodMeta and rejects the model.
+
 ## Vulkan
 
 int8 weight-only, per channel, via export_llama's `vulkan_8w` PT2E quantizer:

@@ -78,9 +78,9 @@ def export(config: dict, out_dir: str) -> str:
     # Runner constants come from the config -- the single source of truth.
     # export_llama derives the rest (vocab) from params.
     consts = variant.get("constants", {})
-    cfg.base.metadata = json.dumps(
-        {k: consts[k] for k in ("get_bos_id", "get_eos_ids") if k in consts}
-    )
+    metadata = {k: consts[k] for k in ("get_bos_id", "get_eos_ids") if k in consts}
+    metadata["get_model_schema"] = p.model_schema(spec, consts)
+    cfg.base.metadata = json.dumps(metadata)
     cfg.model.use_kv_cache = True
     cfg.model.use_sdpa_with_kv_cache = True
     if variant["precision"] == "bf16":

@@ -41,3 +41,50 @@ SIZES = {
         "vulkan_quant": {"pt2e_quantize": "vulkan_8w", "embedding_quantize": "8,0"},
     },
 }
+
+
+def model_schema(spec: dict, consts: dict) -> str:
+    """The react-native-executorch contract baked as ``get_model_schema``.
+
+    Without it RNE reads shapes from MethodMeta, which reports the token
+    dimension as constant, and its text-LLM spec (a token range) rejects the
+    model. Logits are float32 for every backend (MLX casts them, see
+    mlx/export.py).
+    """
+    import json
+    from pathlib import Path
+
+    import jsonschema
+
+    schema = {
+        "forward": {
+            "inputs": [
+                {
+                    "kind": "Tensor",
+                    "dtype": "int64",
+                    "shape": [
+                        {"kind": "constant", "value": 1},
+                        {
+                            "kind": "range",
+                            "range": {"min": 1, "max": consts["get_max_seq_len"] - 1, "step": 1},
+                        },
+                    ],
+                },
+                {"kind": "Tensor", "dtype": "int64", "shape": [{"kind": "constant", "value": 1}]},
+            ],
+            "outputs": [
+                {
+                    "kind": "Tensor",
+                    "dtype": "float32",
+                    "shape": [
+                        {"kind": "constant", "value": 1},
+                        {"kind": "constant", "value": spec["params"]["vocab_size"]},
+                    ],
+                }
+            ],
+            "runtimeConstraints": [],
+        }
+    }
+    root = Path(__file__).resolve().parents[2] / "model.schema.json"
+    jsonschema.validate(instance=schema, schema=json.loads(root.read_text()))
+    return json.dumps(schema)

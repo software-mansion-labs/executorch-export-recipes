@@ -138,9 +138,9 @@ def export(config: dict, out_dir: str) -> str:
     cfg.base.checkpoint = _checkpoint(spec["source"])
 
     consts = variant.get("constants", {})
-    cfg.base.metadata = json.dumps(
-        {k: consts[k] for k in ("get_bos_id", "get_eos_ids") if k in consts}
-    )
+    metadata = {k: consts[k] for k in ("get_bos_id", "get_eos_ids") if k in consts}
+    metadata["get_model_schema"] = p.model_schema(spec, consts)
+    cfg.base.metadata = json.dumps(metadata)
     cfg.model.use_kv_cache = True
     cfg.model.use_sdpa_with_kv_cache = True
     # bf16 throughout, with weight-only quantization on top. This mirrors
