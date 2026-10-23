@@ -1,0 +1,30 @@
+# Per-model export environment for echo (pinned, verified stack): XNNPACK and Core ML.
+#   uv run --project exporter_models/echo exporter export echo --backend <xnnpack|coreml> --output-dir <dir>
+#
+# MLX and Vulkan need executorch from the software-mansion-labs fork; their
+# mlx/ and vulkan/ sub-projects declare it (see NOTES.md). The source repo
+# software-mansion/Echo is private: the export downloads with the cached
+# Hugging Face login.
+[project]
+name = "exporter-model-echo"
+version = "0"
+requires-python = "==3.10.*"
+dependencies = [
+    "exporter",
+    "torch==2.14.0",
+    "executorch==1.4.1",
+    "torchao==0.18.0",
+    # HiggsAudioV2TokenizerModel (the codec). No torchaudio wheel matches
+    # torch 2.14; _echo/codec.py stubs the one function the codec imports.
+    "transformers==5.14.1",
+    "safetensors==0.8.0",
+    "coremltools==9.0",
+]
+
+[tool.uv]
+# Exports run only on this macOS arm64 host; limit resolution to it so the
+# torch +cpu-vs-plain platform split can't fail the lock.
+environments = ["sys_platform == 'darwin' and platform_machine == 'arm64'"]
+
+[tool.uv.sources]
+exporter = { path = "../..", editable = true }
