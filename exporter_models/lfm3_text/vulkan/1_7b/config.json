@@ -1,0 +1,57 @@
+{
+  "$schema": "https://huggingface.co/software-mansion/react-native-executorch-spec/resolve/main/config.schema.json",
+  "model": "lfm3_text_1_7b",
+  "family": "lfm3",
+  "capabilities": [
+    "text-generation"
+  ],
+  "backend": "vulkan",
+  "license": "lfm-1.0",
+  "variants": [
+    {
+      "file": "lfm_3_1_7b_vulkan_8da4w.pte",
+      "precision": "8da4w",
+      "quantized": true,
+      "default": true,
+      "methods": {
+        "forward": {
+          "inputs": [
+            {
+              "shape": [
+                1,
+                128
+              ],
+              "dtype": "int64"
+            },
+            {
+              "shape": [
+                1
+              ],
+              "dtype": "int64"
+            }
+          ],
+          "outputs": [
+            {
+              "shape": [
+                1,
+                128000
+              ],
+              "dtype": "float32"
+            }
+          ]
+        },
+        "enable_dynamic_shape": true,
+        "get_bos_id": 124894,
+        "get_eos_ids": [
+          124900
+        ],
+        "get_max_context_len": 8192,
+        "get_max_seq_len": 128,
+        "get_n_layers": 24,
+        "get_vocab_size": 128000,
+        "use_kv_cache": true,
+        "use_sdpa_with_kv_cache": true
+      }
+    }
+  ]
+}

@@ -1,0 +1,102 @@
+{
+  "$schema": "https://huggingface.co/software-mansion/react-native-executorch-spec/resolve/main/config.schema.json",
+  "model": "lfm3_vl_2b",
+  "family": "lfm3",
+  "capabilities": [
+    "vision"
+  ],
+  "backend": "vulkan",
+  "license": "lfm-1.0",
+  "variants": [
+    {
+      "file": "lfm_3_vl_2b_vulkan_8da4w.pte",
+      "precision": "8da4w",
+      "quantized": true,
+      "default": true,
+      "methods": {
+        "vision_encoder": {
+          "inputs": [
+            {
+              "shape": [
+                1,
+                3,
+                512,
+                512
+              ],
+              "dtype": "float32"
+            }
+          ],
+          "outputs": [
+            {
+              "shape": [
+                1,
+                256,
+                2048
+              ],
+              "dtype": "float32"
+            }
+          ]
+        },
+        "token_embedding": {
+          "inputs": [
+            {
+              "shape": [
+                1,
+                256
+              ],
+              "dtype": "int64"
+            }
+          ],
+          "outputs": [
+            {
+              "shape": [
+                1,
+                256,
+                2048
+              ],
+              "dtype": "float32"
+            }
+          ]
+        },
+        "text_decoder": {
+          "inputs": [
+            {
+              "shape": [
+                1,
+                256,
+                2048
+              ],
+              "dtype": "float32"
+            },
+            {
+              "shape": [
+                256
+              ],
+              "dtype": "int64"
+            }
+          ],
+          "outputs": [
+            {
+              "shape": [
+                1,
+                128000
+              ],
+              "dtype": "float32"
+            }
+          ]
+        },
+        "enable_dynamic_shape": true,
+        "get_bos_id": 124894,
+        "get_eos_ids": [
+          124900
+        ],
+        "get_max_context_len": 8192,
+        "get_max_seq_len": 256,
+        "get_n_layers": 24,
+        "get_vocab_size": 128000,
+        "use_kv_cache": true,
+        "use_sdpa_with_kv_cache": true
+      }
+    }
+  ]
+}
