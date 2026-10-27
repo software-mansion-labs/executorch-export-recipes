@@ -27,6 +27,8 @@ N_MELS = 128
 LOG_FLOOR = -12.0
 NORM_OFFSET = 4.0
 NORM_DIVISOR = 4.0
+# Built in `LogMel.__init__`, not loaded from the checkpoint.
+COMPUTED_BUFFERS = ("log_mel.basis", "log_mel.mel_filters")
 
 
 @dataclass
@@ -100,8 +102,10 @@ class LogMel(nn.Module):
         window = torch.hann_window(N_FFT, periodic=True, dtype=torch.float64)
         angle = 2 * math.pi * k[:, None] * n[None, :] / N_FFT
         basis = torch.cat([window * torch.cos(angle), -window * torch.sin(angle)], dim=0)
-        self.register_buffer("basis", basis.float().unsqueeze(1), persistent=False)
-        self.register_buffer("mel_filters", mel_filters.float().T.contiguous(), persistent=False)
+        # Persistent: XNNPACK's conv1d rewrite moves a non-persistent conv
+        # weight into the state dict, which the verifier rejects.
+        self.register_buffer("basis", basis.float().unsqueeze(1))
+        self.register_buffer("mel_filters", mel_filters.float().T.contiguous())
 
     def forward(self, wave):                                         # [1, L]
         spec = F.conv1d(wave.unsqueeze(1), self.basis, stride=HOP)    # [1, 2*bins, frames]
@@ -173,8 +177,12 @@ class EncAttention(nn.Module):
         rep = self.n_heads // self.n_kv
         k = k.repeat_interleave(rep, dim=1)
         v = v.repeat_interleave(rep, dim=1)
-        att = torch.softmax((q @ k.transpose(-1, -2)) * hd ** -0.5 + mask, dim=-1)
-        y = (att @ v).transpose(1, 2).reshape(B, T, self.n_heads * hd)
+        # 3-D bmm: a 4-D matmul lowers to expand_copy + bmm, and XNNPACK leaves
+        # the expand copies on host.
+        H = self.n_heads
+        q, k, v = (t.reshape(B * H, T, hd) for t in (q, k, v))
+        att = torch.softmax(torch.bmm(q, k.transpose(1, 2)) * hd ** -0.5 + mask, dim=-1)
+        y = torch.bmm(att, v).view(B, H, T, hd).transpose(1, 2).reshape(B, T, H * hd)
         return self.out_proj(y)
 
 

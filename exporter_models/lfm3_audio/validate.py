@@ -8,8 +8,8 @@ prefilled through `text_decoder` in chunks of the schema's seqLen max, logits
 are compared at each chunk boundary, then the reference's greedy tokens are
 teacher-forced.
 
-    python exporter_models/lfm3_vl/validate.py --model lfm_3_audio_2b_xnnpack_8da4w.pte --reference ref.pt
-    python exporter_models/lfm3_vl/validate.py --eager --source <snapshot> --reference ref.pt
+    python exporter_models/lfm3_audio/validate.py --model lfm_3_audio_2b_xnnpack_8da4w.pte --reference ref.pt
+    python exporter_models/lfm3_audio/validate.py --eager --source <snapshot> --reference ref.pt
 """
 
 import argparse

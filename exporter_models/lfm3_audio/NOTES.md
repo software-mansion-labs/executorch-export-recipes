@@ -41,8 +41,16 @@ reference): per-token cosine >= 0.99985 on the 18.4 s Harvard-sentences clip
 
 ## Results
 
-Eager vendored pipeline vs HF (`validate.py --eager`): 48/48 teacher-forced
-greedy tokens, transcript "The stale smell of old beer lingers. It takes heat
-to bring out the odor. ...". Exported variants: see the MR.
+Teacher-forced greedy vs HF (bf16), 18.4 s clip, 48 tokens, transcript "The
+stale smell of old beer lingers. It takes heat to bring out the odor. ...":
+
+| | size | worst prefill cos | greedy |
+|---|---|---|---|
+| eager vendored | | | 48/48 |
+| xnnpack 8da4w | 1.72 GB | 0.99839 | 48/48 |
+
+XNNPACK `audio_encoder`: 101 delegate calls. Attention uses 3-D `bmm` (a 4-D
+matmul leaves expand copies on host: 122 -> 101 calls); the 49 RMSNorm means
+stay on host, as in the text decoder.
 
 Vulkan: same blocker as `lfm3_text` (pytorch/executorch#23539).

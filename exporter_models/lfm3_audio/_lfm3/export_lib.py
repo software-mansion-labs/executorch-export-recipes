@@ -106,7 +106,9 @@ def _range(hi: int) -> dict:
 
 def write_assets(source: Path, out_dir: Path) -> None:
     shutil.copyfile(source / "tokenizer.json", out_dir / "tokenizer.json")
-    cfg = json.loads((source / "tokenizer_config.json").read_text())
+    # The Audio repo ships special_tokens_map.json in place of tokenizer_config.json.
+    cfg_path = source / "tokenizer_config.json"
+    cfg = json.loads((cfg_path if cfg_path.exists() else source / "special_tokens_map.json").read_text())
     template = cfg.get("chat_template") or (source / "chat_template.jinja").read_text()
     needle = "preserve_thinking or loop.index0 > ns.last_user_index"
     if needle in template:
@@ -119,7 +121,7 @@ def write_assets(source: Path, out_dir: Path) -> None:
 
 
 def build_all(source: Path, backend: str, ctx: int, max_tokens: int):
-    from .audio import AudioEncoder, EncoderConfig, convert, mel_filters
+    from .audio import COMPUTED_BUFFERS, AudioEncoder, EncoderConfig, convert, mel_filters
     from .load import build, read_safetensors
 
     hf_cfg = json.loads((source / "config.json").read_text())
@@ -128,6 +130,7 @@ def build_all(source: Path, backend: str, ctx: int, max_tokens: int):
     audio = AudioEncoder(hf_cfg, mel_filters(), max_tokens=max_tokens)
     astate = {k: v.float() for k, v in convert(state, EncoderConfig.from_hf(hf_cfg)).items()}
     missing, unexpected = audio.load_state_dict(astate, strict=False)
+    missing = [k for k in missing if k not in COMPUTED_BUFFERS]
     if missing or unexpected:
         raise RuntimeError(f"audio weight mismatch: {missing} {unexpected}")
     lm = build(

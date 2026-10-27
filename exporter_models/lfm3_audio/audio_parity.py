@@ -12,7 +12,7 @@ from pathlib import Path
 import torch
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
-from _lfm3.audio import AudioEncoder, EncoderConfig, convert, mel_filters  # noqa: E402
+from _lfm3.audio import COMPUTED_BUFFERS, AudioEncoder, EncoderConfig, convert, mel_filters  # noqa: E402
 
 
 def main():
@@ -27,6 +27,7 @@ def main():
     enc = AudioEncoder(hf, mel_filters(), max_tokens=1024)
     state = convert(load_file(str(Path(args.source) / "model.safetensors")), EncoderConfig.from_hf(hf))
     missing, unexpected = enc.load_state_dict({k: v.float() for k, v in state.items()}, strict=False)
+    missing = [k for k in missing if k not in COMPUTED_BUFFERS]
     assert not missing and not unexpected, (missing, unexpected)
     ref = torch.load(args.reference)
     with torch.no_grad():
