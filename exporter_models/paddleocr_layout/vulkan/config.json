@@ -13,7 +13,7 @@
       "precision": "fp16",
       "quantized": false,
       "default": true,
-      "size_bytes": 66608642,
+      "size_bytes": 66584450,
       "methods": {
         "forward": {
           "inputs": [

@@ -131,8 +131,8 @@ wheels = [
 
 [[package]]
 name = "executorch"
-version = "1.4.1+67ccaf9"
-source = { git = "https://github.com/software-mansion-labs/executorch?branch=%40ms%2Fseparate-backends-1.4.1#67ccaf9f5f87710920039748ed6cbc936f4ab63a" }
+version = "1.4.1+0de5ce9"
+source = { git = "https://github.com/software-mansion-labs/executorch?branch=%40ms%2Fseparate-backends-1.4.1#0de5ce9470e4a18d6d45585f69519267bbe218b9" }
 dependencies = [
     { name = "coremltools", marker = "platform_machine == 'arm64' and sys_platform == 'darwin'" },
     { name = "expecttest", marker = "platform_machine == 'arm64' and sys_platform == 'darwin'" },
