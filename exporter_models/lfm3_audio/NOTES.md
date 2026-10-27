@@ -19,7 +19,9 @@ The caller right-pads the clip the way the feature extractor does (to at
 least 400 samples, then up to the next 160-sample hop); `get_model_schema`
 declares the waveform dim as a range with step 160. One audio token per 8
 mel frames (12.5 tokens/s). In the prompt, a clip is a bare run of T
-`<|audio|>` tokens (no start/end markers). Context 8192.
+`<|audio|>` tokens (no start/end markers). Context 8192. The constant method
+`get_audio_frames_per_token` (8) lets the runner size the encoder output
+without hardcoding the downsampler stride.
 
 `text_decoder` adds a constant mask that sets `<|audio|>`, `<|audio_out|>`,
 `<|audio_start|>` and `<|mixed_start|>` logits to -inf, which is what

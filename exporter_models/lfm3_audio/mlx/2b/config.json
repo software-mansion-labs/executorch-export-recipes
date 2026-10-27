@@ -95,7 +95,8 @@
         "get_n_layers": 24,
         "get_vocab_size": 128000,
         "use_kv_cache": true,
-        "use_sdpa_with_kv_cache": true
+        "use_sdpa_with_kv_cache": true,
+        "get_audio_frames_per_token": 8
       }
     },
     {
@@ -183,7 +184,8 @@
         "get_n_layers": 24,
         "get_vocab_size": 128000,
         "use_kv_cache": true,
-        "use_sdpa_with_kv_cache": true
+        "use_sdpa_with_kv_cache": true,
+        "get_audio_frames_per_token": 8
       }
     }
   ]
