@@ -1,0 +1,9 @@
+{
+  "hf": "https://huggingface.co/software-mansion/react-native-executorch-minicpm-5",
+  "repo": "software-mansion/react-native-executorch-minicpm-5",
+  "config": "{backend}/config.json",
+  "backends": [
+    "xnnpack",
+    "mlx"
+  ]
+}
