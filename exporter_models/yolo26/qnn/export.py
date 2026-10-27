@@ -14,10 +14,20 @@ CPU.
 Accuracy on an S26 Ultra over 500 COCO val2017 images (mAP50-95, fp32 44.81):
 fp16 44.77 at 3.59 ms. Quantized variants are not shipped: a16w8 is 44.42 and
 slower (~4.0 ms), a8w8 is 35.13 at 1.95 ms (one 8-bit range cannot hold pixel
-boxes and sigmoid scores). Only n at 640 on v81 is device-validated; 384/512 and
-v69-v79 are compile-only. In the x86 HTP simulator over 20 COCO images every
-file is at fp32 level (mAP50-95 384: 47.68 vs 46.95, 512: 49.97 vs 49.95, 640:
-54.89 vs 55.57; v69 differs per pixel and scores 46.70 / 49.76 / 55.72).
+boxes and sigmoid scores).
+
+Every size and resolution on v81 matches fp32 on an S26 Ultra (fork 1.4.1 runtime,
+first 100 COCO val2017 images, mAP50-95 fp32 / QNN, latency per inference):
+
+    384:  n 42.97/42.86 1.3 ms   s 52.41/52.21 1.9 ms   m 54.78/54.85 3.0 ms
+          l 56.53/56.49 3.7 ms   x 61.46/61.58 7.2 ms
+    512:  n 47.05/47.31 2.0 ms   s 56.24/56.08 2.5 ms   m 60.09/59.88 4.5 ms
+          l 60.29/60.14 5.9 ms   x 64.73/64.12 12.1 ms
+    640:  n 48.17/48.09 3.6 ms   s 56.69/56.91 4.1 ms   m 63.06/63.12 8.2 ms
+          l 62.24/62.29 9.8 ms   x 65.73/65.47 21.9 ms
+
+v69-v79 are compile-only. In the x86 HTP simulator (n, 20 images) v73-v79 match
+v81 exactly; v69 differs per pixel and scores the same within 1 mAP.
 
 Needs the software-mansion-labs 1.4.1 fork: without pytorch/executorch#24078
 (Remove0DTensor keeps the selected element) the anchor stride lowering fails,
