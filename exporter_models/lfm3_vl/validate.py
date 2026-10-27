@@ -50,6 +50,7 @@ class EagerRunner:
         from _lfm3.export_lib import TextDecoder, TokenEmbedding, build_all
 
         self.vis, lm = build_all(Path(source), "xnnpack", 1024)
+        lm.float()
         self.emb_m, self.dec_m = TokenEmbedding(lm.embed_tokens), TextDecoder(lm)
         self.seq_max = 256
 

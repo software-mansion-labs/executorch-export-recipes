@@ -58,7 +58,8 @@ class Lfm3TextConfig:
 
     @classmethod
     def from_hf(cls, hf: dict, **runtime) -> "Lfm3TextConfig":
-        hf = hf.get("text_config", hf)
+        # The text model sits under text_config (VL) or lfm (Audio).
+        hf = hf.get("text_config") or hf.get("lfm") or hf
         names = {f for f in cls.__dataclass_fields__ if f not in ("extra",)}
         kwargs = {k: hf[k] for k in names if k in hf}
         kwargs.update(runtime)

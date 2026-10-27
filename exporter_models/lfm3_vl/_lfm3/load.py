@@ -63,9 +63,13 @@ def build(
     state = convert(hf_state, cfg, prefix)
     if head is not None and not cfg.tie_word_embeddings:
         state["lm_head.weight"] = head
-    state = {k: v.to(dtype) for k, v in state.items()}
+    # dtype=None keeps the checkpoint's own dtype (bf16) for the weights and
+    # leaves buffers (RoPE tables, caches) fp32: callers upcast layer by layer
+    # (see export_lib.quantize) instead of holding a full fp32 copy.
+    if dtype is not None:
+        state = {k: v.to(dtype) for k, v in state.items()}
     del hf_state
-    if dtype != torch.float32:
+    if dtype not in (None, torch.float32):
         model.to(dtype)
     missing, unexpected = model.load_state_dict(state, strict=False, assign=True)
     # Caches, conv states and RoPE tables are buffers, not weights (MLX's

@@ -90,6 +90,7 @@ def export(config: dict, out_dir: str, backend: str) -> str:
 
     model = build(
         source,
+        dtype=None,
         max_context_len=ctx,
         attn_impl="mlx" if backend == "mlx" else "llama",
         window_slice=backend == "xnnpack",
@@ -113,12 +114,10 @@ def export(config: dict, out_dir: str, backend: str) -> str:
 
 def quantize(model: torch.nn.Module, backend: str, precision: str) -> None:
     if backend == "xnnpack":
-        from executorch.extension.llm.export.quantize import quantize_model_
-
         assert precision == "8da4w", precision
         # Same recipe as the LFM2.5 2.6B XNNPACK export: 8da4w gs32 linears
         # (lm_head included) + per-row int8 embedding table.
-        quantize_model_(
+        quantize_layerwise(
             model, qlinear_config="8da4w", qlinear_group_size=32,
             qembedding_config="8w", qembedding_group_size=0,
         )
@@ -132,15 +131,32 @@ def quantize(model: torch.nn.Module, backend: str, precision: str) -> None:
             qembedding_config=bits, qembedding_group_size=64,
         )
     elif backend == "vulkan":
-        from executorch.extension.llm.export.quantize import quantize_model_
-
         assert precision == "8da4w", precision
-        quantize_model_(
+        # int4 weights, fp16 compute (force_fp16 in lower()), as LFM2.5 2.6B.
+        quantize_layerwise(
             model, qlinear_config="8da4w", qlinear_group_size=64,
             qembedding_config="4w", qembedding_group_size=64,
         )
     else:
         raise ValueError(backend)
+
+
+def quantize_layerwise(model: torch.nn.Module, **kw) -> None:
+    """`quantize_model_` one decoder layer at a time, each upcast to fp32 just
+    before it is quantized, so the export never holds a full fp32 copy of the
+    model (~7 GB at 1.7B). Per-module quantization makes the result identical
+    to quantizing the whole fp32 model at once."""
+    from executorch.extension.llm.export.quantize import quantize_model_
+
+    linear_kw = {k: v for k, v in kw.items() if k.startswith("qlinear")}
+    for layer in model.layers:
+        layer.float()
+        quantize_model_(layer, **linear_kw)
+    head = torch.nn.Module()
+    head.embed_tokens, head.lm_head = model.embed_tokens, model.lm_head
+    head.float()
+    quantize_model_(head, **kw)
+    model.float()
 
 
 def lower(ep, backend: str, variant: dict, consts: dict):

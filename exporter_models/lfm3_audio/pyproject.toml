@@ -1,0 +1,35 @@
+# Per-model export environment for lfm3_audio (xnnpack, mlx, vulkan).
+#   Not uv-runnable: the executorch fork pin below cannot be built by uv (see
+#   skills/backends/vulkan, "Environment"). From a source-built fork checkout:
+#   PYTHONPATH=src python -m exporter.cli export lfm3_audio --backend <b> --output-dir <dir>
+#
+# NOTE (EXECUTORCH FORK PIN):
+# software-mansion-labs/executorch @ms/separate-backends-1.4.1: the MLX .pte must
+# match the runtime's op union (exporter.backends.require_mlx_runtime_fork) and the
+# Vulkan export targets the fork's shaders. All three backends were exported from
+# the same fork checkout (1.4.1+0de5ce9).
+#
+# NOTE (TRANSFORMERS): only transformers.audio_utils.mel_filter_bank is used at
+# export; the model code is vendored (_lfm3/). reference.py runs the upstream
+# remote code, which needs transformers >= 5.20; run it in a separate env.
+[project]
+name = "exporter-model-lfm3-audio"
+version = "0"
+requires-python = "==3.10.*"
+dependencies = [
+    "exporter",
+    "torch==2.14.0.dev20260702",
+    "executorch",
+    "safetensors==0.8.0",
+    "huggingface_hub",
+    # mel_filter_bank for the in-graph log-mel front end
+    "transformers==5.14.1",
+]
+
+[tool.uv]
+environments = ["sys_platform == 'darwin' and platform_machine == 'arm64'"]
+
+[tool.uv.sources]
+exporter = { path = "../..", editable = true }
+torch = { url = "https://download.pytorch.org/whl/nightly/cpu/torch-2.14.0.dev20260702-cp310-cp310-macosx_14_0_arm64.whl" }
+executorch = { git = "https://github.com/software-mansion-labs/executorch", branch = "@ms/separate-backends-1.4.1" }
