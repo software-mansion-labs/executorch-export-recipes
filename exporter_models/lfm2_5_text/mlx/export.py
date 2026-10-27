@@ -41,17 +41,32 @@ def export(config: dict, out_dir: str) -> str:
     cfg = LlmConfig()
     cfg.base.model_class = ModelType(spec["model_class"])
     cfg.base.params = params_path
+    support = None
+    if "source" in spec:
+        support_spec = importlib.util.spec_from_file_location(
+            "lfm2_5_text_checkpoint", _MODEL_DIR / "_checkpoint.py"
+        )
+        support = importlib.util.module_from_spec(support_spec)
+        support_spec.loader.exec_module(support)
+        cfg.base.checkpoint, source = support.resolve(spec, size)
+        support.write_assets(source, out_dir, size)
     # Runner constants come from the config -- the single source of truth.
     # export_llama derives the rest (vocab) from params.
     consts = config["variant"].get("constants", {})
     cfg.base.metadata = json.dumps(
         {k: consts[k] for k in ("get_bos_id", "get_eos_ids") if k in consts}
     )
+    if support is not None:
+        cfg.base.metadata = support.metadata(config["variant"])
     cfg.model.use_kv_cache = True
     cfg.model.use_sdpa_with_kv_cache = True
-    cfg.model.dtype_override = DtypeOverride.bf16
+    cfg.model.dtype_override = DtypeOverride.fp32 if support is not None else DtypeOverride.bf16
     cfg.quantization.group_size = p.MLX_GROUP_SIZE
     cfg.quantization.qmode = "4w"
+    if support is not None:
+        # Portable embedding quantization also works on macOS without the
+        # optional TorchAO native embedding kernels.
+        cfg.quantization.embedding_quantize = "4,64"
     cfg.backend.mlx.enabled = True
     cfg.export.max_seq_length = consts["get_max_seq_len"]
     cfg.export.max_context_length = consts["get_max_context_len"]
