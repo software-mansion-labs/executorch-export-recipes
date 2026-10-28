@@ -237,7 +237,7 @@ class EncLayer(nn.Module):
 class AudioEncoder(nn.Module):
     """[1, 400 + 160k] waveform -> [1, ceil((k + 1) / 8), text hidden]."""
 
-    def __init__(self, hf: dict, mel_filters: torch.Tensor, max_tokens: int):
+    def __init__(self, hf: dict, mel_filters: torch.Tensor):
         super().__init__()
         cfg = EncoderConfig.from_hf(hf)
         self.cfg = cfg
@@ -250,25 +250,31 @@ class AudioEncoder(nn.Module):
         self.proj_1 = nn.Linear(d, cfg.text_hidden)
         self.proj_2 = nn.Linear(cfg.text_hidden, cfg.text_hidden)
 
-        hd = d // cfg.num_attention_heads
-        inv_freq = 1.0 / (cfg.rope_theta ** (torch.arange(0, hd, 2, dtype=torch.float) / hd))
-        freqs = torch.arange(max_tokens, dtype=torch.float)[:, None] * inv_freq[None, :]
-        emb = torch.cat((freqs, freqs), dim=-1)
-        self.register_buffer("rope_cos", emb.cos(), persistent=False)
-        self.register_buffer("rope_sin", emb.sin(), persistent=False)
+        self.head_dim = d // cfg.num_attention_heads
 
     def forward(self, wave):
-        x = self.downsample(self.log_mel(wave))
+        # The log-mel front end stays fp32 when the rest runs in bf16 (MLX): the
+        # power spectrum spans too wide a range for bf16 before the log.
+        dtype = self.downsample.conv_in.weight.dtype
+        x = self.downsample(self.log_mel(wave.float()).to(dtype))
         T = x.size(1)
-        cos, sin = self.rope_cos[:T], self.rope_sin[:T]
+        # RoPE tables are built in-graph: MLX keeps a constant table sliced to
+        # [:T] at its full length, and an fp32 graph constant (unlike a buffer)
+        # survives the bf16 cast.
+        hd = self.head_dim
+        # exp/log, not theta ** x: MLX leaves a scalar-base pow on host.
+        inv_freq = torch.exp(torch.arange(0, hd, 2, dtype=torch.float) * (-math.log(self.cfg.rope_theta) / hd))
+        freqs = torch.arange(T, dtype=torch.float)[:, None] * inv_freq[None, :]
+        emb = torch.cat((freqs, freqs), dim=-1)
+        cos, sin = emb.cos().to(dtype), emb.sin().to(dtype)
         i = torch.arange(T).unsqueeze(1)
         j = torch.arange(T).unsqueeze(0)
         visible = (j <= i) & (i - j < self.cfg.sliding_window)
-        mask = torch.where(visible, 0.0, float("-inf"))
+        mask = torch.where(visible, 0.0, float("-inf")).to(dtype)
         for layer in self.layers:
             x = layer(x, cos, sin, mask)
         x = self.embedding_norm(x)
-        return self.proj_2(F.gelu(self.proj_1(self.proj_norm(x))))
+        return self.proj_2(F.gelu(self.proj_1(self.proj_norm(x)))).float()
 
 
 def convert(hf_state: dict, cfg: EncoderConfig) -> dict:

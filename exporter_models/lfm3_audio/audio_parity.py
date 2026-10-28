@@ -24,7 +24,7 @@ def main():
     from safetensors.torch import load_file
 
     hf = json.loads((Path(args.source) / "config.json").read_text())
-    enc = AudioEncoder(hf, mel_filters(), max_tokens=1024)
+    enc = AudioEncoder(hf, mel_filters())
     state = convert(load_file(str(Path(args.source) / "model.safetensors")), EncoderConfig.from_hf(hf))
     missing, unexpected = enc.load_state_dict({k: v.float() for k, v in state.items()}, strict=False)
     missing = [k for k in missing if k not in COMPUTED_BUFFERS]
