@@ -1,4 +1,4 @@
-"""Shared export path for LFM3-VL (xnnpack / mlx / vulkan).
+"""Shared export path for LFM3-VL (xnnpack / mlx).
 
 Three methods, matching RNE's multimodal LLM runner:
   vision_encoder  f32[1, 3, 512, 512] (raw RGB 0..255) -> f32[1, 256, 2048]
@@ -179,12 +179,8 @@ def quantize(vision: nn.Module, lm: nn.Module, backend: str, precision: str) -> 
                         qembedding_config=bits, qembedding_group_size=64)
         return
     assert precision == "8da4w", precision
-    if backend == "xnnpack":
-        quantize_layerwise(lm, qlinear_config="8da4w", qlinear_group_size=32,
-                           qembedding_config="8w", qembedding_group_size=0)
-    else:  # vulkan: int4 weights, fp16 compute (force_fp16 in lower())
-        quantize_layerwise(lm, qlinear_config="8da4w", qlinear_group_size=64,
-                           qembedding_config="4w", qembedding_group_size=64)
+    quantize_layerwise(lm, qlinear_config="8da4w", qlinear_group_size=32,
+                       qembedding_config="8w", qembedding_group_size=0)
 
 
 def quantize_layerwise(model: torch.nn.Module, **kw) -> None:
@@ -230,11 +226,6 @@ def lower(eps: dict, backend: str, variant: dict, consts: dict):
         require_mlx_runtime_fork()
         passes = get_default_passes()
         parts = {m: [MLXPartitioner()] for m in eps}
-    else:
-        from executorch.backends.vulkan.partitioner.vulkan_partitioner import VulkanPartitioner
-
-        fp16 = {"force_fp16": True}
-        parts = {m: [VulkanPartitioner(fp16)] for m in eps}
 
     edge = to_edge_transform_and_lower(
         eps,

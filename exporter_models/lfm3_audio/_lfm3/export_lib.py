@@ -1,4 +1,4 @@
-"""Shared export path for LFM3-Audio, audio in / text out (xnnpack / mlx / vulkan).
+"""Shared export path for LFM3-Audio, audio in / text out (xnnpack / mlx).
 
 Three methods, for an audio-input LLM runner:
   audio_encoder   f32[1, 400 + 160k] waveform (16 kHz, k <= max) -> f32[1, T, 2048], T = ceil((k + 1) / 8)
@@ -120,14 +120,14 @@ def write_assets(source: Path, out_dir: Path) -> None:
         shutil.copyfile(source / "LICENSE", out_dir / "LICENSE")
 
 
-def build_all(source: Path, backend: str, ctx: int, max_tokens: int):
+def build_all(source: Path, backend: str, ctx: int):
     from .audio import COMPUTED_BUFFERS, AudioEncoder, EncoderConfig, convert, mel_filters
     from .load import build, read_safetensors
 
     hf_cfg = json.loads((source / "config.json").read_text())
     state = {k: v for k, v in read_safetensors(source).items()
              if k.startswith(("encoder.", "mlp.", TEXT_PREFIX))}
-    audio = AudioEncoder(hf_cfg, mel_filters(), max_tokens=max_tokens)
+    audio = AudioEncoder(hf_cfg, mel_filters())
     astate = {k: v.float() for k, v in convert(state, EncoderConfig.from_hf(hf_cfg)).items()}
     missing, unexpected = audio.load_state_dict(astate, strict=False)
     missing = [k for k in missing if k not in COMPUTED_BUFFERS]
@@ -153,6 +153,8 @@ def export(config: dict, out_dir: str, backend: str) -> str:
     max_tokens = methods["audio_encoder"]["outputs"][0]["shape"][1]
     ctx = consts["get_max_context_len"]
     assert (max_samples - N_FFT) % HOP == 0, max_samples
+    frames = (max_samples - N_FFT) // HOP + 1
+    assert max_tokens == -(-frames // consts["get_audio_frames_per_token"]), max_tokens
 
     out_dir = Path(out_dir).resolve()
     out_dir.mkdir(parents=True, exist_ok=True)
@@ -164,7 +166,7 @@ def export(config: dict, out_dir: str, backend: str) -> str:
     else:
         from executorch.extension.llm.custom_ops import custom_ops  # noqa: F401
 
-    audio, lm = build_all(source, backend, ctx, max_tokens)
+    audio, lm = build_all(source, backend, ctx)
     quantize(audio, lm, backend, variant["precision"])
 
     eps = {}
@@ -201,17 +203,14 @@ def quantize(audio: nn.Module, lm: nn.Module, backend: str, precision: str) -> N
 
         bits = {"int4": "4w", "int8": "8w"}[precision]
         audio.to(torch.bfloat16)
+        audio.log_mel.float()
         lm.to(torch.bfloat16)
         quantize_model_(lm, qlinear_config=bits, qlinear_group_size=64,
                         qembedding_config=bits, qembedding_group_size=64)
         return
     assert precision == "8da4w", precision
-    if backend == "xnnpack":
-        quantize_layerwise(lm, qlinear_config="8da4w", qlinear_group_size=32,
-                           qembedding_config="8w", qembedding_group_size=0)
-    else:  # vulkan: int4 weights, fp16 compute (force_fp16 in lower())
-        quantize_layerwise(lm, qlinear_config="8da4w", qlinear_group_size=64,
-                           qembedding_config="4w", qembedding_group_size=64)
+    quantize_layerwise(lm, qlinear_config="8da4w", qlinear_group_size=32,
+                       qembedding_config="8w", qembedding_group_size=0)
 
 
 def quantize_layerwise(model: torch.nn.Module, **kw) -> None:
@@ -257,10 +256,6 @@ def lower(eps: dict, backend: str, variant: dict, consts: dict):
         require_mlx_runtime_fork()
         passes = get_default_passes()
         parts = {m: [MLXPartitioner()] for m in eps}
-    else:
-        from executorch.backends.vulkan.partitioner.vulkan_partitioner import VulkanPartitioner
-
-        parts = {m: [VulkanPartitioner({"force_fp16": True})] for m in eps}
 
     edge = to_edge_transform_and_lower(
         eps,

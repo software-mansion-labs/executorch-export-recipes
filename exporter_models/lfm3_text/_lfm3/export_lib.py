@@ -1,4 +1,4 @@
-"""Shared export path for the LFM3 text decoder (xnnpack / mlx / vulkan)."""
+"""Shared export path for the LFM3 text decoder (xnnpack / mlx)."""
 
 import json
 import logging
@@ -130,13 +130,6 @@ def quantize(model: torch.nn.Module, backend: str, precision: str) -> None:
             model, qlinear_config=bits, qlinear_group_size=64,
             qembedding_config=bits, qembedding_group_size=64,
         )
-    elif backend == "vulkan":
-        assert precision == "8da4w", precision
-        # int4 weights, fp16 compute (force_fp16 in lower()), as LFM2.5 2.6B.
-        quantize_layerwise(
-            model, qlinear_config="8da4w", qlinear_group_size=64,
-            qembedding_config="4w", qembedding_group_size=64,
-        )
     else:
         raise ValueError(backend)
 
@@ -181,10 +174,6 @@ def lower(ep, backend: str, variant: dict, consts: dict):
         require_mlx_runtime_fork()
         passes = get_default_passes()
         partitioners = [MLXPartitioner()]
-    else:
-        from executorch.backends.vulkan.partitioner.vulkan_partitioner import VulkanPartitioner
-
-        partitioners = [VulkanPartitioner({"force_fp16": variant["precision"] != "fp32"})]
 
     edge = to_edge_transform_and_lower(
         {"forward": ep},

@@ -55,4 +55,4 @@ misses are wording (e.g. XNNPACK: "Three white banners with red lettering
 that says "SALE NOW ON" are displayed on poles in front of a building.").
 The XNNPACK file is large because the vision tower is fp32 (~0.8 GB).
 
-Vulkan: same blocker as `lfm3_text` (pytorch/executorch#23539).
+No Vulkan export: see `lfm3_text/NOTES.md`.

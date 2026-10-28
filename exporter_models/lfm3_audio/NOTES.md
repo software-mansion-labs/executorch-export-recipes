@@ -47,10 +47,14 @@ stale smell of old beer lingers. It takes heat to bring out the odor. ...":
 | | size | worst prefill cos | greedy |
 |---|---|---|---|
 | eager vendored | | | 48/48 |
-| xnnpack 8da4w | 1.72 GB | 0.99839 | 48/48 |
+| xnnpack 8da4w | 1.72 GB | 0.99811 | 48/48 |
+| mlx int4 | 1.16 GB | 0.99826 | 48/48 |
+| mlx int8 | 2.02 GB | 0.99996 | 48/48 |
 
 XNNPACK `audio_encoder`: 101 delegate calls. Attention uses 3-D `bmm` (a 4-D
 matmul leaves expand copies on host: 122 -> 101 calls); the 49 RMSNorm means
-stay on host, as in the text decoder.
+stay on host, as in the text decoder. MLX: one delegate per method, with the
+log-mel front end kept fp32 and the encoder RoPE built in-graph (MLX keeps a
+`[:T]` slice of a constant table at its full length).
 
-Vulkan: same blocker as `lfm3_text` (pytorch/executorch#23539).
+No Vulkan export: see `lfm3_text/NOTES.md`.

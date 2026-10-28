@@ -19,7 +19,7 @@ buffers, batch 1). What it lacks:
 - sandwich norm (`post_operator_norm`, `post_ffn_norm`) and the width-7 conv.
 
 `attn_impl` picks the attention kernel per backend: `llama::update_cache` +
-`llama::custom_sdpa` (XNNPACK, Vulkan) or `mlx::kv_cache_update` +
+`llama::custom_sdpa` (XNNPACK) or `mlx::kv_cache_update` +
 `mlx::custom_sdpa` (MLX). The sliding-window mask depends only on
 (start_pos, T) and is built once per forward. On XNNPACK the sliding layers
 read only the cache rows inside the window (`window_slice`).
@@ -63,15 +63,14 @@ the `export_llama` path does for every shipped LLM.
 `to_executorch` needs `do_quant_fusion_and_const_prop=True`; without it the
 int8 embedding leaves a `torchao::dequantize_affine` with no runtime kernel.
 
-## Vulkan: lowers only with pytorch/executorch#23539
+## No Vulkan export
 
-The sliding layers pass an `attn_mask` to `custom_sdpa`. The fork's Vulkan
-SDPA rejects masks at runtime, and its `causal_sdpa` pattern reads the op's
-arguments positionally, so it raises `IndexError` on a node where
-`torch.export` dropped the default `is_causal=False`. #23539 fixes both, but
-does not cherry-pick onto `@ms/separate-backends-1.4.1` (it conflicts with
-the fork's Gemma SDPA shader variants). Until it is ported and the Vulkan libs
-are rebuilt, `vulkan/` is the recipe only.
+Measured and dropped. With the fork's Vulkan SDPA taught to take `attn_mask`
+(sliding layers pass one), pytorch/executorch#22479 (tensorless delegate
+output) and the decode mask built from the `input_pos` tensor, the 1.7B lowers
+to one delegate and generates correctly, but on a Galaxy S26 Ultra it decodes
+at 31-39 tok/s against XNNPACK's 44-45, with equal short-prompt prefill (the
+LFM2.5 text result again).
 
 ## Reproduce
 
