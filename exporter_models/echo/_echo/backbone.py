@@ -73,3 +73,32 @@ def export(model: Echo, dtype=torch.float32) -> dict:
             strict=False,
         ),
     }
+
+
+class PrefixBucket(Prefix):
+    def forward(self, text, audio, is_audio, pos, key_bias):
+        return tuple(
+            t.float() for t in self.m.encode_prefix(text, audio, is_audio.to(self.dtype), pos, key_bias.to(self.dtype))
+        )
+
+
+class DenoiseBucket(Denoise):
+    def forward(self, codes, pos, bias, self_bias, kv):
+        kv = (t.to(self.dtype) for t in kv)
+        return self.m.denoise(codes, pos, bias.to(self.dtype), *kv, self_bias=self_bias.to(self.dtype)).float()
+
+
+def export_bucket(model: Echo, P: int, T: int, dtype=torch.float32) -> dict:
+    """Static-shape methods for one padded bucket (Core ML on the ANE, which needs
+    static shapes). encode_prefix takes key_bias [P] and denoise self_bias [T]:
+    -1e4 on padded keys, 0 elsewhere; `bias` carries -1e4 on padded prefix keys."""
+    n_kv = 2 * len(model.llm.layers)
+    kv_heads, head_dim = model.cfg["num_key_value_heads"], model.cfg["head_dim"]
+    pre_in = (torch.zeros(P, dtype=torch.long), torch.zeros(8, P, dtype=torch.long), torch.zeros(P),
+              torch.arange(P), torch.zeros(P))
+    den_in = (torch.full((8, T), 1024, dtype=torch.long), torch.arange(P, P + T), torch.zeros(P), torch.zeros(T),
+              tuple(torch.zeros(kv_heads, P, head_dim) for _ in range(n_kv)))
+    return {
+        "encode_prefix": torch.export.export(PrefixBucket(model, dtype).eval(), pre_in, strict=False),
+        "denoise": torch.export.export(DenoiseBucket(model, dtype).eval(), den_in, strict=False),
+    }

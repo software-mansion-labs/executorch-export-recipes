@@ -1,7 +1,12 @@
 """Echo -> ExecuTorch MLX (multi_pte, Apple GPU, physical devices only).
 
-  echo_mlx_fp16.pte          backbone: encode_prefix + denoise, fp16 compute, fp32 I/O
+  echo_mlx_fp16.pte          backbone: prefill / step / polish (_echo/v2.py), fp16, stacked fp16 K/V
   codec_decoder_mlx_fp32.pte decode: codes [8, T] -> audio [T * 960]
+
+The backbone uses the v2 contract rather than encode_prefix / denoise: fused
+linears, MLX SDPA and RoPE kernels, sampler reductions in-graph. It is 15-20%
+faster than the v1 contract on MLX (iPhone 16: 698 vs 821 ms for 5 s, 1262 vs
+1580 ms for 10 s; NOTES.md).
 
 RMSNorm stays aten.rms_norm ("native"): the residual stream reaches |x| ~ 1.1e4,
 so a decomposed x * x overflows fp16, while MLX's fused kernel does not.
@@ -26,15 +31,14 @@ def _vendored():
         mod = importlib.util.module_from_spec(spec)
         sys.modules[_PKG] = mod
         spec.loader.exec_module(mod)
-    return tuple(importlib.import_module(f"{_PKG}.{m}") for m in ("backbone", "codec", "hub"))
+    return tuple(importlib.import_module(f"{_PKG}.{m}") for m in ("backbone", "codec", "hub", "v2"))
 
 
 def _programs(variant: dict) -> dict:
-    backbone, codec, hub = _vendored()
+    backbone, codec, hub, v2 = _vendored()
     name = variant["file"]
     if name.startswith("echo_"):
-        model = backbone.load(hub.checkpoint("fp32"), rms_norm="native", dtype=torch.float16)
-        return backbone.export(model, dtype=torch.float16)
+        return v2.export(backbone.load(hub.checkpoint("fp32"), rms_norm="native"), dtype=torch.float16)
     if name.startswith("codec_decoder_"):
         return {"decode": codec.export_decoder(codec.load_codec(hub.codec()))}
     raise ValueError(f"unknown Echo program for variant file '{name}'")

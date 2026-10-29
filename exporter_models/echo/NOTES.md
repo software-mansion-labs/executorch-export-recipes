@@ -22,10 +22,11 @@ reference is `run/voice_cloning.ipynb` in the source repo, ported in
 | xnnpack | `codec_encoder_xnnpack_fp32.pte` | codec encoder, 10 s reference |
 | vulkan | `echo_vulkan_fp16.pte` | backbone, fp16 |
 | vulkan | `echo_vulkan_8da4w.pte` | backbone, w4a16 codes + int8 dynamic activations |
-| mlx | `echo_mlx_fp16.pte` | backbone, fp16 |
+| mlx | `echo_mlx_fp16.pte` | backbone, fp16, v2 contract (prefill / step / polish) |
 | mlx | `codec_decoder_mlx_fp32.pte` | codec decoder, T <= 1024 |
-| coreml | `echo_coreml_fp16.pte` | backbone, fp16 |
-| coreml | `codec_decoder_coreml_fp16.pte` | codec decoder, static T = 250 |
+| coreml | `echo_coreml_fp16.pte` | backbone, fp16, dynamic (GPU) |
+| coreml | `echo_coreml_fp16_ane_t128.pte`, `_ane_t256.pte` | backbone, fp16, static bucket P = 320, T = 128 / 256, CPU_AND_NE |
+| coreml | `codec_decoder_coreml_fp16.pte` | codec decoder, static T = 250, CPU_AND_GPU |
 
 Android pairs the Vulkan backbone with the XNNPACK codec files: Vulkan cannot
 hold the decoder in one blob above T = 16 and is 8x slower than XNNPACK on it.
@@ -48,6 +49,21 @@ sum of two). `pos` is passed in; the target continues at P. `bias` adds to
 every target score towards a prefix key: 0 on the main passes, +1 on the
 reference frames for the polish passes. The prefix K/V is computed once per
 clip and fed back into every `denoise`. Float I/O is fp32 on every backend.
+
+MLX uses the v2 contract (`_echo/v2.py`):
+
+```
+prefill(ids i64[NT], ref i64[8, R]) -> K, V  f16[24, 1, 6, P, 128]   (P = NT + R)
+step(tokens i64[8, T], K, V) -> confidence f32[2, T], prediction i64[2, T]
+polish(tokens i64[8, T], bias f16[1, 1, 1, P], K, V) -> tokens i64[6, T]
+```
+
+`step` is one main pass reduced in-graph to codebooks 0-1 (best code and its
+log-probability); `polish` runs both polish passes and returns codebooks 2-7.
+Two stacked fp16 caches and [2, T] outputs replace 48 fp32 tensors and
+[8, T, 1024] per pass; Q/K/V and gate/up are fused, attention is SDPA and RoPE
+is `mlx::rope`. The ANE buckets keep the v1 methods with `key_bias` [P] /
+`self_bias` [T] (-1e4 on padding), like QNN.
 
 ## Why the odd spellings
 
@@ -120,7 +136,23 @@ Whisper-small WER on the source repo's 14 test clips (`evaluate.py`):
 | QNN fp16, 6 clips that fit P = 320 | Galaxy S26 Ultra | 10.1% (reference 6.06%) |
 | QNN a16w8, same 6 clips | Galaxy S26 Ultra | 8.08% |
 
-iPhone 16, warm, ms per call:
+Model time (prefill + 10 passes, sampler included), 123-frame reference,
+125 / 250 target frames, median of 5 warm runs, ms:
+
+| build | iPhone 16 (A18) | iPhone 17 (A19) | M3 Pro |
+| --- | --- | --- | --- |
+| MLX fp16, v2 contract | 698 / 1262 | | 278 / 473 |
+| MLX fp16, v1 contract | 821 / 1580 | 293 / 530 | 340 / 560 |
+| MLX int4 (w4a16), v1 | | 589 / 917 | |
+| Core ML ANE, t128 / t256 | 695 / 865 | 596 / 814 | |
+| XNNPACK 8da4w, v1 | 3059 / 6194 | | |
+
+The ANE buckets win on A18 at 10 s; A19's GPU is ~3x faster on fp16 while
+its ANE gains ~10%, so MLX fp16 wins there and quantization loses (int8 is 2x
+slower than fp16 on A19, equal on A18). Codec decode on iPhone 16, Core ML
+T = 250: CPU_AND_GPU 207 ms, CPU_ONLY 186, ALL 250, CPU_AND_NE 1090.
+
+iPhone 16, warm, ms per call (v1 contract):
 
 | backend | encode_prefix | denoise | codec decode |
 | --- | --- | --- | --- |

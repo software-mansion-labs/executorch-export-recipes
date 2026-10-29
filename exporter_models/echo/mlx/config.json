@@ -12,120 +12,36 @@
       "quantized": false,
       "default": true,
       "methods": {
-        "encode_prefix": {
+        "prefill": {
           "inputs": [
             { "shape": [null], "dtype": "int64" },
-            { "shape": [8, null], "dtype": "int64" },
-            { "shape": [null], "dtype": "float32" },
-            { "shape": [null], "dtype": "int64" }
+            { "shape": [8, null], "dtype": "int64" }
           ],
           "outputs": [
-            { "shape": [6, null, 128], "dtype": "float32" },
-            { "shape": [6, null, 128], "dtype": "float32" },
-            { "shape": [6, null, 128], "dtype": "float32" },
-            { "shape": [6, null, 128], "dtype": "float32" },
-            { "shape": [6, null, 128], "dtype": "float32" },
-            { "shape": [6, null, 128], "dtype": "float32" },
-            { "shape": [6, null, 128], "dtype": "float32" },
-            { "shape": [6, null, 128], "dtype": "float32" },
-            { "shape": [6, null, 128], "dtype": "float32" },
-            { "shape": [6, null, 128], "dtype": "float32" },
-            { "shape": [6, null, 128], "dtype": "float32" },
-            { "shape": [6, null, 128], "dtype": "float32" },
-            { "shape": [6, null, 128], "dtype": "float32" },
-            { "shape": [6, null, 128], "dtype": "float32" },
-            { "shape": [6, null, 128], "dtype": "float32" },
-            { "shape": [6, null, 128], "dtype": "float32" },
-            { "shape": [6, null, 128], "dtype": "float32" },
-            { "shape": [6, null, 128], "dtype": "float32" },
-            { "shape": [6, null, 128], "dtype": "float32" },
-            { "shape": [6, null, 128], "dtype": "float32" },
-            { "shape": [6, null, 128], "dtype": "float32" },
-            { "shape": [6, null, 128], "dtype": "float32" },
-            { "shape": [6, null, 128], "dtype": "float32" },
-            { "shape": [6, null, 128], "dtype": "float32" },
-            { "shape": [6, null, 128], "dtype": "float32" },
-            { "shape": [6, null, 128], "dtype": "float32" },
-            { "shape": [6, null, 128], "dtype": "float32" },
-            { "shape": [6, null, 128], "dtype": "float32" },
-            { "shape": [6, null, 128], "dtype": "float32" },
-            { "shape": [6, null, 128], "dtype": "float32" },
-            { "shape": [6, null, 128], "dtype": "float32" },
-            { "shape": [6, null, 128], "dtype": "float32" },
-            { "shape": [6, null, 128], "dtype": "float32" },
-            { "shape": [6, null, 128], "dtype": "float32" },
-            { "shape": [6, null, 128], "dtype": "float32" },
-            { "shape": [6, null, 128], "dtype": "float32" },
-            { "shape": [6, null, 128], "dtype": "float32" },
-            { "shape": [6, null, 128], "dtype": "float32" },
-            { "shape": [6, null, 128], "dtype": "float32" },
-            { "shape": [6, null, 128], "dtype": "float32" },
-            { "shape": [6, null, 128], "dtype": "float32" },
-            { "shape": [6, null, 128], "dtype": "float32" },
-            { "shape": [6, null, 128], "dtype": "float32" },
-            { "shape": [6, null, 128], "dtype": "float32" },
-            { "shape": [6, null, 128], "dtype": "float32" },
-            { "shape": [6, null, 128], "dtype": "float32" },
-            { "shape": [6, null, 128], "dtype": "float32" },
-            { "shape": [6, null, 128], "dtype": "float32" }
+            { "shape": [24, 1, 6, null, 128], "dtype": "float16" },
+            { "shape": [24, 1, 6, null, 128], "dtype": "float16" }
           ]
         },
-        "denoise": {
+        "step": {
           "inputs": [
             { "shape": [8, null], "dtype": "int64" },
-            { "shape": [null], "dtype": "int64" },
-            { "shape": [null], "dtype": "float32" },
-            { "shape": [6, null, 128], "dtype": "float32" },
-            { "shape": [6, null, 128], "dtype": "float32" },
-            { "shape": [6, null, 128], "dtype": "float32" },
-            { "shape": [6, null, 128], "dtype": "float32" },
-            { "shape": [6, null, 128], "dtype": "float32" },
-            { "shape": [6, null, 128], "dtype": "float32" },
-            { "shape": [6, null, 128], "dtype": "float32" },
-            { "shape": [6, null, 128], "dtype": "float32" },
-            { "shape": [6, null, 128], "dtype": "float32" },
-            { "shape": [6, null, 128], "dtype": "float32" },
-            { "shape": [6, null, 128], "dtype": "float32" },
-            { "shape": [6, null, 128], "dtype": "float32" },
-            { "shape": [6, null, 128], "dtype": "float32" },
-            { "shape": [6, null, 128], "dtype": "float32" },
-            { "shape": [6, null, 128], "dtype": "float32" },
-            { "shape": [6, null, 128], "dtype": "float32" },
-            { "shape": [6, null, 128], "dtype": "float32" },
-            { "shape": [6, null, 128], "dtype": "float32" },
-            { "shape": [6, null, 128], "dtype": "float32" },
-            { "shape": [6, null, 128], "dtype": "float32" },
-            { "shape": [6, null, 128], "dtype": "float32" },
-            { "shape": [6, null, 128], "dtype": "float32" },
-            { "shape": [6, null, 128], "dtype": "float32" },
-            { "shape": [6, null, 128], "dtype": "float32" },
-            { "shape": [6, null, 128], "dtype": "float32" },
-            { "shape": [6, null, 128], "dtype": "float32" },
-            { "shape": [6, null, 128], "dtype": "float32" },
-            { "shape": [6, null, 128], "dtype": "float32" },
-            { "shape": [6, null, 128], "dtype": "float32" },
-            { "shape": [6, null, 128], "dtype": "float32" },
-            { "shape": [6, null, 128], "dtype": "float32" },
-            { "shape": [6, null, 128], "dtype": "float32" },
-            { "shape": [6, null, 128], "dtype": "float32" },
-            { "shape": [6, null, 128], "dtype": "float32" },
-            { "shape": [6, null, 128], "dtype": "float32" },
-            { "shape": [6, null, 128], "dtype": "float32" },
-            { "shape": [6, null, 128], "dtype": "float32" },
-            { "shape": [6, null, 128], "dtype": "float32" },
-            { "shape": [6, null, 128], "dtype": "float32" },
-            { "shape": [6, null, 128], "dtype": "float32" },
-            { "shape": [6, null, 128], "dtype": "float32" },
-            { "shape": [6, null, 128], "dtype": "float32" },
-            { "shape": [6, null, 128], "dtype": "float32" },
-            { "shape": [6, null, 128], "dtype": "float32" },
-            { "shape": [6, null, 128], "dtype": "float32" },
-            { "shape": [6, null, 128], "dtype": "float32" },
-            { "shape": [6, null, 128], "dtype": "float32" },
-            { "shape": [6, null, 128], "dtype": "float32" }
+            { "shape": [24, 1, 6, null, 128], "dtype": "float16" },
+            { "shape": [24, 1, 6, null, 128], "dtype": "float16" }
           ],
           "outputs": [
-            { "shape": [8, null, 1024], "dtype": "float32" }
+            { "shape": [2, null], "dtype": "float32" },
+            { "shape": [2, null], "dtype": "int64" }
+          ]
+        },
+        "polish": {
+          "inputs": [
+            { "shape": [8, null], "dtype": "int64" },
+            { "shape": [1, 1, 1, null], "dtype": "float16" },
+            { "shape": [24, 1, 6, null, 128], "dtype": "float16" },
+            { "shape": [24, 1, 6, null, 128], "dtype": "float16" }
+          ],
+          "outputs": [
+            { "shape": [6, null], "dtype": "int64" }
           ]
         }
       }
