@@ -1,7 +1,7 @@
 # Vulkan precision and Android validation
 
-Both variants accept RGB float32 `[1,3,320,320]` in `[0,1]` and return float32
-`[1,1,320,320]` foreground logits. Input normalization stays in FP32. Each
+The published FP16 variant accepts RGB float32 `[1,3,320,320]` in `[0,1]` and returns float32
+`[1,1,320,320]` foreground logits. Input normalization stays in FP32. The
 export contains one Vulkan delegate for the network and one portable input
 `amax` reduction. Texture limits are capped at 2048 in each dimension.
 
@@ -33,10 +33,9 @@ XNNPACK FP32 `.pte`, not ground-truth segmentation accuracy.
 | Variant | Mean mask IoU (13 images) | Minimum mask IoU | File size |
 | --- | --- | --- | --- |
 | Vulkan FP16 with one FP32 convolution | 0.9945 | 0.9854 | 2,437,516 B |
-| Vulkan FP32 | 0.999999 | 0.999986 | 4,646,540 B |
 
-The FP16 probability MAE was at most 0.00444 across those 13 images. Both
-variants produced finite outputs on all 15 inputs.
+The FP16 probability MAE was at most 0.00444 across those 13 images. The published
+variant produced finite outputs on all 15 inputs.
 
 Warm native forward measurements on the same bicycle input used three warm-up
 runs followed by ten measured runs per variant:
@@ -46,7 +45,7 @@ runs followed by ten measured runs per variant:
 | XNNPACK FP32 | 315.6 ms |
 | XNNPACK selective INT8 | 189.1 ms |
 | Vulkan FP16 with one FP32 convolution | 337.2 ms |
-| Vulkan FP32 | 403.1 ms |
+| Vulkan FP32 (unpublished trial) | 403.1 ms |
 
 These were sequential host-driven device checks, not interleaved benchmarks;
 they exclude model loading, image preprocessing and rendering. Vulkan does not
@@ -86,6 +85,6 @@ runpy.run_module("exporter.cli", run_name="__main__")
 PY
 ```
 
-The release exports were byte-identical to the device-validated candidates.
+The release FP16 export was byte-identical to the device-validated candidate.
 The Python wheel's native runtime cannot execute Vulkan on this Mac; it was
 not used as a substitute for phone validation.

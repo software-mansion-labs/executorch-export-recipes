@@ -5,7 +5,7 @@ pipeline. No task or native changes are needed. See README.md for the published 
 and reproduction details are recorded below.
 
 Published repository: https://huggingface.co/software-mansion/U2NetP-ExecuTorch
-Revision tag: `v1.0.0`. The library exposes the six artifacts under
+Revision tag: `v1.0.0`. The library exposes the five artifacts under
 `models.semanticSegmentation.U2NETP`.
 
 ## Export changes
@@ -85,7 +85,7 @@ validation on 13 held-out images, and interleaved host timing.
 
 ## Vulkan
 
-The Android Vulkan FP16 and FP32 exports were executed on the connected Galaxy
+The Android Vulkan FP16 export was executed on the connected Galaxy
 S20+ using RNE's shipped 1.4.1 native libraries. FP16 preserves input
 normalization and one sensitive convolution in FP32; entirely FP16 was rejected.
 See `vulkan/NOTES.md` for precision choices, validation, phone timings and the

@@ -59,8 +59,7 @@ def export(config: dict, out_dir: str) -> str:
     shape = tuple(variant["methods"]["forward"]["inputs"][0]["shape"])
     wrapper = _load_wrapper()
     model = wrapper.U2NetPForRNE(wrapper.load_model()).eval()
-    if variant["precision"] == "fp16":
-        model = _prepare_fp16(model)
+    model = _prepare_fp16(model)
     inputs = (torch.rand(*shape, dtype=torch.float32),)
     ep = torch.export.export(model, inputs, strict=True)
     program = to_edge_transform_and_lower(

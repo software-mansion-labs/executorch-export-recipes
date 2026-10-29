@@ -26,7 +26,6 @@ revision `ac7e1c817ecab7c7dff5ce6b1abba61cd213ff29`.
 | `xnnpack/u2netp_xnnpack_fp32.pte` | xnnpack | fp32      |
 | `xnnpack/u2netp_xnnpack_int8.pte` | xnnpack | selective int8 / fp32 |
 | `vulkan/u2netp_vulkan_fp16.pte` | vulkan | fp16 with one fp32 convolution |
-| `vulkan/u2netp_vulkan_fp32.pte` | vulkan | fp32 |
 
 The exports take RGB float32 `[1,3,320,320]` input in `[0,1]` and return one
 float32 `[1,1,320,320]` foreground logit map. Image-maximum scaling and ImageNet
@@ -54,8 +53,7 @@ calibration, validation and rejected alternatives.
 
 Vulkan FP16 preserves input normalization and one sensitive convolution in FP32.
 On a Galaxy S20+ (Android 13, Mali), native forward medians were 337 ms for this
-variant and 403 ms for Vulkan FP32, versus 316 ms for XNNPACK FP32 and 189 ms
-for selective INT8. Vulkan is optional; Android retains its XNNPACK FP32
+variant, versus 316 ms for XNNPACK FP32 and 189 ms for selective INT8. Vulkan is optional; Android retains its XNNPACK FP32
 default. Across 13 device-tested images, Vulkan FP16 averaged 0.9945 mask IoU
 against FP32 (minimum 0.9854). See [Vulkan precision notes](vulkan/NOTES.md)
 for the export recipe, phone validation and timing limitations.
@@ -67,10 +65,9 @@ config.json                                    28 B
 coreml/config.json                           1.5 kB
 coreml/u2netp_coreml_fp16.pte                3.3 MB
 coreml/u2netp_coreml_fp32.pte                5.5 MB
-vulkan/config.json                           1.5 kB
-vulkan/NOTES.md                              4.2 kB
+vulkan/config.json                            886 B
+vulkan/NOTES.md                              4.1 kB
 vulkan/u2netp_vulkan_fp16.pte                2.4 MB
-vulkan/u2netp_vulkan_fp32.pte                4.6 MB
 xnnpack/config.json                          1.5 kB
 xnnpack/NOTES.md                             6.6 kB
 xnnpack/u2netp_xnnpack_fp32.pte              4.6 MB
