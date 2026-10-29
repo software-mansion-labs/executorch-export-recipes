@@ -62,7 +62,6 @@ xnnpack/config.json                        888 B
 xnnpack/NOTES.md                           4.3 kB
 xnnpack/u2netp_xnnpack_fp32.pte              4.6 MB
 LICENSE                                  11.4 kB
-sha256.json                                314 B
 ```
 
 ## Compatibility
