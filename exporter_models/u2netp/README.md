@@ -48,15 +48,13 @@ These measure export agreement, not accuracy against ground-truth masks.
 Choose FP32 when boundary precision matters.
 
 Full-network INT8 remains unpublished because it loses substantial foreground
-detail. See [XNNPACK precision notes](xnnpack/NOTES.md) for the selective recipe,
-calibration, validation and rejected alternatives.
+detail.
 
 Vulkan FP16 preserves input normalization and one sensitive convolution in FP32.
 On a Galaxy S20+ (Android 13, Mali), native forward medians were 337 ms for this
 variant, versus 316 ms for XNNPACK FP32 and 189 ms for selective INT8. Android uses the standard Vulkan-first default when the Vulkan backend is
 linked. Performance varies by device. Across 13 device-tested images, Vulkan FP16 averaged 0.9945 mask IoU
-against FP32 (minimum 0.9854). See [Vulkan precision notes](vulkan/NOTES.md)
-for the export recipe, phone validation and timing limitations.
+against FP32 (minimum 0.9854).
 
 ## Repository structure
 
@@ -66,10 +64,8 @@ coreml/config.json                           1.5 kB
 coreml/u2netp_coreml_fp16.pte                3.3 MB
 coreml/u2netp_coreml_fp32.pte                5.5 MB
 vulkan/config.json                            886 B
-vulkan/NOTES.md                              4.1 kB
 vulkan/u2netp_vulkan_fp16.pte                2.4 MB
 xnnpack/config.json                          1.5 kB
-xnnpack/NOTES.md                             6.6 kB
 xnnpack/u2netp_xnnpack_fp32.pte              4.6 MB
 xnnpack/u2netp_xnnpack_int8.pte              4.0 MB
 LICENSE                                     11.4 kB
