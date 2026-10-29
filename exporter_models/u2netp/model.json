@@ -1,0 +1,8 @@
+{
+  "hf": "https://huggingface.co/software-mansion/U2NetP-ExecuTorch",
+  "config": "{backend}/config.json",
+  "backends": [
+    "xnnpack",
+    "coreml"
+  ]
+}
