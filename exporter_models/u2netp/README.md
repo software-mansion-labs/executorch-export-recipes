@@ -24,6 +24,7 @@ revision `ac7e1c817ecab7c7dff5ce6b1abba61cd213ff29`.
 | `coreml/u2netp_coreml_fp16.pte`   | coreml  | fp16      |
 | `coreml/u2netp_coreml_fp32.pte`   | coreml  | fp32      |
 | `xnnpack/u2netp_xnnpack_fp32.pte` | xnnpack | fp32      |
+| `xnnpack/u2netp_xnnpack_int8.pte` | xnnpack | selective int8 / fp32 |
 
 The exports take RGB float32 `[1,3,320,320]` input in `[0,1]` and return one
 float32 `[1,1,320,320]` foreground logit map. Image-maximum scaling and ImageNet
@@ -34,34 +35,33 @@ speed and may shift mask boundaries; FP32 preserves the reference more closely.
 
 ## XNNPACK quantization
 
-INT8 was exported and tested but is not published: foreground masks drift too
-far from the FP32 reference. A mixed INT8/FP32 candidate preserved more detail
-but still changed boundaries materially.
+The INT8 variant selectively quantizes four expensive convolutions with static
+INT8 activations and per-channel INT8 weights. Sensitive layers and skip
+connections remain FP32; public input and output types are unchanged.
 
-Mask IoU against the shipped FP32 `.pte`, with a probability threshold of 0.5,
-on three upstream images held out from quantization calibration:
+On an Apple M1 Pro, interleaved ExecuTorch runs measured **87 ms** median versus
+**156 ms** for FP32 (1.78× faster; 30 runs after five warm-ups). Device speedups
+will vary. Across 13 images outside calibration, exported masks averaged
+**0.9953 IoU** against FP32 (minimum 0.9868), at a foreground threshold of 0.5.
+These measure export agreement, not accuracy against ground-truth masks.
+Choose FP32 when boundary precision matters.
 
-| Image       | Static INT8 | Mixed INT8/FP32 |
-| ----------- | ----------- | --------------- |
-| `bike.jpg`  | 0.6692      | 0.9629          |
-| `boat.jpg`  | 0.8703      | 0.9410          |
-| `whisk.png` | 0.9387      | 0.9945          |
-
-These are export-agreement checks, not ground-truth segmentation accuracy.
-See [XNNPACK precision notes](xnnpack/NOTES.md) for calibration, size/latency
-results, the rejected FP16 trial, and profiler findings.
+Full-network INT8 remains unpublished because it loses substantial foreground
+detail. See [XNNPACK precision notes](xnnpack/NOTES.md) for the selective recipe,
+calibration, validation and rejected alternatives.
 
 ## Repository structure
 
 ```
-config.json                                  28 B
-coreml/config.json                         1.5 kB
+config.json                                    28 B
+coreml/config.json                           1.5 kB
 coreml/u2netp_coreml_fp16.pte                3.3 MB
 coreml/u2netp_coreml_fp32.pte                5.5 MB
-xnnpack/config.json                        888 B
-xnnpack/NOTES.md                           4.3 kB
+xnnpack/config.json                          1.5 kB
+xnnpack/NOTES.md                             6.5 kB
 xnnpack/u2netp_xnnpack_fp32.pte              4.6 MB
-LICENSE                                  11.4 kB
+xnnpack/u2netp_xnnpack_int8.pte              4.0 MB
+LICENSE                                     11.4 kB
 ```
 
 ## Compatibility

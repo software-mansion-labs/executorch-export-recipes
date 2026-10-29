@@ -25,6 +25,13 @@ def export(config: dict, out_dir: str) -> str:
     wrapper = _load_wrapper()
     model = wrapper.U2NetPForRNE(wrapper.load_model()).eval()
     inputs = (torch.rand(*shape, dtype=torch.float32),)
+    if variant["precision"] == "int8":
+        key = "u2netp_quantization"
+        spec = importlib.util.spec_from_file_location(key, _MODEL_DIR / "_quantization.py")
+        module = importlib.util.module_from_spec(spec)
+        sys.modules[key] = module
+        spec.loader.exec_module(module)
+        model = module.quantize(model, inputs)
     ep = torch.export.export(model, inputs, strict=True)
     program = lower(ep, config["backend"])
     path = Path(out_dir) / variant["file"]

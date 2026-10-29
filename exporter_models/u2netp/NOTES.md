@@ -5,7 +5,7 @@ pipeline. No task or native changes are needed. See README.md for the published 
 and reproduction details are recorded below.
 
 Published repository: https://huggingface.co/software-mansion/U2NetP-ExecuTorch
-Revision tag: `v1.0.0`. The library exposes the three artifacts under
+Revision tag: `v1.0.0`. The library exposes the four artifacts under
 `models.semanticSegmentation.U2NETP`.
 
 ## Export changes
@@ -74,3 +74,11 @@ The model code is vendored from upstream commit
 `ac7e1c817ecab7c7dff5ce6b1abba61cd213ff29`. The checkpoint is downloaded from the
 author's linked Google Drive artifact and checked against SHA-256
 `e7567cde013fb64813973ce6e1ecc25a80c05c3ca7adbc5a54f3c3d90991b854`.
+
+## Selective XNNPACK INT8
+
+The additional `int8` variant uses `_quantization.py` to quantize four expensive
+convolutions while retaining sensitive operations in FP32. The exporter fetches
+13 calibration images at the pinned upstream revision into `datasets/u2netp/`.
+See `xnnpack/NOTES.md` for the operator-filter workaround, exported-runtime
+validation on 13 held-out images, and interleaved host timing.

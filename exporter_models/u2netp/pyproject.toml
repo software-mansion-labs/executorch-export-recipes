@@ -8,6 +8,7 @@ dependencies = [
     "executorch==1.4.1",
     "safetensors==0.8.0",
     "coremltools==9.0",
+    "pillow==12.2.0",
 ]
 
 [tool.uv]

@@ -1,8 +1,48 @@
 # XNNPACK precision experiments
 
-Only FP32 is published. Static INT8, mixed INT8/FP32, and FP16 candidates were
-exported and executed, but rejected because they changed the foreground masks.
-The absence of an INT8 file is a quality decision, not an export failure.
+FP32 and selective INT8 are published. Full-network static INT8, an earlier
+mixed INT8/FP32 recipe and FP16 were rejected because they changed the masks.
+
+## Selective INT8 (published)
+
+The final recipe quantizes only `stage1d.rebnconvin`, `stage1d.rebnconv1d`,
+`stage2d.rebnconvin` and `stage2.rebnconvin`. These convolutions dominate host
+latency. Remaining convolutions, concatenations and residual additions stay
+FP32. Public I/O and normalization are unchanged.
+
+PT2E uses per-channel symmetric INT8 weights and per-tensor affine INT8
+activations with HistogramObserver. The weight observer minimum scale is
+float32 epsilon. Calibration uses the same 13 pinned upstream images listed
+below. Export scripts download these images automatically.
+
+ExecuTorch 1.4.1's concatenation annotator ignores its filter argument, so
+module exclusions alone do not keep skip connections in FP32. The export
+selects only convolution operators, with an explicit module filter. Weight
+attributes are allowed through this filter because they lack module-stack
+metadata. This avoids quantizing unrelated concatenations.
+
+Actual `.pte` execution was checked against the published FP32 `.pte` on the
+three upstream images below plus ten COCO val2017 images, IDs 139, 285, 632,
+724, 776, 785, 802, 872, 885 and 1000. None was used for calibration. Average
+mask IoU was 0.9953, minimum 0.9868; probability MAE ranged from 0.00015 to
+0.00543. All-black and all-white inputs also produced finite outputs.
+
+| Image       | Selective INT8 mask IoU | Probability MAE |
+| ----------- | ---------------------- | --------------- |
+| `bike.jpg`  | 0.9947                 | 0.00158         |
+| `boat.jpg`  | 0.9956                 | 0.00152         |
+| `whisk.png` | 0.9992                 | 0.00055         |
+
+On an Apple M1 Pro, 30 interleaved ExecuTorch runs after five warm-ups measured
+156.0 ms median for FP32 and 87.4 ms for selective INT8 (1.78× faster). File
+sizes were 4,610,948 and 4,007,684 bytes. These are host measurements, exclude
+RNE preprocessing/rendering, and need on-device confirmation. This small
+sample measures conversion agreement, not ground-truth segmentation accuracy.
+
+The event-traced ExecuTorch 1.4.1 runtime and cloned profiler confirmed all
+four selected convolutions execute as quantized XNNPACK kernels. Over five
+real-input executions, the delegate accounted for 99.36% of method time and
+the portable input `amax` for 0.63%.
 
 ## Static INT8
 
@@ -34,11 +74,12 @@ Those mask changes outweigh the size and latency improvements.
 
 ## Mixed INT8/FP32
 
-The second candidate kept `stage1`, `stage2`, `stage1d`, `stage2d`, `side1`,
-`side2`, and `outconv` in FP32, quantizing the remaining network with the same
-calibration data. Preserving these early and final high-resolution blocks
-improved agreement, but the boat mask still fell to 0.9410 IoU and the latency
-gain was small. This candidate is also not published.
+The earlier candidate excluded convolutions in `stage1`, `stage2`, `stage1d`,
+`stage2d`, `side1`, `side2`, and `outconv`, using the same calibration data.
+The concatenation-filter issue described above still quantized skip connections,
+including those inside excluded modules. Agreement improved, but the boat mask
+still fell to 0.9410 IoU and the latency gain was small. This candidate is not
+published. The selective recipe above replaces this approach.
 
 ## Host size and latency
 
