@@ -89,5 +89,6 @@ The Android Vulkan FP16 export was executed on the connected Galaxy
 S20+ using RNE's shipped 1.4.1 native libraries. FP16 preserves input
 normalization and one sensitive convolution in FP32; entirely FP16 was rejected.
 See `vulkan/NOTES.md` for precision choices, validation, phone timings and the
-reproducible AOT environment. Vulkan was slower than XNNPACK on this phone, so
-the Android default remains XNNPACK FP32.
+reproducible AOT environment. Vulkan was slower than XNNPACK on this phone;
+performance varies by device. Android uses the standard Vulkan-first default
+when the Vulkan backend is linked.

@@ -53,8 +53,8 @@ calibration, validation and rejected alternatives.
 
 Vulkan FP16 preserves input normalization and one sensitive convolution in FP32.
 On a Galaxy S20+ (Android 13, Mali), native forward medians were 337 ms for this
-variant, versus 316 ms for XNNPACK FP32 and 189 ms for selective INT8. Vulkan is optional; Android retains its XNNPACK FP32
-default. Across 13 device-tested images, Vulkan FP16 averaged 0.9945 mask IoU
+variant, versus 316 ms for XNNPACK FP32 and 189 ms for selective INT8. Android uses the standard Vulkan-first default when the Vulkan backend is
+linked. Performance varies by device. Across 13 device-tested images, Vulkan FP16 averaged 0.9945 mask IoU
 against FP32 (minimum 0.9854). See [Vulkan precision notes](vulkan/NOTES.md)
 for the export recipe, phone validation and timing limitations.
 

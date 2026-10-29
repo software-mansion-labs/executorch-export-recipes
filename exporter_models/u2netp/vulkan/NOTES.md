@@ -49,9 +49,9 @@ runs followed by ten measured runs per variant:
 
 These were sequential host-driven device checks, not interleaved benchmarks;
 they exclude model loading, image preprocessing and rendering. Vulkan does not
-win on this older Mali GPU. Android retains its existing XNNPACK FP32 default;
-select INT8 for the faster CPU option. Performance on other GPUs must be
-measured separately. A trial with only four half-precision convolutions was
+win on this older Mali GPU. Android uses the standard Vulkan-first default
+when the Vulkan backend is linked. Select XNNPACK INT8 for the faster option
+on this tested phone; performance varies by device. A trial with only four half-precision convolutions was
 also slower (421.9 ms) and is not published.
 
 ## Reproducing the export environment
