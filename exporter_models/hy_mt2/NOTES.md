@@ -37,6 +37,26 @@ within ~1 BLEU of fp32, for 43% less size and 1.5x faster decode, so it is the
 XNNPACK default; 8da8w is published for quality. No empty or runaway output
 in any Hy-MT2 run (EuroLLM ran away on 1 of the en->de sentences).
 
+## On device (2026-10-30)
+
+react-native-executorch PR #1572 (52e96e87d7, native libs v0.11.0), `apps/nlp` Release,
+`createLLMTranslator` with the published HF v0.11.0 files, first 10 sentences of each
+eval set above, one run each. "Identical" = same text as the host greedy output of the
+same .pte; ms are wall time per sentence (prefill + decode) as the app sees it.
+
+| device | variant | load | identical en-de / en-zh / zh-en | ms/sentence en-de / en-zh / zh-en |
+| --- | --- | --- | --- | --- |
+| Galaxy S26 Ultra | xnnpack 8da4w | 1.4 s | 7 / 8 / 7 | 1041 / 433 / 712 |
+| Galaxy S26 Ultra | xnnpack 8da8w | 3.5 s | 5 / 4 / 5 | 1603 / 729 / 1230 |
+| iPhone 16 | mlx int8 | 0.3 s | 10 / 10 / 10 | 1940 / 776 / 1370 |
+| iPhone 16 | xnnpack 8da4w | 2.6 s | 3 / 4 / 5 | 1277 / 725 / 1152 |
+
+Non-identical outputs are near-tie flips into equally valid wording (char similarity to
+host 0.92-0.99; e.g. comma placement, synonyms); XNNPACK's int8 kernels differ per CPU,
+MLX on the iPhone reproduces the M-series host exactly. No errors, empty or runaway
+outputs. The published tokenizer.json loads and tokenizes correctly on the v0.11.0 libs.
+On the iPhone 8da4w is 16-35% faster than MLX int8 per sentence and 37% smaller.
+
 ## Tokenizer (`_tokenizer.py`)
 
 The HFTokenizer in RNE's native libs (pytorch/tokenizers fork ef00dcc4)
