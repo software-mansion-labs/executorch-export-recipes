@@ -81,7 +81,10 @@
 # -             keep = box_ops.batched_nms(image_boxes, image_scores, image_labels, self.nms_thresh)
 # -             keep = keep[: self.detections_per_img]
 # ---
-# +             iou = box_ops.box_iou(final_boxes, final_boxes)
+# +             # IoU on boxes scaled to [0, 1]: same result, but the pixel areas (up to 320^2)
+# +             # overflow fp16 and turn the IoU into NaN on fp16 backends.
+# +             unit = final_boxes / max(image_shape)
+# +             iou = box_ops.box_iou(unit, unit)
 # +             suppressed = (torch.triu(iou, diagonal=1) > self.nms_thresh).any(dim=0)
 # +             final_scores = torch.where(suppressed, torch.zeros_like(final_scores), final_scores)
 # -                     "boxes": image_boxes[keep],
@@ -92,8 +95,13 @@
 # +                     "scores": final_scores,
 # +                     "labels": final_labels,
 # - @register_model()
+# -         self.transform = GeneralizedRCNNTransform(
+# ---
+# +         self.transform = _FunctionalTransform(
+# + class _FunctionalTransform(GeneralizedRCNNTransform): functional batch_images (no in-place copy_)
 # fmt:on
 
+import math
 import warnings
 from collections import OrderedDict
 from typing import Any, Optional
@@ -113,6 +121,21 @@ from torchvision.models.detection import _utils as det_utils
 from torchvision.models.detection.anchor_utils import DefaultBoxGenerator
 from torchvision.models.detection.backbone_utils import _validate_trainable_layers
 from torchvision.models.detection.transform import GeneralizedRCNNTransform
+
+
+class _FunctionalTransform(GeneralizedRCNNTransform):
+    # torchvision fills a new_full buffer with an in-place copy_. pt2e quantization
+    # observes the buffer before the copy, so a quantized export reads zeros instead
+    # of the image. Padding functionally gives the same tensor.
+    def batch_images(self, images: list[Tensor], size_divisible: int = 32) -> Tensor:
+        max_size = self.max_by_axis([list(img.shape) for img in images])
+        stride = float(size_divisible)
+        max_size[1] = int(math.ceil(float(max_size[1]) / stride) * stride)
+        max_size[2] = int(math.ceil(float(max_size[2]) / stride) * stride)
+        return torch.stack([
+            F.pad(img, (0, max_size[2] - img.shape[2], 0, max_size[1] - img.shape[1], 0, max_size[0] - img.shape[0]))
+            for img in images
+        ])
 
 
 __all__ = [
@@ -326,7 +349,7 @@ class SSD(nn.Module):
             image_mean = [0.485, 0.456, 0.406]
         if image_std is None:
             image_std = [0.229, 0.224, 0.225]
-        self.transform = GeneralizedRCNNTransform(
+        self.transform = _FunctionalTransform(
             min(size), max(size), image_mean, image_std, size_divisible=1, fixed_size=size, **kwargs
         )
 
@@ -545,7 +568,10 @@ class SSD(nn.Module):
             final_boxes = image_boxes[final_idxs]
             final_labels = image_labels[final_idxs]
 
-            iou = box_ops.box_iou(final_boxes, final_boxes)
+            # IoU on boxes scaled to [0, 1]: same result, but the pixel areas (up to 320^2)
+            # overflow fp16 and turn the IoU into NaN on fp16 backends.
+            unit = final_boxes / max(image_shape)
+            iou = box_ops.box_iou(unit, unit)
             suppressed = (torch.triu(iou, diagonal=1) > self.nms_thresh).any(dim=0)
             final_scores = torch.where(suppressed, torch.zeros_like(final_scores), final_scores)
 
