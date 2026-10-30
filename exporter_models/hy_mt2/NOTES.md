@@ -64,7 +64,8 @@ order alternated 8da4w is as slow as or slower than MLX int8.
 First 50 sentences per pair, BLEU from the device outputs, ms per sentence. Runs in
 order int8, int4, 8da4w, 8da4w, int4, int8 (the second run of each is the hotter one);
 outputs are byte-identical across a variant's two runs. MLX int4 (`4w`, group 64,
-embedding included, 952 MB) was copied into the app over USB, not published.
+embedding included, 952 MB) was copied into the app over USB for this run, then published
+as the opt-in `MLX_INT4` (HF ef3a2bb5, tag v0.11.0 moved there); MLX int8 stays the iOS default.
 
 | variant | size | en->de | en->zh | zh->en |
 | --- | --- | --- | --- | --- |
