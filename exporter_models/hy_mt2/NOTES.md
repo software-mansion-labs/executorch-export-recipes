@@ -55,7 +55,7 @@ Non-identical outputs are near-tie flips into equally valid wording (char simila
 host 0.92-0.99; e.g. comma placement, synonyms); XNNPACK's int8 kernels differ per CPU,
 MLX on the iPhone reproduces the M-series host exactly. No errors, empty or runaway
 outputs. The published tokenizer.json loads and tokenizes correctly on the v0.11.0 libs.
-On the iPhone 8da4w is 16-35% faster than MLX int8 per sentence and 37% smaller.
+On the iPhone 8da4w takes 7-34% less time per sentence than MLX int8 and is 37% smaller.
 
 ## Tokenizer (`_tokenizer.py`)
 
