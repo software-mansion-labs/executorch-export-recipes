@@ -12,8 +12,8 @@ _MODEL_DIR = _HERE.parent
 # MLX builds are comparable across models.
 MLX_GROUP_SIZE = 64
 
-# 8-bit weights, as on XNNPACK (NOTES.md).
-MLX_QMODE = "8w"
+# Weight-only qmode per variant precision (NOTES.md).
+MLX_QMODES = {"int8": "8w", "int4": "4w"}
 
 
 def _load_params():
@@ -25,32 +25,34 @@ def _load_params():
     return mod
 
 
-def _patch_8w() -> None:
-    """Teaches export_llama an ``8w`` qmode: int8 weight-only, PerGroup.
+def _patch_weight_only() -> None:
+    """Teaches export_llama ``8w`` and reroutes ``4w``: weight-only, PerGroup.
 
-    export_llama's weight-only torchao path is hardcoded to int4 (``4w``). The
-    ``8w`` branch is the same IntxWeightOnlyConfig with int8, applied to the
-    embedding too (MLX lowers a torchao-quantized embedding to a quantized
-    gather). Any other qmode falls through to the stock function.
+    export_llama's weight-only torchao path is hardcoded to int4 (``4w``) and
+    quantizes only the linears. Both branches here are IntxWeightOnlyConfig
+    applied to the embedding too (MLX lowers a torchao-quantized embedding to a
+    quantized gather), which at a 120k vocab is ~0.5 GB of bf16 otherwise. Any
+    other qmode falls through to the stock function.
     """
     import torch
     from executorch.examples.models.llama.source_transformation import quantize as q
 
-    if getattr(q.quantize, "_hy_mt2_8w", False):
+    if getattr(q.quantize, "_hy_mt2_wo", False):
         return
     stock = q.quantize
 
     def quantize(model, qmode, *args, group_size=None, **kwargs):
-        if qmode != "8w":
+        bits = {"8w": torch.int8, "4w": torch.int4}.get(qmode)
+        if bits is None:
             return stock(model, qmode, *args, group_size=group_size, **kwargs)
         from torchao.quantization.granularity import PerGroup
         from torchao.quantization.quant_api import IntxWeightOnlyConfig, quantize_
 
-        config = IntxWeightOnlyConfig(weight_dtype=torch.int8, granularity=PerGroup(group_size))
+        config = IntxWeightOnlyConfig(weight_dtype=bits, granularity=PerGroup(group_size))
         quantize_(model, config, filter_fn=lambda m, _: isinstance(m, (torch.nn.Linear, torch.nn.Embedding)))
         return model
 
-    quantize._hy_mt2_8w = True
+    quantize._hy_mt2_wo = True
     q.quantize = quantize
 
 
@@ -118,10 +120,10 @@ def export(config: dict, out_dir: str) -> str:
     # path which overrides to fp32 for its quantized builds.
     cfg.model.dtype_override = DtypeOverride.bf16
     # Set after construction: LlmConfig validates qmode only in __post_init__,
-    # and its list has no "8w" (see _patch_8w).
-    _patch_8w()
+    # and its list has no "8w" (see _patch_weight_only).
+    _patch_weight_only()
     _patch_fp32_logits()
-    cfg.quantization.qmode = MLX_QMODE
+    cfg.quantization.qmode = MLX_QMODES[variant["precision"]]
     cfg.quantization.group_size = MLX_GROUP_SIZE
     cfg.backend.mlx.enabled = True
     cfg.export.max_seq_length = consts["get_max_seq_len"]

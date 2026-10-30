@@ -56,6 +56,26 @@ host 0.92-0.99; e.g. comma placement, synonyms); XNNPACK's int8 kernels differ p
 MLX on the iPhone reproduces the M-series host exactly. No errors, empty or runaway
 outputs. The published tokenizer.json loads and tokenizes correctly on the v0.11.0 libs.
 On the iPhone 8da4w takes 7-34% less time per sentence than MLX int8 and is 37% smaller.
+**Refuted by the interleaved runs below:** that was one run each, MLX first; with the
+order alternated 8da4w is as slow as or slower than MLX int8.
+
+### iPhone 16, interleaved (2026-10-30)
+
+First 50 sentences per pair, BLEU from the device outputs, ms per sentence. Runs in
+order int8, int4, 8da4w, 8da4w, int4, int8 (the second run of each is the hotter one);
+outputs are byte-identical across a variant's two runs. MLX int4 (`4w`, group 64,
+embedding included, 952 MB) was copied into the app over USB, not published.
+
+| variant | size | en->de | en->zh | zh->en |
+| --- | --- | --- | --- | --- |
+| mlx int8 | 1.85 GB | 25.65 / 1850-2278 | 42.83 / 1210-1500 | 25.76 / 1225-1464 |
+| mlx int4 | 0.95 GB | 25.32 / 1214-1385 | 39.46 / 854-990 | 26.69 / 809-934 |
+| xnnpack 8da4w | 1.17 GB | 25.11 / 2070-2281 | 41.91 / 1550-1564 | 25.86 / 1477-1489 |
+
+MLX int8 matches the host on all 150. int4 is ~35% faster than int8 at half the size
+but loses 3.4 BLEU on en->zh, below EuroLLM (40.74), and Chinese is why one picks
+Hy-MT2. A re-export of mlx int8 differs from the published file only in the random
+4-hex prefix MLX puts on its named-data keys (`206e/` vs `8f84/`); the weights match.
 
 ## Tokenizer (`_tokenizer.py`)
 
