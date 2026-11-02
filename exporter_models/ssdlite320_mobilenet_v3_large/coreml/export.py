@@ -58,8 +58,11 @@ def export(config: dict, out_dir: str) -> str:
     inputs = (torch.randn(shape, dtype=torch.float32),)
 
     ep = torch_export(model, inputs)
+    # iOS16, not the iOS18 used elsewhere: on an iPhone 16 the iOS17/18 programs run
+    # at 6.7 ms against 3.4 ms, with the same mAP50-95 (22.25 vs 22.28 over 500 COCO
+    # val images). RNE requires iOS 17, so this still loads everywhere.
     specs = CoreMLBackend.generate_compile_specs(
-        minimum_deployment_target=ct.target.iOS18,
+        minimum_deployment_target=ct.target.iOS16,
         compute_unit=compute_unit,
         compute_precision=precision,
     )
