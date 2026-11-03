@@ -1,6 +1,6 @@
 <svg xmlns="http://www.w3.org/2000/svg" width="960" height="300" viewBox="0 0 960 300" role="img" aria-labelledby="title description">
   <title id="title">ExecuTorch Export Recipes</title>
-  <desc id="description">Model recipes and an agent-first export harness, with the ExecuTorch flame. Backends: XNNPACK, Core ML, MLX, and Vulkan.</desc>
+  <desc id="description">Model recipes and an agent-first export harness, with the ExecuTorch flame. Backends: XNNPACK, Core ML, MLX, Vulkan, and QNN.</desc>
   <!-- Flame: react-native-executorch/docs/static/img/logo-horizontal.svg.
        Typography follows react-native-executorch-gallery/scripts/build-showcase.mjs. -->
   <style>
@@ -51,8 +51,5 @@
   <text class="heading" x="140" y="151">ExecuTorch Export Recipes</text>
   <text class="secondary" x="140" y="193">Model recipes and an agent-first export harness.</text>
   <path class="rule" d="M40 241H920"/>
-  <text class="backend" x="40" y="275">XNNPACK</text>
-  <text class="backend" x="158" y="275">Core ML</text>
-  <text class="backend" x="259" y="275">MLX</text>
-  <text class="backend" x="327" y="275">Vulkan</text>
+  <text class="backend" x="40" y="275"><tspan>XNNPACK</tspan><tspan dx="48">Core ML</tspan><tspan dx="48">MLX</tspan><tspan dx="48">Vulkan</tspan><tspan dx="48">QNN</tspan></text>
 </svg>
