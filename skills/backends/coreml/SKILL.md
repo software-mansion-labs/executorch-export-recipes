@@ -154,30 +154,18 @@ constraint/`expand` error.
 
 ## Profiling & delegation check
 
-Verifying I/O shapes (above) proves the contract; profiling proves the graph
-actually lowered to the CoreML delegate rather than running on CPU portable
-kernels. Use the sibling
-[executorch-profiler](https://gl.swmansion.com/swm-ai/executorch-profiler) — it
-runs an event-traced ExecuTorch runtime and reports per-op time plus a
-**delegation ratio** per op.
+Use an event-traced runtime with the CoreML delegate linked and the matching
+[ExecuTorch developer tools](https://github.com/pytorch/executorch/tree/main/devtools).
+Inspect delegate calls, portable fallbacks, and time by partition/op. Supply
+representative inputs for dynamic dimensions and exercise supported bounds.
 
-```bash
-# One-time: build ExecuTorch with the event tracer AND the CoreML runner.
-# The --coreml flag turns on EXECUTORCH_BUILD_COREML and builds the CoreML
-# executor runner; without it the delegate isn't linked in.
-./build_et.sh --coreml
-
-# Then, from the profiler dir, against your exported .pte (Apple hardware only):
-python profile_et.py --model=/path/to/model.pte --output=.
-```
-
-CoreML partitions the graph into a few large delegated subgraphs, so a
-correctly-lowered model shows the bulk of time under a GREEN `100%`-delegated
-`DELEGATE_CALL`; ops left RED (`0%`) are the ones CoreML couldn't take and are
-running on CPU — the signal to revisit the partitioner or an unsupported op.
-Provide `--model-input inputs.pt` for dynamic-dim models (the random-input
-fallback keys off static metadata and won't cover an `-1`->`Dim` seq axis). This
-is Apple-only and, like the shipped `.pte` itself, wants a real on-device run.
+Compare compute-unit and precision candidates on the intended Apple device.
+Verify outputs before ranking latency: a faster candidate with wrong scores
+must be rejected. Keep model loading/CoreML compilation separate from warmed
+inference, and confirm the same runtime build is used for correctness and
+measurement. Follow
+[validate-and-optimize](../../validate-and-optimize/SKILL.md) for quality budgets,
+benchmark settings, and the evidence to record beside the recipe.
 
 ## Environment
 

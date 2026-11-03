@@ -183,9 +183,23 @@ The `model.json` `extras` survive only as human-readable stack labels; the
 `executorch` and torch are pinned in each model's pyproject, not installed
 separately.
 
-## Weights are never committed
+## Provenance and validation evidence
+
+Keep the source repo and checkpoint revision, upstream license/notices, export
+patches, commands, and validation results with the model. See
+[third-party notices](../../THIRD_PARTY_NOTICES.md); the harness's MIT license
+is not a license grant for model weights or vendored code.
+
+For failures use [recover-export](../recover-export/SKILL.md). For correctness,
+precision/quantization changes, and latency tuning use
+[validate-and-optimize](../validate-and-optimize/SKILL.md). Keep baseline and
+candidate artifacts separate and document the shipping runtime build.
+
+## Do not add generated weights
 
 `.pt`/`.pth`/`.pte` are gitignored. Every model fetches/builds its weights at
 export time (HF `from_pretrained` / `hf_hub_download`, URL-zip download,
-keras->pytorch convert, ultralytics auto-download). Tests live in `tests/`
-(also gitignored — local only).
+keras->pytorch convert, ultralytics auto-download). Preserve the existing
+explicit vendored-data exceptions and LFS files in historical commits; do not
+use those as a precedent for committing new generated artifacts. The old
+`tests/` suite is gitignored and is not included in a fresh clone.

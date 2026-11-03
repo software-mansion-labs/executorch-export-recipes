@@ -9,6 +9,12 @@ Vulkan is the Android **GPU** backend for ExecuTorch. It ships inside executorch
 (like XNNPACK) — no pip extra. There is **no shared `lower()` helper**; Vulkan
 models lower inline in their `export.py` (same as CoreML/MLX).
 
+Use [recover-export](../../recover-export/SKILL.md) to distinguish capture,
+lowering, missing shaders, and device failures. Before keeping a precision or
+graph optimization, follow
+[validate-and-optimize](../../validate-and-optimize/SKILL.md): check outputs and
+dynamic boundaries on the shipping runtime, then measure on the target GPU.
+
 ## Lowering
 
     from executorch.backends.vulkan.partitioner.vulkan_partitioner import VulkanPartitioner
@@ -75,7 +81,7 @@ source-built dev env; this section is the recipe (the MLX skill has none).
 2. From that venv, run the harness directly instead of `uv run --project`:
 
    ```bash
-   cd export-scripts
+   cd executorch-export-recipes
    PYTHONPATH=src python -m exporter.cli \
        export <model> --backend vulkan --size <s> --output-dir <dir>
    ```
