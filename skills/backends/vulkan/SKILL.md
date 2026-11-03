@@ -1,6 +1,6 @@
 ---
 name: vulkan-export
-description: Vulkan backend knowledge for exporting ExecuTorch models — inline VulkanPartitioner lowering, fp16 compute, the 3D-texture limit, dynamic-via-resize, mixed-delegate fusion, the source-built fork env the exports run in, and checking which shaders the shipped runtime lib has.
+description: Vulkan backend knowledge for exporting ExecuTorch models — lowering, precision, texture limits, dynamic shapes, mixed delegates, source builds, shader availability, and on-device delegation and per-shader profiling.
 ---
 
 # Vulkan Export
@@ -89,6 +89,21 @@ source-built dev env; this section is the recipe (the MLX skill has none).
    Keep the `vulkan/pyproject.toml` (+ its `uv.lock`) as the
    record of intent — torch wheel URL, fork branch — so the stack stays
    auditable even though uv cannot materialise it.
+
+## Profiling delegation and time per op
+
+Rebuild the target runtime with `-DEXECUTORCH_ENABLE_EVENT_TRACER=ON`, alongside
+`-DEXECUTORCH_BUILD_VULKAN=ON`, `-DEXECUTORCH_BUILD_DEVTOOLS=ON`, and
+`-DEXECUTORCH_BUILD_EXECUTOR_RUNNER=ON`. The tracing option defines
+`ET_EVENT_TRACER_ENABLED` and enables Vulkan GPU timestamp collection; an ordinary
+Vulkan build is insufficient for per-shader timings.
+
+Follow the [Vulkan profiling workflow](../../validate-and-optimize/references/profiling.md#vulkan-on-device-delegation-and-timing)
+to rebuild for Android, capture an ETDump with `executor_runner --etdump_path`,
+and inspect it with `devtools/inspector/inspector_cli.py`. Inspect delegated
+shader events and portable CPU fallbacks. Shader dispatch counts are not a
+one-to-one count of source ops; use the lowered graph/ETRecord for source-op
+coverage. Confirm timings on the intended GPU, with representative inputs.
 
 ## Running the Vulkan runtime on this Mac (MoltenVK)
 

@@ -2,49 +2,41 @@ import argparse
 import ast
 import ctypes
 import os
+from pathlib import Path
 import pandas as pd
 import sys
 import tabulate
 import torch
+import executorch
 from colorama import Fore, Style, init as colorama_init
 from executorch.devtools import Inspector
 from executorch.runtime import Runtime, Verification
 
-# Link dynamic libraries to support LLM extension
-dylib_paths = [
-  os.path.join(
-    sys.prefix,
-    "lib",
-    "python3.12",
-    "site-packages",
-    "executorch",
-    "extension",
-    "llm",
-    "custom_ops",
-    "libcustom_ops_aot_lib.dylib"
-  ),
-  os.path.join(
-    sys.prefix,
-    "lib",
-    "python3.12",
-    "site-packages",
-    "executorch",
-    "kernels",
-    "quantized",
-    "libquantized_ops_aot_lib.dylib"
-  ),
-]
-for path in dylib_paths:
-  if os.path.exists(path):
-      ctypes.cdll.LoadLibrary(path)
-  else:
-      print(f"Warning: {path} not found. LLM extension may not work.")
+def load_optional_operator_libraries():
+  # Resolve the imported package, including namespace/editable installations,
+  # rather than assuming a Python version or site-packages directory.
+  libraries = (
+    (Path("extension/llm/custom_ops"), "custom_ops_aot_lib"),
+    (Path("kernels/quantized"), "quantized_ops_aot_lib"),
+  )
+  for directory, name in libraries:
+    candidates = [
+      Path(root) / directory / filename
+      for root in executorch.__path__
+      for filename in (f"lib{name}.dylib", f"lib{name}.so", f"{name}.dll", f"lib{name}.dll")
+    ]
+    library = next((path for path in candidates if path.is_file()), None)
+    if library is not None:
+      try:
+        ctypes.cdll.LoadLibrary(str(library))
+      except OSError as error:
+        print(f"Warning: could not load optional operator library {library}: {error}")
+    else:
+      print(f"Warning: optional {name} library not found in the installed ExecuTorch package.")
 
 
 if __name__ == "__main__":
     
-  runtime = Runtime.get()
-
   colorama_init(autoreset=True)
 
   # Define script arguments
@@ -52,17 +44,29 @@ if __name__ == "__main__":
   parser.add_argument('--model', type=str, required=True, help='Path to input .pte file')
   parser.add_argument('--model-input', type=str, help='Path to input tensors .pt file')
   parser.add_argument("--info", action="store_true", help="Enable info mode")
-  parser.add_argument('--output', type=str, default="", help='Path to output artifacts directory')
+  parser.add_argument('--output', type=str, default=".", help='Output artifacts directory (created if needed; default: current directory)')
   parser.add_argument('--n-tests', type=int, default=1, help='Number of tests to run')
 
   args = parser.parse_args()
+
+  model_filepath = str(Path(args.model).expanduser().resolve())
+  inputs_filepath = str(Path(args.model_input).expanduser().resolve()) if args.model_input else None
+  output_directory = Path(args.output).expanduser().resolve()
+  etdump_output_path = str(output_directory / "etdump.etdp")
+  debug_file_output_path = str(output_directory / "debug.bin")
+  if not args.info:
+    for input_path in (model_filepath, inputs_filepath):
+      if input_path in (etdump_output_path, debug_file_output_path):
+        parser.error("Output artifacts would overwrite the model or input file; choose another --output directory.")
+    output_directory.mkdir(parents=True, exist_ok=True)
+
+  load_optional_operator_libraries()
+  runtime = Runtime.get()
 
   # ----------------------------------
   # STEP 1 - load the executorch model
   # ----------------------------------
 
-  model_filepath = args.model
-  
   try:
     executorch_program = runtime.load_program(
       model_filepath, 
@@ -99,8 +103,6 @@ if __name__ == "__main__":
   # If user provided an input file or defined an input generator, use the provided tensors
   # Otherwise try to generate random tensors based on the static shapes of the model's method
   if args.model_input:
-    inputs_filepath = args.model_input
-
     try:
       inputs = torch.load(inputs_filepath)
     except FileNotFoundError:
@@ -142,14 +144,6 @@ if __name__ == "__main__":
   # STEP 3 - generate ETDump file
   # -----------------------------
 
-  output_directory = args.output
-  etdump_output_path = f"{output_directory}/etdump.etdp"
-  debug_file_output_path = f"{output_directory}/debug.bin"
-
-  # Create a debug file if not present
-  with open(debug_file_output_path, 'wb') as debug_file:
-    pass
-
   use_existing_etdump = False
   if os.path.exists(etdump_output_path):
     print(Fore.YELLOW + f"File '{etdump_output_path}' already exists. Use existing one? (y/n): " + Style.RESET_ALL, end='', flush=True)
@@ -158,6 +152,10 @@ if __name__ == "__main__":
       use_existing_etdump = True
 
   if not use_existing_etdump:
+    # Remove an older trace so a failed write cannot silently reuse stale data.
+    Path(etdump_output_path).unlink(missing_ok=True)
+    # Initialize only for a new trace; reusing a dump must preserve its buffer.
+    Path(debug_file_output_path).write_bytes(b"")
     # Execute the forward method given amount of times and collect inference stats
     for _ in range(args.n_tests):
       forward_method.execute(inputs)
@@ -165,9 +163,16 @@ if __name__ == "__main__":
     # Create ETDump artifact file
     executorch_program.write_etdump_result_to_file(etdump_output_path, debug_file_output_path)
 
-    print("Succesfully generated and saved ETDump file as", etdump_output_path)
   else:
     print("Using existing ETDump file:", etdump_output_path)
+
+  if not Path(etdump_output_path).is_file() or Path(etdump_output_path).stat().st_size == 0:
+    sys.exit(
+      "Error: no ETDump trace was produced. Rebuild the ExecuTorch runtime with "
+      "-DEXECUTORCH_ENABLE_EVENT_TRACER=ON and -DEXECUTORCH_BUILD_DEVTOOLS=ON."
+    )
+  if not use_existing_etdump:
+    print("Successfully generated and saved ETDump file as", etdump_output_path)
 
   # ------------------------------------
   # STEP 4 - profile and display results

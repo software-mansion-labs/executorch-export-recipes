@@ -12,8 +12,8 @@ The script accepts a CoreML-backed ExecuTorch .pte (every CoreML partition is
 extracted and analyzed) or a CoreML model directly (.mlpackage / .mlmodelc).
 
 By default the plan uses the compute_units the model was actually compiled with
-(read from the .pte's CoreML compile spec) so the report reflects on-device
-behavior; pass --compute-units to explore a different setting. Note the ANE is
+(read from the .pte's CoreML compile spec). The plan reflects the current host
+and can differ on device; pass --compute-units to explore a different setting. Note the ANE is
 fp16-only, so a float32 model will never dispatch to the ANE regardless.
 
 Usage:

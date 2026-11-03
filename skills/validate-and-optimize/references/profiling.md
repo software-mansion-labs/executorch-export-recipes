@@ -4,6 +4,7 @@ The scripts live in [tools/executorch-profiler](../../../tools/executorch-profil
 They are standalone diagnostic tools, separate from the export harness.
 Use `profile_et.py` for XNNPACK op timing/delegation and
 `coreml_compute_plan.py` for CoreML ANE/GPU/CPU assignment.
+For Vulkan, use the source-built Android runner and ETDump workflow below.
 
 ## Environment
 
@@ -30,11 +31,12 @@ ExecuTorch build. Direct `.mlpackage`/`.mlmodelc` analysis skips ET extraction.
 Follow the chosen ExecuTorch revision's build requirements if its scripts or
 CMake options differ from this snapshot.
 
-`profile_et.py` currently searches for optional LLM/quantized dylibs under
-`sys.prefix/lib/python3.12/site-packages`. This repository's model environments
-use Python 3.10. For LLMs/custom ops on another Python version, adapt those paths
-to the profiling environment and verify registration before interpreting a
-missing-op failure; a warning alone does not prove the model needs those libs.
+`profile_et.py` discovers optional LLM/quantized operator libraries relative to
+the imported `executorch` package, using `.dylib`, `.so`, or `.dll` filenames.
+It does not assume a Python version or virtualenv layout. A missing-library
+warning alone does not prove the model needs those operators. Unloadable optional
+libraries also produce a warning; models requiring them still need matching
+libraries rebuilt with the profiling runtime.
 
 ## XNNPACK timing and delegation
 
@@ -61,11 +63,12 @@ a matching native/device runner rather than assuming a `--method` option.
 `--n-tests` repeats execution with the same inputs and does not reset caches
 or separate warmups. It is not a median/p95 benchmark or an output-parity check.
 
-Always supply a pre-created `--output` directory: the script does not create
-it and its empty default resolves the files under `/`. It writes `etdump.etdp`
+Use a separate `--output` directory for each profile; the script creates it
+and defaults to the current directory. Paths support `~`. It writes `etdump.etdp`
 and `debug.bin`, then prints Inspector's per-op totals, call counts, timing
 share, and delegated-call ratios. Use a fresh directory for each run; an existing
-dump prompts for reuse and can describe an older artifact/input. Nested method,
+dump prompts for reuse and can describe an older artifact/input. Reuse preserves
+the matching `debug.bin`. Nested method,
 delegate, and operator events can overlap; do not sum them as independent work
 or treat the call ratio as the fraction of the original graph delegated.
 
@@ -73,7 +76,75 @@ Investigate expensive portable fallbacks and partition boundaries, then confirm
 any candidate's quality and performance on the target device. These host timings
 do not establish Android/iOS latency.
 
+## Vulkan on-device delegation and timing
+
+Build the Android runtime from the compatible
+[ExecuTorch fork](https://github.com/software-mansion-labs/executorch) revision
+used by the export/shipping runtime. Enable **`EXECUTORCH_ENABLE_EVENT_TRACER`**
+when rebuilding both the runtime and Vulkan backend. This defines
+`ET_EVENT_TRACER_ENABLED`; Vulkan then records GPU shader timestamps, not just
+CPU dispatch duration. See the
+[upstream Vulkan profiling tutorial](https://github.com/pytorch/executorch/blob/main/docs/source/backends/vulkan/tutorials/etvk-profiling-tutorial.md)
+and [ETDump build requirements](https://github.com/pytorch/executorch/blob/main/docs/source/etdump.md).
+
+From that ExecuTorch checkout, with its build prerequisites installed and
+`ANDROID_NDK` pointing to the NDK, configure a separate profiling build:
+
+```bash
+cmake -S . -B cmake-out-android-profile --preset android-arm64-v8a \
+  -DCMAKE_TOOLCHAIN_FILE="$ANDROID_NDK/build/cmake/android.toolchain.cmake" \
+  -DANDROID_PLATFORM=android-28 -DCMAKE_BUILD_TYPE=Release \
+  -DEXECUTORCH_BUILD_VULKAN=ON \
+  -DEXECUTORCH_BUILD_DEVTOOLS=ON \
+  -DEXECUTORCH_BUILD_EXTENSION_EVALUE_UTIL=ON \
+  -DEXECUTORCH_ENABLE_EVENT_TRACER=ON \
+  -DEXECUTORCH_BUILD_EXECUTOR_RUNNER=ON
+cmake --build cmake-out-android-profile --target executor_runner -j8
+```
+
+Retain the pinned revision's other required build options, custom operators,
+and CPU delegates for mixed-backend models. Check `CMakeCache.txt` for the
+profiling options and deploy the rebuilt runner and any shared libraries it
+needs together. Re-exporting alone does not enable runtime tracing.
+
+```bash
+adb shell mkdir -p /data/local/tmp/etvk
+adb push cmake-out-android-profile/executor_runner /data/local/tmp/etvk/
+adb push /absolute/path/to/model.pte /data/local/tmp/etvk/model.pte
+adb shell chmod +x /data/local/tmp/etvk/executor_runner
+adb shell /data/local/tmp/etvk/executor_runner \
+  --model_path /data/local/tmp/etvk/model.pte \
+  --num_executions=20 \
+  --etdump_path /data/local/tmp/etvk/model.etdp
+mkdir -p /absolute/path/to/executorch-export-recipes/exports/profiles/vulkan
+adb pull /data/local/tmp/etvk/model.etdp \
+  /absolute/path/to/executorch-export-recipes/exports/profiles/vulkan/model.etdp
+python devtools/inspector/inspector_cli.py \
+  --etdump_path /absolute/path/to/executorch-export-recipes/exports/profiles/vulkan/model.etdp
+```
+
+This command is a trace smoke test with runner-generated inputs. For useful
+measurements, supply representative fixtures through the pinned runner's input
+options (check `--help`) or a model-specific native runner. A custom runner must
+link `etdump`, pass an `ETDumpGen` tracer to the loaded method/module, and write
+the collected buffer. Build flags alone do not save a trace.
+
+Inspector exposes delegated shader events (`is_delegated_op`) with timing
+statistics alongside portable operator events. Find expensive shaders, CPU
+fallbacks, and staging/copy overhead. Vulkan can fuse source ops or dispatch
+several shaders per op, so a shader-event ratio is not source-op delegation
+coverage. Use the lowered graph and, when available, a matching export ETRecord
+to map back to source ops; do not sum nested aggregate and shader events.
+
+If GPU events are absent, check the deployed build, tracer attachment, and GPU
+timestamp support before concluding that nothing delegated. Record runtime
+commit, artifact hash, device/GPU, inputs, and iteration settings. Separate
+warmup from measured inference and remeasure performance without tracing to
+quantify its overhead. MoltenVK results do not establish Android performance.
+
 ## CoreML compute-device assignment
+
+From the export-recipes repository root, using the profiling environment:
 
 ```bash
 python tools/executorch-profiler/coreml_compute_plan.py \

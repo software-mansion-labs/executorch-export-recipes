@@ -1,19 +1,20 @@
-# Executorch Profiler
+# ExecuTorch Profiler
 
 For this repository's environment setup, commands, saved-input format, and
 known limitations, read the
 [profiler guide](../../skills/validate-and-optimize/references/profiling.md).
 Run `build_et.sh` from a compatible ExecuTorch source checkout with an active
-virtualenv. Always give `profile_et.py` a pre-created `--output` directory.
+virtualenv. Use a separate `--output` directory for each profile; the script
+creates it if needed and defaults to the current directory. Paths support `~`.
 
-This repository contains a Python script for profiling Executorch models running on the XNNPACK backend, along with a helper script for building Executorch with event tracing enabled.
+This directory contains a Python script for profiling ExecuTorch models running on the XNNPACK backend, along with a helper script for building ExecuTorch with event tracing enabled.
 
 It also contains `coreml_compute_plan.py`, which reports how a CoreML-delegated model is dispatched across the Apple Neural Engine (ANE), GPU and CPU.
 
 
-## Install Executorch (manual setup)
+## Install ExecuTorch (manual setup)
 
-1. Clone the Executorch repository:
+1. Clone a compatible ExecuTorch revision (use the pinned fork for fork-built artifacts):
 
    ```bash
    git clone https://github.com/pytorch/executorch
@@ -32,7 +33,7 @@ It also contains `coreml_compute_plan.py`, which reports how a CoreML-delegated 
    source .venv/bin/activate  # On Windows: .venv\Scripts\activate
    ```
 
-4. Build and install Executorch with XNNPACK and event tracer enabled:
+4. Build and install ExecuTorch with XNNPACK and event tracer enabled:
 
    ```bash
    CMAKE_ARGS="-DEXECUTORCH_BUILD_XNNPACK=ON \
@@ -51,24 +52,26 @@ It also contains `coreml_compute_plan.py`, which reports how a CoreML-delegated 
    ```
 
 
-## Install Executorch (using build_et.sh)
+## Install ExecuTorch (using build_et.sh)
 
-As an alternative to the manual steps above, you can use the `build_et.sh` script in this directory.  
-It configures the same CMake options for Executorch (XNNPACK backend and event tracer enabled) and installs required Python packages such as `colorama`.
+As an alternative to the manual build above, run this directory's `build_et.sh`
+from the ExecuTorch source checkout with its virtualenv active. It enables
+XNNPACK, event tracing, and LLM/quantized extensions, and installs `colorama`.
 
 Pass `--coreml` to additionally build the CoreML backend, which is required to analyze CoreML-delegated models:
 
 ```bash
-./build_et.sh --coreml
+bash /absolute/path/to/executorch-export-recipes/tools/executorch-profiler/build_et.sh --coreml
 ```
 
 
 ## Profiling script usage
 
-Once Executorch is installed and your virtual environment is active, you can run the profiling script, for example:
+With the profiling environment active, run from the export-recipes repository root:
 
 ```bash
-python profile_et.py --model=exported_model.pte --output=.
+python tools/executorch-profiler/profile_et.py --model=exports/model.pte \
+  --model-input=exports/inputs.pt --output=exports/profiles/model --n-tests=20
 ```
 
 
@@ -98,25 +101,25 @@ Implement `generate_inputs` to return inputs in the format expected by your Exec
 Requirements:
 
 - `coremltools >= 9.0` (the `MLComputePlan` API the script relies on)
-- An Executorch build with the CoreML backend enabled (`./build_et.sh --coreml`)
+- An ExecuTorch build with the CoreML backend enabled (see the build command above)
 
-The script accepts a CoreML-backed `.pte` (every CoreML partition is extracted and analyzed) or a CoreML model directly (`.mlpackage` / `.mlmodelc`):
+The script accepts a CoreML-backed `.pte` (every CoreML partition is extracted and analyzed) or a CoreML model directly (`.mlpackage` / `.mlmodelc`). Run these commands from the export-recipes repository root:
 
 ```bash
 # Analyze every CoreML partition embedded in an ExecuTorch program.
-python coreml_compute_plan.py --model=exported_model.pte
+python tools/executorch-profiler/coreml_compute_plan.py --model=exports/model-coreml.pte
 
 # Analyze a CoreML model directly.
-python coreml_compute_plan.py --model=model.mlpackage
+python tools/executorch-profiler/coreml_compute_plan.py --model=model.mlpackage
 
 # List the op types that did NOT get assigned to the ANE, grouped by type.
-python coreml_compute_plan.py --model=exported_model.pte --show-non-ane
+python tools/executorch-profiler/coreml_compute_plan.py --model=exports/model-coreml.pte --show-non-ane
 
 # List op types per device (ANE / GPU / CPU) — shows the delegated (ANE) ops too.
-python coreml_compute_plan.py --model=exported_model.pte --show-ops
+python tools/executorch-profiler/coreml_compute_plan.py --model=exports/model-coreml.pte --show-ops
 
 # Explore a different setting (choices: all, cpu_and_ne, cpu_and_gpu, cpu_only).
-python coreml_compute_plan.py --model=exported_model.pte --compute-units=all
+python tools/executorch-profiler/coreml_compute_plan.py --model=exports/model-coreml.pte --compute-units=all
 ```
 
 By default the plan uses the `compute_units` read from the `.pte`'s CoreML compile spec, falling back to `cpu_and_ne` when unavailable. If partitions disagree, it warns and uses the first sorted setting for all partitions. The chosen value is printed on the first line. The plan reflects the current host; confirm on-device behavior separately. Pass `--compute-units` to override the analysis setting.

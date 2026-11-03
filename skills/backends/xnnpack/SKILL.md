@@ -52,7 +52,7 @@ and `skills/backends/mlx`.)
 Start with the bundled `tools/executorch-profiler/profile_et.py` and the
 [profiler guide](../../validate-and-optimize/references/profiling.md) for build
 setup and commands. Supply saved representative inputs via `--model-input`, a
-fresh existing `--output` directory, and `--n-tests` for repeated calls. The tool
+fresh `--output` directory, and `--n-tests` for repeated calls. The tool
 profiles `forward` and prints per-op timing/delegation from its ETDump; it does
 not validate outputs or separate warmups from measured iterations.
 

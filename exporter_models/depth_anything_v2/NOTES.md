@@ -173,8 +173,9 @@ on seven saved image inputs, a zero tensor, and a seeded random tensor.
 Four-thread M1 Pro paired benchmark: median 509.56 ms to 465.58 ms (1.09x),
 three images with two warmups and five alternating baseline/candidate runs each.
 Artifact: `/private/tmp/depth-optimized/v2/xnnpack/depth_anything_v2_small_xnnpack_fp32.pte`.
-Full results: `/private/tmp/depth-optimized/comparison.json`. Reproduce using
-`tools/compare_depth_xnnpack.py`; INT8, CoreML and Vulkan were not changed.
+Full results: `/private/tmp/depth-optimized/comparison.json`. The comparison used
+a local `tools/compare_depth_xnnpack.py` helper that is not included in this
+repository. INT8, CoreML and Vulkan were not changed.
 
 Published the verified XNNPACK update via Git LFS at `5ded482`, main and
 `v0.11.0`. Delete cached prior XNNPACK files before re-downloading.

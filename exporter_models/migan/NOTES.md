@@ -304,7 +304,7 @@ host-side and not recorded.
   fp16 binary op). What is left is the model's arithmetic plus `LeakyReLU`,
   which XNNPACK has no fused form for.
 
-**CoreML fp16, compute plan** (`coreml_compute_plan.py`, compute units `ALL`
+**CoreML fp16, compute plan** ([`coreml_compute_plan.py`](../../tools/executorch-profiler/coreml_compute_plan.py), compute units `ALL`
 as compiled; what the CoreML runtime on this Mac would choose, iOS may differ):
 
 | | 256 | 512 | faces_256 |

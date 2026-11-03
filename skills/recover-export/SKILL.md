@@ -62,7 +62,26 @@ Prefer a small fix in the owning model. Mark vendored changes with
 `# EXPORT PATCH` and explain the source/revision, symptom, and parity evidence
 in its `NOTES.md`. For a runtime defect, capture a minimal reproducer and the
 required runtime fix/version; avoid accumulating graph rewrites that mask it.
-Do not open upstream issues or publish artifacts unless that is in scope.
+
+## ExecuTorch runtime fixes: fork and upstream
+
+We accept runtime/backend fixes in our
+[ExecuTorch fork](https://github.com/software-mansion-labs/executorch).
+Target the branch used by the affected exporter and shipping runtime; see the
+backend skill and model pins. Include a minimal reproducer, a regression test,
+and correctness/device evidence. Rebuild the affected runtime libraries and
+validate the original model with the fix rather than treating a source patch
+alone as recovery.
+
+Check whether the same bug is present on
+[upstream ExecuTorch `main`](https://github.com/pytorch/executorch).
+If it is, submit the fix upstream as well; a fork-only fix is not the final
+destination for an upstream bug. Link the fork and upstream PRs, record their
+commits in the model's `NOTES.md`, and backport/cherry-pick as needed so the
+shipping fork retains the fix. If the bug is fork-specific or already fixed
+upstream, document that finding instead of opening a duplicate PR.
+
+## Retry limits
 
 Retry a transient download/resource failure when its cause has been addressed.
 If the same deterministic error repeats with no new evidence, stop rerunning

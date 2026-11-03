@@ -1,6 +1,6 @@
 ---
 name: validate-and-optimize
-description: Validate exported ExecuTorch model outputs and optimize inference speed while preserving an explicit accuracy budget. Use for parity checks, quantization, delegate tuning, and target-device benchmarking in this repository.
+description: Validate exported ExecuTorch model outputs and optimize inference speed while preserving an explicit accuracy budget. Use for parity checks, quantization, delegate tuning, XNNPACK/CoreML/Vulkan profiling, and target-device benchmarking in this repository.
 ---
 
 # Validate and optimize an export
@@ -96,6 +96,8 @@ report an end-to-end measurement. Never time only GPU dispatch.
 Use the bundled [ExecuTorch profiler guide](references/profiling.md) for
 XNNPACK timing/delegation (`tools/executorch-profiler/profile_et.py`) and CoreML
 compute-device assignment (`tools/executorch-profiler/coreml_compute_plan.py`).
+The guide also covers Vulkan device profiling by rebuilding with
+`EXECUTORCH_ENABLE_EVENT_TRACER=ON` and collecting ETDump shader timings.
 It covers source-build setup, saved inputs, trace outputs, and tool limitations.
 For other backends, follow the relevant backend skill's profiling guidance.
 A CPU fallback can dominate latency even
