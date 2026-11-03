@@ -33,7 +33,7 @@ reproduced below; other existing notices remain in their component source files.
   PyTorch examples    BSD 3-Clause   vendored neural style-transfer models
   MI-GAN              MIT            vendored inference generator
 
-See THIRD_PARTY_NOTICES.md for component locations and additional notices,
+See docs/third-party-notices.md for component locations and additional notices,
 including Torchvision, Whisper, Depth Anything 3, and ZipDepth. Model weights,
 datasets, dependencies, and exported artifacts remain subject to their own
 terms; the MIT license above does not relicense them.

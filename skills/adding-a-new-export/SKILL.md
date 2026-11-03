@@ -20,7 +20,7 @@ Record artifact hashes, exact commands, and validation results in `NOTES.md`.
 
 Retain upstream source/revision and license notices when vendoring code. The
 root MIT license does not relicense weights or third-party code; consult
-[third-party notices](../../THIRD_PARTY_NOTICES.md).
+[third-party notices](../../docs/third-party-notices.md).
 
 ## Procedure
 

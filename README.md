@@ -3,21 +3,19 @@
 **An agent-first harness and collection of model recipes for exporting,
 validating, and optimizing AI models for ExecuTorch.**
 
-[![License: MIT](https://img.shields.io/badge/License-MIT-4b6cf4?labelColor=160042)](LICENSE)
-[![Python 3.10](https://img.shields.io/badge/Python-3.10-7394ff?labelColor=160042)](.python-version)
-[![ExecuTorch](https://img.shields.io/badge/Runtime-ExecuTorch-d0e2ff?labelColor=160042)](https://github.com/pytorch/executorch)
+[![License: MIT](https://img.shields.io/badge/License-MIT-2a47ff?labelColor=24252a)](LICENSE)
+[![Python 3.10](https://img.shields.io/badge/Python-3.10-2a47ff?labelColor=24252a)](.python-version)
+[![ExecuTorch](https://img.shields.io/badge/Runtime-ExecuTorch-2a47ff?labelColor=24252a)](https://github.com/pytorch/executorch)
 
 [Quick start](#quick-start) · [Models](#model-collection) · [Agent workflow](#working-with-an-agent) · [CLI](#cli) · [Layout](#layout) · [Contract](#the-exportpy-contract)
 
-Bring a checkpoint, pick a backend, and build an ExecuTorch `.pte` using a
-model-owned export script and pinned environment. The CLI discovers recipes,
-resolves their I/O specifications, and runs exports. The skills guide agents
-through failures, output validation, profiling, and optimization.
+Each model has its own export scripts, pinned dependencies, and I/O
+specification. The CLI discovers recipes and runs exports. Repository skills
+cover export failures, output validation, profiling, and optimization.
 
-Built by [Software Mansion](https://swmansion.com/) for the model ecosystem
-around [React Native ExecuTorch](https://github.com/software-mansion/react-native-executorch).
-The exported artifacts use ExecuTorch and can also serve other compatible
-ExecuTorch integrations.
+Maintained by [Software Mansion](https://swmansion.com/) for
+[React Native ExecuTorch](https://github.com/software-mansion/react-native-executorch).
+Exports can also be used with compatible ExecuTorch runtimes.
 
 ## What lives here
 
@@ -27,10 +25,8 @@ ExecuTorch integrations.
 | [Model collection](exporter_models/) | Model code, wrappers, dependency locks, backend recipes, and notes from real exports. |
 | [Agent skills](skills/) | Procedures for adding recipes, recovering failed exports, checking outputs, and measuring speed. |
 
-**Writing a `.pte` is the start of verification.** The CLI does not automatically
-run numerical parity checks or target-device benchmarks. A recipe's presence
-does not mean every backend/variant is verified on every device; read the
-model's `NOTES.md` and the relevant backend skill.
+Runtime validation and benchmarks are separate from export. Check the model's
+`NOTES.md` and backend skill for tested variants, devices, and known limitations.
 
 ## Quick start
 
@@ -97,12 +93,19 @@ Point your coding agent at [AGENTS.md](AGENTS.md) and the relevant skill. These
 are repository-local instructions; no particular agent runtime is required.
 
 ```text
-Read AGENTS.md and skills/adding-a-new-export/SKILL.md.
-Add an XNNPACK recipe for <model>, using the model's pinned environment.
-If export fails, follow skills/recover-export/SKILL.md.
-Validate outputs and benchmark candidates using
-skills/validate-and-optimize/SKILL.md. Keep the baseline, document thresholds,
-and report which host/device checks actually passed.
+Add an ExecuTorch export recipe for <model> targeting <device/platform>.
+
+1. Read AGENTS.md and skills/adding-a-new-export/SKILL.md.
+2. Choose a backend for the target device, considering operator support
+   and performance. Explain the choice and read that backend's skill.
+3. Use the model's pinned environment and keep a reference baseline.
+4. If export fails, follow skills/recover-export/SKILL.md.
+5. Follow skills/validate-and-optimize/SKILL.md to check outputs
+   and benchmark any optimization candidates.
+
+Document the accuracy thresholds, export command, and results in NOTES.md.
+Report host and device checks separately, including any checks you could
+not run.
 ```
 
 | Task | Start here |
@@ -175,6 +178,6 @@ Successfully producing a `.pte` file does not establish correctness.
 ## License
 
 Original Software Mansion code and documentation are licensed under [MIT](LICENSE).
-Vendored code retains its upstream licenses; see [third-party notices](THIRD_PARTY_NOTICES.md).
+Vendored code retains its upstream licenses; see [third-party notices](docs/third-party-notices.md).
 Model weights, datasets, and exported artifacts remain subject to their own
 terms. This repository's license does not relicense those materials.

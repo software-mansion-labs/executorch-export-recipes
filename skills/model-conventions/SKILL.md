@@ -187,7 +187,7 @@ separately.
 
 Keep the source repo and checkpoint revision, upstream license/notices, export
 patches, commands, and validation results with the model. See
-[third-party notices](../../THIRD_PARTY_NOTICES.md); the harness's MIT license
+[third-party notices](../../docs/third-party-notices.md); the harness's MIT license
 is not a license grant for model weights or vendored code.
 
 For failures use [recover-export](../recover-export/SKILL.md). For correctness,

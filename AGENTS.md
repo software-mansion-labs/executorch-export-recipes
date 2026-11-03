@@ -86,7 +86,7 @@ If export or runtime execution fails, use
   historical large files use LFS and a few existing models have explicit
   vendored-data exceptions. Preserve their provenance.
 - Original project code is MIT. Retain vendored copyright/license notices and
-  model weight terms; see [THIRD_PARTY_NOTICES.md](THIRD_PARTY_NOTICES.md).
+  model weight terms; see [docs/third-party-notices.md](docs/third-party-notices.md).
 - Tests live under `tests/` but are local-only (gitignored, not in the repo).
 - Per-model export deps are **pinned per model**: each `exporter_models/<model>/`
   is its own uv project (`pyproject.toml` + `uv.lock`) that path-depends on the
@@ -110,5 +110,7 @@ If export or runtime execution fails, use
 Edit `README.md` directly. Its CLI, layout, and export contract are part of the
 public documentation. The banner is a standalone SVG at
 `.github/assets/export-recipes.svg`; no JSX, generator, or Node tooling is
-required. Preserve its accessible title/description and the React Native
-ExecuTorch navy/cornflower palette when editing it.
+required. Preserve its accessible title/description and official React Native
+ExecuTorch flame. Keep the artwork primarily black
+and white with blue accents and gallery-style Helvetica Neue/system sans-serif
+typography.
