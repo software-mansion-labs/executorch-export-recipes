@@ -170,9 +170,9 @@ reproducible stack, preserve upstream licenses, and keep each recipe self-contai
 Include the actual export command and the validation/benchmark evidence in the
 model's notes. Document unavailable devices or evaluation data explicitly.
 
-There is currently no committed automated model test suite. Older local
-`tests/` directories are gitignored and are not shipped with a clone. Use the
-validation skill and model-specific checks; exporting alone is not a test.
+Validate exported models against reference outputs and test them on the target
+runtime using the [validation skill](skills/validate-and-optimize/SKILL.md).
+Successfully producing a `.pte` file does not establish correctness.
 
 ## License
 
