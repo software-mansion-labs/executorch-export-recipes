@@ -20,13 +20,18 @@ default partition leaves ops on the portable fallback.
 
 - **8da4w** = int8 dynamic activations + int4 weights. The standard recipe for
   text models on XNNPACK. Apply with the torchao/quantizer pass BEFORE lowering.
-- Parity tolerance for quantized models is much looser than fp32 — the harness
-  default is `1e-2` (vs `1e-4` for fp32). Set `--atol` if a specific model needs more.
+- Validate quantized output against both the transformed eager model and the
+  original source, including task-level quality on held-out data. Choose
+  model/output-specific tolerances before tuning; the harness has no built-in
+  parity thresholds or `--atol` flag.
 
 ## Parity expectations
 
-fp32 XNNPACK matches eager to ~`1e-4`. If parity fails at fp32, suspect a wrong
-wrapper (pooling/normalize mismatch) before loosening the tolerance.
+For fp32, `1e-4` can be a starting point for some outputs, not a universal
+guarantee. Check wrapper semantics (pooling/normalization), preprocessing, and
+contiguous inputs before changing thresholds. Follow
+[validate-and-optimize](../../validate-and-optimize/SKILL.md) for per-output
+error metrics, task quality, and target-device benchmarks.
 
 ## Usage in export.py
 
@@ -44,29 +49,16 @@ and `skills/backends/mlx`.)
 
 ## Profiling & delegation check
 
-A produced `.pte` is not verified until you confirm its ops actually run on
-XNNPACK instead of falling back to the CPU portable kernels. Use the sibling
-[executorch-profiler](https://gl.swmansion.com/swm-ai/executorch-profiler),
-which drives an event-traced ExecuTorch runtime and reports per-op time plus a
-**delegation ratio** per op.
+Start with the bundled `tools/executorch-profiler/profile_et.py` and the
+[profiler guide](../../validate-and-optimize/references/profiling.md) for build
+setup and commands. Supply saved representative inputs via `--model-input`, a
+fresh `--output` directory, and `--n-tests` for repeated calls. The tool
+profiles `forward` and prints per-op timing/delegation from its ETDump; it does
+not validate outputs or separate warmups from measured iterations.
 
-```bash
-# One-time: build ExecuTorch with the event tracer + devtools enabled.
-# (EXECUTORCH_ENABLE_EVENT_TRACER=ON — a normal ET install won't emit an ETDump.)
-./build_et.sh                                   # XNNPACK is always on
-
-# Then, from the profiler dir, against your exported .pte:
-python profile_et.py --model=/path/to/model.pte --output=.
-```
-
-Inputs: the profiler auto-generates random inputs from the model's static
-metadata, or you pass real ones — a `generate_inputs()` you fill in, or
-`--model-input inputs.pt`. `--info` just prints method metadata (shapes/dtypes)
-and exits; `--n-tests N` averages over N `forward` runs.
-
-Read the **Delegated (%)** column: GREEN `100%` = the op ran on XNNPACK, RED
-`0%` = it fell back to a CPU portable kernel, YELLOW = partial. This is exactly
-the signal behind the `extended_ops=True` note above — if the profiler shows ops
-you expected XNNPACK to take stuck at 0%, re-lower with `extended_ops=True` (or
-fix the wrapper) and re-profile. It also tells you where time actually goes,
-which is the input to any quantization decision.
+Investigate hot portable ops before tuning quantization or thread count.
+`extended_ops=True` can widen coverage in versions that support it; check the
+pinned partitioner API and revalidate outputs after changing it. More delegated
+ops are useful only if target-device measurements improve. Record thread count,
+warmups, median/p95 latency, and artifact hash using
+[validate-and-optimize](../../validate-and-optimize/SKILL.md).

@@ -150,10 +150,11 @@ Paired wall-clock timings (includes runtime orchestration and synchronization):
 Speedup: 1.158x, or 13.6% lower median latency. Counts are static delegate
 boundaries, not shader dispatch counts; timings are whole-forward, not per-op.
 
-`vulkan/benchmark_android.cpp` accepts baseline/candidate model paths, input
-float file, side, output prefix, and timed-run count. Build with the Android NDK
-against the current app ExecuTorch headers/shared libraries; run with both
-Vulkan and runtime shared libraries in LD_LIBRARY_PATH. Its logs and paired
+The measurement used a local `vulkan/benchmark_android.cpp` helper, not included
+in this repository, accepting baseline/candidate model paths, input float file,
+side, output prefix, and timed-run count. It was built with the Android NDK
+against the app ExecuTorch headers/shared libraries and run with both Vulkan
+and runtime shared libraries in LD_LIBRARY_PATH. Its logs and paired
 outputs can be analyzed using `compare_vulkan_android.py --help`.
 
 Full device results: `/private/tmp/depth-optimized/zipdepth/android_verification.json`.

@@ -1,6 +1,6 @@
 ---
 name: adding-a-new-export
-description: How to add a model (or a backend/size to an existing one) to the exporter harness — create the model dir, declare model.json, source the config, write export.py implementing export(config, out_dir), and run it with `exporter export`.
+description: Add a model, backend, or size to this ExecuTorch export harness, with a pinned environment, explicit artifact contract, upstream notices, and runtime validation.
 ---
 
 # Adding a New Export
@@ -9,6 +9,18 @@ A model in the `exporter` harness is a self-contained directory under
 `exporter_models/<model>/`. It owns its model code (vendored at the dir top)
 and an `export.py` per backend. See `skills/model-conventions` for the full
 `{size}`/`{backend}` layout, fetched-vs-local config rules, and nested models.
+
+## Completion criteria
+
+Use [recover-export](../recover-export/SKILL.md) when an export or runtime fails.
+Use [validate-and-optimize](../validate-and-optimize/SKILL.md) to establish the
+reference and accuracy budget before optimizing. The CLI reports configured
+output filenames; it does not establish runtime parity or device performance.
+Record artifact hashes, exact commands, and validation results in `NOTES.md`.
+
+Retain upstream source/revision and license notices when vendoring code. The
+root MIT license does not relicense weights or third-party code; consult
+[third-party notices](../../docs/third-party-notices.md).
 
 ## Procedure
 
@@ -85,6 +97,10 @@ and an `export.py` per backend. See `skills/model-conventions` for the full
    Sanity of the produced `.pte` (I/O shapes, runtime parity) is the author's
    responsibility — check it against the authored `methods` / a reference run.
    Read "Export and verification traps" below before trusting a parity failure.
+   Then validate the loaded artifact with
+   [validate-and-optimize](../validate-and-optimize/SKILL.md), including every
+   method/component the application calls. Keep candidate artifacts separate
+   from the verified baseline. A host-only check must be reported as host-only.
 
 ## Export and verification traps
 
@@ -104,7 +120,8 @@ Two mistakes that cost hours on migan and are invisible to the harness:
   pybindings ignore tensor strides and read the raw buffer as contiguous NCHW
   (upstream bug: [pytorch/executorch#18562](https://github.com/pytorch/executorch/issues/18562),
   "`Method.execute()` silently produces wrong results for non-contiguous input
-  tensors", open, assigned to a maintainer). The usual PIL -> numpy ->
+  tensors"). Check the behavior of the pinned runtime; do not assume a host
+  wheel and a device runtime carry the same fix. The usual PIL -> numpy ->
   `torch.from_numpy(...).permute(2, 0, 1)` pipeline produces exactly such a
   tensor, so the runtime output is garbage while nothing errors — and the
   "parity failure" is the same for every variant you try, which is the tell.
@@ -121,5 +138,7 @@ Two mistakes that cost hours on migan and are invisible to the harness:
 - If a model is unusual (pinned transformers version, runtime op rebuild, a
   projection head, an iOS limitation), add a short `NOTES.md` beside the model
   documenting the quirk so re-export carries it.
-- Tests live in `tests/` (gitignored, local) — mirror an existing
-  `test_*_exports.py` (discovery, backends, sizes, IO shapes).
+- A fresh clone does not contain the old gitignored `tests/` suite. Keep new
+  model-specific validation tools with the model, including representative
+  fixture sources, expected thresholds, and reproducible commands. Do not
+  depend on unavailable local tests as evidence that an export is verified.
