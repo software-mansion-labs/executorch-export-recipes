@@ -1,7 +1,5 @@
 ![ExecuTorch Export Recipes — export, validate, and optimize models for the edge](.github/assets/export-recipes.svg)
 
-# ExecuTorch Export Recipes
-
 **An agent-first harness and collection of model recipes for exporting,
 validating, and optimizing AI models for ExecuTorch.**
 
