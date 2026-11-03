@@ -49,12 +49,12 @@ and `skills/backends/mlx`.)
 
 ## Profiling & delegation check
 
-Use a runtime built with event tracing and the matching
-[ExecuTorch developer tools](https://github.com/pytorch/executorch/tree/main/devtools)
-to inspect delegated partitions, portable fallbacks, and time by op. Capture
-ETRecord/ETDump as required by that version's SDK. A normal runtime build may
-not emit an ETDump. Use representative inputs; random static inputs do not
-validate variable-length models or task quality.
+Start with the bundled `tools/executorch-profiler/profile_et.py` and the
+[profiler guide](../../validate-and-optimize/references/profiling.md) for build
+setup and commands. Supply saved representative inputs via `--model-input`, a
+fresh existing `--output` directory, and `--n-tests` for repeated calls. The tool
+profiles `forward` and prints per-op timing/delegation from its ETDump; it does
+not validate outputs or separate warmups from measured iterations.
 
 Investigate hot portable ops before tuning quantization or thread count.
 `extended_ops=True` can widen coverage in versions that support it; check the

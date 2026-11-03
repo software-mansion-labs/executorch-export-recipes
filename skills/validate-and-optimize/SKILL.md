@@ -93,9 +93,12 @@ separately, with prompt length, generated length, and cache position. Keep
 tokenization and application overhead separate from model timing, or explicitly
 report an end-to-end measurement. Never time only GPU dispatch.
 
-Inspect delegation and time by partition/op using an event-traced runtime and
-the [ExecuTorch developer tools](https://github.com/pytorch/executorch/tree/main/devtools)
-appropriate to the pinned version. A CPU fallback can dominate latency even
+Use the bundled [ExecuTorch profiler guide](references/profiling.md) for
+XNNPACK timing/delegation (`tools/executorch-profiler/profile_et.py`) and CoreML
+compute-device assignment (`tools/executorch-profiler/coreml_compute_plan.py`).
+It covers source-build setup, saved inputs, trace outputs, and tool limitations.
+For other backends, follow the relevant backend skill's profiling guidance.
+A CPU fallback can dominate latency even
 when most ops delegate. A high delegation percentage alone is not a speed
 result, and host emulation is not a target-device benchmark.
 

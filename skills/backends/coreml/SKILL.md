@@ -154,12 +154,17 @@ constraint/`expand` error.
 
 ## Profiling & delegation check
 
-Use an event-traced runtime with the CoreML delegate linked and the matching
-[ExecuTorch developer tools](https://github.com/pytorch/executorch/tree/main/devtools).
-Inspect delegate calls, portable fallbacks, and time by partition/op. Supply
-representative inputs for dynamic dimensions and exercise supported bounds.
+Use `tools/executorch-profiler/coreml_compute_plan.py` with
+`--model <model.pte> --show-ops` to inspect preferred ANE/GPU/CPU assignment per
+CoreML partition.
+See the [profiler guide](../../validate-and-optimize/references/profiling.md)
+for setup, standalone CoreML inputs, compute-unit overrides, and limitations.
+The plan reflects the current host; mixed per-method compute units require
+separate analysis under each method's settings. It does not measure op latency
+or establish dispatch on an iPhone.
 
 Compare compute-unit and precision candidates on the intended Apple device.
+Supply representative inputs for dynamic dimensions and exercise supported bounds.
 Verify outputs before ranking latency: a faster candidate with wrong scores
 must be rejected. Keep model loading/CoreML compilation separate from warmed
 inference, and confirm the same runtime build is used for correctness and

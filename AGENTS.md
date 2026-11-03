@@ -24,6 +24,7 @@ exporter_models/<model>/
   _vendored_code.py             # model code, vendored at the model-dir top
 src/exporter/                   # the harness (registry, spec, pipeline, backends, cli)
 skills/                         # how-to knowledge (start here for any task)
+tools/executorch-profiler/       # XNNPACK timing and CoreML compute-device plans
 ```
 
 ## CLI
@@ -77,6 +78,8 @@ original eager model using fixed representative inputs and declared tolerances.
 For quantized models, check task quality against the original source as well.
 Profile delegation and benchmark on the target runtime/device; report which
 checks passed and which could not run. The CLI does not perform these checks.
+For the bundled profiler's setup and usage, see the
+[profiler guide](skills/validate-and-optimize/references/profiling.md).
 If export or runtime execution fails, use
 [recover-export](skills/recover-export/SKILL.md) before retrying.
 

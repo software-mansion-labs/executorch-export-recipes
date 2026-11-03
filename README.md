@@ -24,6 +24,7 @@ Exports can also be used with compatible ExecuTorch runtimes.
 | [Export harness](src/exporter/) | Discover models, select sizes/backends/variants, resolve configs, and invoke the owning export script. |
 | [Model collection](exporter_models/) | Model code, wrappers, dependency locks, backend recipes, and notes from real exports. |
 | [Agent skills](skills/) | Procedures for adding recipes, recovering failed exports, checking outputs, and measuring speed. |
+| [ExecuTorch profiler](tools/executorch-profiler/) | XNNPACK op timing/delegation and CoreML ANE/GPU/CPU compute plans; see the [usage guide](skills/validate-and-optimize/references/profiling.md). |
 
 Runtime validation and benchmarks are separate from export. Check the model's
 `NOTES.md` and backend skill for tested variants, devices, and known limitations.
