@@ -7,7 +7,7 @@ validating, and optimizing AI models for ExecuTorch.**
 [![Python 3.10](https://img.shields.io/badge/Python-3.10-2a47ff?labelColor=24252a)](.python-version)
 [![ExecuTorch](https://img.shields.io/badge/Runtime-ExecuTorch-2a47ff?labelColor=24252a)](https://github.com/pytorch/executorch)
 
-[Quick start](#quick-start) · [Models](#model-collection) · [Agent workflow](#working-with-an-agent) · [CLI](#cli) · [Layout](#layout) · [Contract](#the-exportpy-contract)
+[Quick start](#quick-start) · [Models](#model-collection) · [Agent workflow](#working-with-an-agent) · [CLI](#cli)
 
 Each model has its own export scripts, pinned dependencies, and I/O
 specification. The CLI discovers recipes and runs exports. Repository skills
