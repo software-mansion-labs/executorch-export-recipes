@@ -3,6 +3,8 @@
 Params match the canonical executorch configs
 (examples/models/lfm2/config/lfm2_5_{350m,1_2b}_config.json). The two sizes
 share layer_types/vocab and differ only in dim / hidden_dim / n_heads.
+The 2.6B checkpoint has 30 layers, a 128K vocabulary and a different RoPE
+base. It uses the generic LFM2 model class with an explicit pinned checkpoint.
 """
 
 _LAYER_TYPES = [
@@ -41,3 +43,30 @@ SIZES = {
 # The MLX backend quantizes to 4w on its own schedule -- unrelated to the
 # XNNPACK 8da4w sweep above, so it keeps its own group size.
 MLX_GROUP_SIZE = 64
+
+_LAYER_TYPES_2_6B = [
+    "conv", "conv", "full_attention", "conv", "conv", "full_attention",
+    "conv", "conv", "conv", "full_attention", "conv", "conv", "conv",
+    "full_attention", "conv", "conv", "conv", "full_attention", "conv",
+    "conv", "conv", "full_attention", "conv", "conv", "full_attention",
+    "conv", "conv", "full_attention", "conv", "conv",
+]
+_PARAMS_2_6B = {
+    **_COMMON,
+    "dim": 2048,
+    "hidden_dim": 10752,
+    "n_heads": 32,
+    "n_layers": 30,
+    "vocab_size": 128000,
+    "rope_theta": 10000000.0,
+    "layer_types": _LAYER_TYPES_2_6B,
+}
+SIZES.update({
+    "2_6b": {
+        "model_class": "lfm2_5_1_2b",
+        "source": "LiquidAI/LFM2.5-2.6B",
+        "revision": "654f9463ce32b05d0429d76fe1f580b27d4c1ac0",
+        "params": _PARAMS_2_6B,
+        "quant": {"group_size": 32, "embedding_quantize": "8,0"},
+    },
+})

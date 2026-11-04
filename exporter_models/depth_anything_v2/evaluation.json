@@ -1,0 +1,10 @@
+{
+  "images_base_url": "https://raw.githubusercontent.com/DepthAnything/Depth-Anything-V2/a561b849ebae10a6f5ef49e26c83cbbcd36c71bf/assets/examples",
+  "failed_static_calibration_images": "demo01.jpg through demo16.jpg",
+  "evaluation_images": [
+    "demo17.jpg",
+    "demo18.jpg",
+    "demo19.jpg",
+    "demo20.jpg"
+  ]
+}
