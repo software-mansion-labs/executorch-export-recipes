@@ -1,7 +1,7 @@
 {
   "hf": "https://huggingface.co/software-mansion/react-native-executorch-depth-anything-v3",
   "repo": "depth-anything/DA3-SMALL",
-  "config": "{size}/{backend}/config.json",
+  "config": "{backend}/{size}/config.json",
   "sizes": [
     "small"
   ],

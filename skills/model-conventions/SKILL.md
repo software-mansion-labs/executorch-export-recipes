@@ -15,7 +15,7 @@ of adding one, see `skills/adding-a-new-export`; for backend lowering, see
 {
   "hf": "https://huggingface.co/software-mansion/react-native-executorch-<model>",
   "repo": "software-mansion/react-native-executorch-<model>",
-  "config": "{size}/{backend}/config.json",
+  "config": "{backend}/{size}/config.json",
   "sizes": ["350m", "1_2b"],
   "backends": ["xnnpack", "mlx"]
 }
@@ -41,7 +41,7 @@ A model declares `sizes: [...]` and a `{size}` placeholder in `config`. There is
 **one `export.py` per backend** — it reads `config["size"]` and branches
 (params, model id, checkpoint). Do NOT make a per-size `export.py`. Two shapes:
 
-- size in the **config path** only (`{size}/{backend}/config.json`), one HF repo
+- size in the **config path** only (`{backend}/{size}/config.json`), one HF repo
   holding all sizes — e.g. fast_sam.
 - size in the **repo** too (`...-whisper-{size}`), one HF repo per size — the
   registry substitutes `{size}` in `repo` as well as `config`.

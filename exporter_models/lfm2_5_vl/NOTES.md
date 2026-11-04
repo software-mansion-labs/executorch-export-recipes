@@ -9,8 +9,8 @@ backend reads `config["size"]` and maps it to `LiquidAI/LFM2.5-VL-{450M,1.6B}`.
 ## Why local config.json (not an HF pointer)
 
 The published `react-native-executorch-lfm-2.5` repo does not ship a
-`{size}/{backend}/config.json` for the VL sizes, so the multi-method VL contract
-is hand-authored locally per `{size}/{backend}/`. 1.6B shapes scale with the text
+`{backend}/{size}/config.json` for the VL sizes, so the multi-method VL contract
+is hand-authored locally per `{backend}/{size}/`. 1.6B shapes scale with the text
 hidden dim (2048 vs 450M's 1024): `token_embedding` out `[1,2048,dim]`,
 `text_decoder` in `[1,2048,dim]`, `vision_encoder` out `[1,256,dim]`. The 1.6B
 `vision_encoder` output dim is derived from the canonical config, not verified

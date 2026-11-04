@@ -1,6 +1,6 @@
 {
   "hf": "https://huggingface.co/software-mansion/react-native-executorch-lfm-2.5",
-  "config": "{size}/{backend}/config.json",
+  "config": "{backend}/{size}/config.json",
   "sizes": [
     "350m",
     "1_2b",
