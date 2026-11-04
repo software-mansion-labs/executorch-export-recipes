@@ -2,11 +2,11 @@
 
 Same torchvision model and input contract as the xnnpack export
 (already ImageNet-normalized, RNE passes IMAGENET_NORM), and the same recipe as
-the DeepLabV3 QNN export: a16w8 PTQ with min/max activation observers, a class
+the DeepLabV3 QNN export: PTQ, a class
 index per pixel as output, and the target Hexagon version read from the variant
 file's suffix (`..._v81.pte`).
 
-    QNN_CALIBRATION_SIZE  images used for a16w8 PTQ calibration (default 100)
+    QNN_CALIBRATION_SIZE  images used for PTQ calibration (default 100)
 
 eps is 1e-5, not QNN's 16-bit default: the stage 5-6 depthwise convs have dead
 channels that still carry a folded bias (up to 0.93), and the int32 bias scale

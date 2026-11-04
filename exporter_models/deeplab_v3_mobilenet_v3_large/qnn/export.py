@@ -10,13 +10,13 @@ reads it back from the filename. One representative SoC per version is enough:
 the device-side runtime keys off the Hexagon version, not the chipset, and every
 SoC listed here has 8 MB of VTCM.
 
-    QNN_CALIBRATION_SIZE  images used for a16w8 PTQ calibration (default 100)
+    QNN_CALIBRATION_SIZE  images used for PTQ calibration (default 100)
 
 No fp16 variants are published. fp16 hangs the HTP on this model: the ASPP's
 dilated convolution over a 65x65 input trips a watchdog after ~11.5 s with QNN
 error 1007, and no compiler option avoids it (pytorch/executorch#23096). The
 fp16 path below is kept because the failure is specific to that layer shape, but
-config.json declares a16w8 only.
+config.json declares a8w8 only.
 
 All variants are a8w8: at the same mIoU it halves latency on an S26
 Ultra (200 VOC2012 val images; a16w8 -> a8w8): ResNet50 76.74% / 20.4 ms ->
