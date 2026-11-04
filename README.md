@@ -128,7 +128,7 @@ exporter_models/<model>/
   pyproject.toml + uv.lock     # this model's verified dependency stack
   <backend>/export.py          # export(config, out_dir) writes the artifact(s)
   <backend>/config.json        # optional local override of a fetched spec
-  <size>/<backend>/config.json # optional sized config, per model.json template
+  <backend>/<size>/config.json # optional sized config, per model.json template
   _vendored_code.py            # model-owned source and export adaptations
   NOTES.md                    # quirks, validation evidence, benchmarks
 ```

@@ -1,7 +1,7 @@
 {
   "hf": "https://huggingface.co/software-mansion/react-native-executorch-gemma-4",
   "repo": "software-mansion/react-native-executorch-gemma-4",
-  "config": "{size}/{backend}/config.json",
+  "config": "{backend}/{size}/config.json",
   "sizes": [
     "e2b"
   ],

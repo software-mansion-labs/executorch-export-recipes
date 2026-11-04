@@ -4,7 +4,7 @@
     "detection"
   ],
   "repo": "software-mansion/react-native-executorch-yolo26",
-  "config": "{size}/{backend}/config.json",
+  "config": "{backend}/{size}/config.json",
   "sizes": [
     "n",
     "s",
