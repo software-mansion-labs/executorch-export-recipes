@@ -1,14 +1,16 @@
 [project]
 name = "exporter"
 version = "0.1.0"
-description = "Universal ExecuTorch export harness"
+description = "Agent-first ExecuTorch export harness and model recipe collection"
+readme = "README.md"
+license = { file = "LICENSE" }
 # The harness itself is light (stdlib + huggingface_hub for config fetch). The
 # heavy, version-sensitive export deps (torch, executorch, transformers,
 # torchao, ...) are pinned PER MODEL: each exporter_models/<model>/ is its own
 # uv project (pyproject.toml + uv.lock) that path-depends on this package and
 # pins its exact stack. Run an export inside a model's env with:
 #   uv run --project exporter_models/<model> exporter export <model> ...
-# See skills/model-conventions and CLAUDE.md. python 3.10 is the export runtime
+# See skills/model-conventions and AGENTS.md. python 3.10 is the export runtime
 # (matches the verified conda env); >=3.12 is NOT supported.
 requires-python = "==3.10.*"
 dependencies = [

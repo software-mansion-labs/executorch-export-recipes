@@ -9,6 +9,11 @@ MLX is Apple's GPU backend. It is **physical-device-only** — models do not run
 on the iOS simulator (the sim slice lacks the MLX delegate). Models lower
 **inline** in their `mlx/export.py`.
 
+For failures follow [recover-export](../../recover-export/SKILL.md), especially
+exporter/runtime schema compatibility. For quality and speed comparisons use
+[validate-and-optimize](../../validate-and-optimize/SKILL.md); Mac execution
+alone does not validate the iOS delegate.
+
 ## Recipe
 
 ```python
@@ -56,9 +61,9 @@ decoders tolerate bf16.
 
 - The MLX backend + delegate must be installed; export and on-device run need a
   physical Apple device.
-- Some archs need a newer transformers than the repo default (e.g. the
-  `openai_privacy_filter` MoE arch needs transformers >= 5.10.2; gemma4 pins
-  5.7). Bump for the export, then restore.
+- Some architectures need different transformers versions (e.g. privacy
+  filter and Gemma). Use the owning model's verified pin or update that model's
+  environment with validation evidence; do not mutate another model's env.
 - Interrupt+restart spikes RAM on MLX models (the backend cache isn't trimmed) —
   a runtime quirk, not an export defect.
 

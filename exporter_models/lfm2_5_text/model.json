@@ -3,10 +3,12 @@
   "config": "{size}/{backend}/config.json",
   "sizes": [
     "350m",
-    "1_2b"
+    "1_2b",
+    "2_6b"
   ],
   "backends": [
     "xnnpack",
-    "mlx"
+    "mlx",
+    "vulkan"
   ]
 }
