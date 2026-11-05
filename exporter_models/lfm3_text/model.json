@@ -1,0 +1,12 @@
+{
+  "hf": "https://huggingface.co/software-mansion/react-native-executorch-lfm-3",
+  "repo": "LiquidAI/LFM3-1.7B",
+  "config": "{backend}/{size}/config.json",
+  "sizes": [
+    "1_7b"
+  ],
+  "backends": [
+    "xnnpack",
+    "mlx"
+  ]
+}
