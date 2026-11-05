@@ -1,0 +1,44 @@
+{
+  "$schema": "https://huggingface.co/software-mansion/react-native-executorch-spec/resolve/main/config.schema.json",
+  "model": "u2netp",
+  "family": "u2net",
+  "capabilities": [
+    "semantic-segmentation"
+  ],
+  "backend": "vulkan",
+  "license": "apache-2.0",
+  "variants": [
+    {
+      "file": "u2netp_vulkan_fp16.pte",
+      "precision": "fp16",
+      "quantized": false,
+      "default": true,
+      "methods": {
+        "forward": {
+          "inputs": [
+            {
+              "shape": [
+                1,
+                3,
+                320,
+                320
+              ],
+              "dtype": "float32"
+            }
+          ],
+          "outputs": [
+            {
+              "shape": [
+                1,
+                1,
+                320,
+                320
+              ],
+              "dtype": "float32"
+            }
+          ]
+        }
+      }
+    }
+  ]
+}
