@@ -113,3 +113,26 @@ would reject inputs between 257 and 512 tokens that work today.
 Re-exporting Vulkan supertonic is therefore a capability regression with no
 measured gain. Supertonic's remaining upside is in the runtime libs, so measure
 it as part of the libs sweep (baseline vs candidate), not as an export A/B.
+
+## XNNPACK int8 (8da8w-pc): vector_estimator and vocoder
+
+`vector_estimator_xnnpack_int8.pte` (66 MB) and `vocoder_xnnpack_int8.pte` (39 MB)
+move the ConvNeXt pointwise convs onto Linears (`ConvNeXtBlock.use_linear_pointwise`)
+and apply 8da8w-pc to every Linear. Depthwise convs, the duration predictor and the
+text encoder stay fp32. 8da4w was worse and slower.
+
+Host, LibriSpeech texts, voice F1, 8 steps, seeded noise, WER via whisper base.en:
+
+| arm | WER short (57) | WER long (8) | e2e speedup |
+| --- | --- | --- | --- |
+| fp32 | 3.36 | 3.32 | 1x |
+| fp32, other noise seed | 3.26 | 3.80 | |
+| int8 | 3.74 | 3.01 | 2.3x |
+
+The vector estimator's int8 drift (spectral corr 0.92) is well inside the sampling
+variance of a different noise seed (0.72); the int8 vocoder alone is 26 dB SNR.
+
+Re-exporting fp32 with the 512 T bound reproduces the published duration predictor,
+text encoder and vector estimator byte for byte. The vocoder differs only in its
+schema's output range: the published 1024..256000 contradicts its own x3072
+constraint, `schema.json` has 12288..3072000.

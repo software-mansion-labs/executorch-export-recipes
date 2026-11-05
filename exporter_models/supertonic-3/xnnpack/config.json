@@ -198,6 +198,111 @@
           ]
         }
       }
+    },
+    {
+      "file": "vector_estimator_xnnpack_int8.pte",
+      "precision": "int8",
+      "quantized": true,
+      "quantize": "8da8w-pc",
+      "default": false,
+      "methods": {
+        "forward": {
+          "inputs": [
+            {
+              "shape": [
+                1,
+                144,
+                null
+              ],
+              "dtype": "float32"
+            },
+            {
+              "shape": [
+                1,
+                256,
+                null
+              ],
+              "dtype": "float32"
+            },
+            {
+              "shape": [
+                1,
+                50,
+                256
+              ],
+              "dtype": "float32"
+            },
+            {
+              "shape": [
+                1,
+                1,
+                null
+              ],
+              "dtype": "float32"
+            },
+            {
+              "shape": [
+                1,
+                1,
+                null
+              ],
+              "dtype": "float32"
+            },
+            {
+              "shape": [
+                1
+              ],
+              "dtype": "float32"
+            },
+            {
+              "shape": [
+                1
+              ],
+              "dtype": "float32"
+            }
+          ],
+          "outputs": [
+            {
+              "shape": [
+                1,
+                144,
+                null
+              ],
+              "dtype": "float32"
+            }
+          ]
+        }
+      }
+    },
+    {
+      "file": "vocoder_xnnpack_int8.pte",
+      "precision": "int8",
+      "quantized": true,
+      "quantize": "8da8w-pc",
+      "default": false,
+      "methods": {
+        "forward": {
+          "inputs": [
+            {
+              "shape": [
+                1,
+                144,
+                null
+              ],
+              "dtype": "float32"
+            }
+          ],
+          "outputs": [
+            {
+              "shape": [
+                1,
+                null
+              ],
+              "dtype": "float32"
+            }
+          ]
+        }
+      }
     }
   ]
 }

@@ -1,0 +1,61 @@
+{
+  "$schema": "https://huggingface.co/software-mansion/react-native-executorch-spec/resolve/main/config.schema.json",
+  "model": "minicpm5_2b",
+  "family": "llama",
+  "capabilities": [
+    "text-generation"
+  ],
+  "backend": "mlx",
+  "license": "apache-2.0",
+  "variants": [
+    {
+      "file": "minicpm_5_2b_mlx_4w.pte",
+      "precision": "4w",
+      "quantized": true,
+      "default": true,
+      "methods": {
+        "forward": {
+          "inputs": [
+            {
+              "shape": [
+                1,
+                {
+                  "min": 1,
+                  "max": 128
+                }
+              ],
+              "dtype": "int64"
+            },
+            {
+              "shape": [
+                1
+              ],
+              "dtype": "int64"
+            }
+          ],
+          "outputs": [
+            {
+              "shape": [
+                1,
+                130560
+              ],
+              "dtype": "float32"
+            }
+          ]
+        },
+        "enable_dynamic_shape": true,
+        "get_bos_id": 0,
+        "get_eos_ids": [
+          1,
+          130073
+        ],
+        "get_max_context_len": 8192,
+        "get_max_seq_len": 129,
+        "get_n_layers": 42,
+        "get_vocab_size": 130560,
+        "use_kv_cache": true,
+        "use_sdpa_with_kv_cache": true
+      }
+    }
+  ]
+}

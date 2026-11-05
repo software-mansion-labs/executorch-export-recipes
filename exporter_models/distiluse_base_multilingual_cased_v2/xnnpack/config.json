@@ -49,6 +49,7 @@
       "file": "distiluse_base_multilingual_cased_v2_xnnpack_8da4w.pte",
       "precision": "8da4w",
       "quantized": true,
+      "embedding_quantize": "int8",
       "default": true,
       "methods": {
         "forward": {

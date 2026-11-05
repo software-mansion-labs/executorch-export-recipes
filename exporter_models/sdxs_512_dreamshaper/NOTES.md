@@ -21,7 +21,7 @@ wrappers and the example inputs; each `<backend>/export.py` differs only in lowe
 - **The TAESD unscale.** `decode` bakes `image = clamp(raw / 2 + 0.5, 0, 1)` into the
   graph and returns RGB in [0, 1]; the VAE `scaling_factor` is 1.0 (no 0.18215).
 
-## SDXS is extremely quantization-sensitive
+## SDXS is quantization-sensitive: static int8 breaks it, dynamic int8 does not
 
 The ~14.6x scheduler amplification magnifies any weight error. Measured against a
 seed-42 CPU/fp32 reference (mean pixel error on [0, 1]):
@@ -31,11 +31,18 @@ seed-42 CPU/fp32 reference (mean pixel error on [0, 1]):
 | xnnpack fp32 | 1.76 GB | 1.8e-5 | ship |
 | coreml fp16 | 880 MB | 0.002 | ship |
 | 8da4w (linears only) | 1.0 GB | 0.115 | coherent but degraded, dropped |
-| int8 PT2E (convs + linears) | 557 MB | 0.335 | pure noise, dropped |
+| int8 PT2E static (convs + linears) | 557 MB | 0.335 | pure noise, dropped |
 
-Quantizing the **convolutions** destroys the image; quantizing only **linears** is
-coherent-but-degraded. bf16 is also wrong here (weight-rounding probe: bf16 mean
-0.00813 / max 0.5531 vs fp16 0.00079 / max 0.0951) — use fp16, never bf16.
+`sdxs_512_dreamshaper_xnnpack_int8.pte` (813 MB) instead uses PT2E **dynamic** int8
+activations with int8 per-channel weights on every conv and Linear of `denoise` and
+`decode`; `encode` stays fp32. 16 images (8 prompts x 2 seeds) against fp32: mean pixel
+error 0.075, same scenes, CLIP score 34.94 vs 34.20. Galaxy S26 Ultra per image:
+1323 -> 845 ms (denoise 922 -> 514, decode 373 -> 303). Lowering needs
+`XnnpackDynamicallyQuantizedPartitioner` ahead of `XnnpackPartitioner`; one partitioner
+over mixed nodes fails with "Invalid partition, found dependency cycles".
+
+bf16 is also wrong here (weight-rounding probe: bf16 mean 0.00813 / max 0.5531 vs fp16
+0.00079 / max 0.0951) — use fp16, never bf16.
 
 ## CoreML: compute_unit must exclude the ANE
 

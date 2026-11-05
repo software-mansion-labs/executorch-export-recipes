@@ -1,6 +1,6 @@
 {
   "hf": "https://huggingface.co/software-mansion/react-native-executorch-llama-3.2",
-  "config": "{size}/{backend}/config.json",
+  "config": "{backend}/{size}/config.json",
   "sizes": [
     "1b",
     "3b"

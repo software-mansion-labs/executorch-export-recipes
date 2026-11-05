@@ -1,0 +1,127 @@
+{
+  "$schema": "https://huggingface.co/software-mansion/react-native-executorch-spec/resolve/main/config.schema.json",
+  "model": "qwen3_asr_0_6b",
+  "family": "qwen3_asr",
+  "capabilities": [
+    "speech-to-text"
+  ],
+  "backend": "vulkan",
+  "license": "apache-2.0",
+  "variants": [
+    {
+      "file": "qwen3_asr_0_6b_vulkan_8da4w.pte",
+      "precision": "8da4w",
+      "quantized": true,
+      "default": true,
+      "methods": {
+        "preprocess": {
+          "inputs": [
+            {
+              "shape": [
+                480000
+              ],
+              "dtype": "float32"
+            }
+          ],
+          "outputs": [
+            {
+              "shape": [
+                1,
+                128,
+                3000
+              ],
+              "dtype": "float32"
+            }
+          ]
+        },
+        "audio_encoder": {
+          "inputs": [
+            {
+              "shape": [
+                1,
+                128,
+                800
+              ],
+              "dtype": "float32"
+            },
+            {
+              "shape": [
+                1
+              ],
+              "dtype": "int64"
+            }
+          ],
+          "outputs": [
+            {
+              "shape": [
+                1,
+                104,
+                1024
+              ],
+              "dtype": "float32"
+            }
+          ]
+        },
+        "token_embedding": {
+          "inputs": [
+            {
+              "shape": [
+                1,
+                1024
+              ],
+              "dtype": "int64"
+            }
+          ],
+          "outputs": [
+            {
+              "shape": [
+                1,
+                1024,
+                1024
+              ],
+              "dtype": "float32"
+            }
+          ]
+        },
+        "text_decoder": {
+          "inputs": [
+            {
+              "shape": [
+                1,
+                1023,
+                1024
+              ],
+              "dtype": "float32"
+            },
+            {
+              "shape": [
+                1
+              ],
+              "dtype": "int64"
+            }
+          ],
+          "outputs": [
+            {
+              "shape": [
+                1,
+                151936
+              ],
+              "dtype": "float32"
+            }
+          ]
+        },
+        "enable_dynamic_shape": true,
+        "get_audio_window_frames": 800,
+        "get_eos_ids": [
+          151643,
+          151645
+        ],
+        "get_max_context_len": 1024,
+        "get_max_seq_len": 1023,
+        "get_n_layers": 28,
+        "get_vocab_size": 151936,
+        "use_kv_cache": true
+      }
+    }
+  ]
+}

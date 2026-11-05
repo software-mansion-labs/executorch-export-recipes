@@ -1,0 +1,43 @@
+{
+  "$schema": "https://huggingface.co/software-mansion/react-native-executorch-spec/resolve/main/config.schema.json",
+  "model": "depth_anything_v3_small",
+  "family": "depth-anything-v3",
+  "capabilities": [
+    "depth-estimation"
+  ],
+  "backend": "coreml",
+  "license": "apache-2.0",
+  "variants": [
+    {
+      "file": "depth_anything_v3_small_coreml_fp16.pte",
+      "precision": "fp16",
+      "quantized": false,
+      "default": true,
+      "methods": {
+        "forward": {
+          "inputs": [
+            {
+              "shape": [
+                1,
+                3,
+                518,
+                518
+              ],
+              "dtype": "float32"
+            }
+          ],
+          "outputs": [
+            {
+              "shape": [
+                1,
+                518,
+                518
+              ],
+              "dtype": "float32"
+            }
+          ]
+        }
+      }
+    }
+  ]
+}

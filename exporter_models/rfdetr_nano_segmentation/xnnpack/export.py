@@ -34,6 +34,19 @@ class _RFDETRSegmentationWrapper(nn.Module):
         return bboxes[0], max_scores[0], class_ids[0].float(), pred_masks[0]
 
 
+def _quantize_linears(module: nn.Module, scheme: str):
+    """Dynamic int8 activations + int8 per-channel weights on every Linear (convs stay fp32)."""
+    from torchao.quantization.granularity import PerAxis
+    from torchao.quantization.quant_api import Int8DynamicActivationIntxWeightConfig, quantize_
+
+    assert scheme == "8da8w-pc", scheme
+    qcfg = Int8DynamicActivationIntxWeightConfig(
+        weight_dtype=torch.int8, weight_granularity=PerAxis(0)
+    )
+    # exact type: MultiheadAttention's out_proj subclass is used through its raw weight
+    quantize_(module, qcfg, filter_fn=lambda mod, fqn: type(mod) is nn.Linear)
+
+
 def _lower(exported, backend: str):
     from executorch.backends.transforms.addmm_mm_to_linear import AddmmToLinearTransform
     from executorch.backends.xnnpack.partition.xnnpack_partitioner import XnnpackPartitioner
@@ -60,8 +73,12 @@ def export(config: dict, out_dir: str) -> str:
     resolution = model.model.resolution
 
     wrapper = _RFDETRSegmentationWrapper(actual, resolution).eval()
+    if variant.get("quantize"):
+        _quantize_linears(wrapper, variant["quantize"])
     example = (torch.randn(1, 3, resolution, resolution, dtype=torch.float32),)
-    with torch.inference_mode():
+    # torchao's quantized weights cannot be traced under inference_mode
+    grad_ctx = torch.no_grad if variant.get("quantize") else torch.inference_mode
+    with grad_ctx():
         ep = torch_export(wrapper, args=example, strict=False)
 
     program = _lower(ep, config["backend"])

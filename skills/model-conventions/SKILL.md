@@ -15,7 +15,7 @@ of adding one, see `skills/adding-a-new-export`; for backend lowering, see
 {
   "hf": "https://huggingface.co/software-mansion/react-native-executorch-<model>",
   "repo": "software-mansion/react-native-executorch-<model>",
-  "config": "{size}/{backend}/config.json",
+  "config": "{backend}/{size}/config.json",
   "sizes": ["350m", "1_2b"],
   "backends": ["xnnpack", "mlx"]
 }
@@ -41,7 +41,7 @@ A model declares `sizes: [...]` and a `{size}` placeholder in `config`. There is
 **one `export.py` per backend** — it reads `config["size"]` and branches
 (params, model id, checkpoint). Do NOT make a per-size `export.py`. Two shapes:
 
-- size in the **config path** only (`{size}/{backend}/config.json`), one HF repo
+- size in the **config path** only (`{backend}/{size}/config.json`), one HF repo
   holding all sizes — e.g. fast_sam.
 - size in the **repo** too (`...-whisper-{size}`), one HF repo per size — the
   registry substitutes `{size}` in `repo` as well as `config`.
@@ -61,6 +61,19 @@ resolved pointer path `<model>/<config_path>`; if absent, it FETCHES
 
 Otherwise let it fetch — most models do. Don't vendor a redundant copy of a
 config the repo already ships correctly.
+
+The size/backend lists do not guarantee that every combination is available.
+For a model without `repo`, a missing resolved config means that combination
+cannot be exported. Current partial matrices are:
+
+| Model | Backend | Sizes with local configs |
+| --- | --- | --- |
+| `kokoro` | XNNPACK / MLX | `standard` (CoreML also covers `polish` and `german`) |
+| `lfm2_5_text` | Vulkan | `2_6b` |
+| `qwen3` | Vulkan | `0_6b` |
+
+Check the selected config and the model's `NOTES.md` before running a sweep over
+both axes; do not invent a config or silently change the selected backend.
 
 ## Vendored code
 
@@ -120,9 +133,11 @@ qwen2_5) would silently export the wrong model entirely. `export.py` downloads
 the pinned `source` and runs executorch's HF->Meta `convert_weights`, caching
 the result under `~/.cache/exporter_meta_checkpoints/`. Llama is the exception:
 Meta ships native-format `params.json` + `consolidated.00.pth`, so it needs no
-conversion table at all. `lfm2_5_text` is the one model still relying on the
-auto-download; it is safe only because the table happens to name the repos we
-publish from.
+conversion table at all. The legacy 350M/1.2B sizes of `lfm2_5_text` still rely
+on auto-download; it is safe only because the table happens to name the repos
+we publish from. Its 2.6B size pins an explicit checkpoint revision and supports
+sharded safetensors via `_checkpoint.py`; reusing the 1.2B model class must never
+select the 1.2B checkpoint for that size.
 
 ## Per-model dependencies (pinned uv projects)
 
@@ -135,37 +150,69 @@ Run an export inside the model's locked env:
 uv run --project exporter_models/<model> exporter export <model> --backend <b> --output-dir <dir>
 ```
 
-Why per-model (not one shared env): the models genuinely conflict — the torch
-2.14 nightly (matched to executorch 1.3.1) vs `rfdetr==1.8.2`'s `torch<=2.13`
-pin, funasr's undeclared torchaudio, the MLX models' executorch source build.
-A single lock can't satisfy them.
+Why per-model (not one shared env): the models genuinely conflict — torch 2.14
+(what executorch 1.4.1 runs on) vs `rfdetr==1.8.2`'s `torch<=2.13` pin,
+funasr's undeclared torchaudio, the MLX and Vulkan models' executorch source
+build. A single lock can't satisfy them.
 
 Conventions when authoring a model's `pyproject.toml`:
 - `requires-python = "==3.10.*"`; repo-root `.python-version` is `3.10`.
-- Torch-family (`torch`, `torchvision`, `torchaudio`, `torchao`) come from the
-  PyTorch **nightly** index via `[tool.uv.sources] <pkg> = { index = "pytorch-nightly" }`
-  + a `[[tool.uv.index]]` block. **Date-match** torch and torchvision (a nightly
-  torchvision hard-pins its same-day torch). torchao is the pure-python
-  `py3-none-any` nightly wheel (no C++ build).
+- Torch-family (`torch`, `torchvision`, `torchaudio`, `torchao`): from now
+  on, pin the **stable release from PyPI** (as facemesh does —
+  `torch==2.14.0`, `torchvision==0.29.0`; executorch 1.4.1 only asks for
+  `torch>=2.13.0a0`), with no `[tool.uv.sources]` entry for them. Match torch
+  and torchvision (torchvision hard-pins its torch). Use a **wheel URL** only
+  if a nightly is unavoidable:
+  `torch = { url = "https://download.pytorch.org/whl/nightly/cpu/torch-2.14.0.dev20260702-cp310-cp310-macosx_14_0_arm64.whl" }`
+  Do not add new dated pins against the `pytorch-nightly` index. The index
+  keeps a rolling window and prunes old dev builds, so `torch==2.14.0.devYYYYMMDD`
+  stops resolving a few months on (the wheel file itself stays served, which is
+  what the `<model>/vulkan/` sub-projects rely on). Most existing models still
+  carry such a pin; they stay as they are until the model is next re-exported,
+  and their locks keep working because they record wheel URLs. torchao, if
+  needed, is the pure-python
+  `py3-none-any` wheel (no C++ build); `docs/executorch-1.4.1-bump.md` has its
+  `.dev`-sorts-below-release trap.
 - `[tool.uv] environments = ["sys_platform == 'darwin' and platform_machine == 'arm64'"]`
-  pins the lock to this host and avoids the nightly +cpu/plain platform split.
+  pins the lock to this host and avoids the torch +cpu/plain platform split.
 - rfdetr/ultralytics under-constrain torch, so add
-  `override-dependencies = ["torch==…", "torchvision==…"]` to force the nightly.
+  `override-dependencies = ["torch==…", "torchvision==…"]` to force the pinned
+  torch.
 - `safetensors` is effectively always needed (the ET `export_llama` path reads
   it); funasr also needs `torchaudio`.
-- MLX-backend models (gemma*/lfm2_5_vl) need executorch built from the
-  software-mansion-labs fork (`branch = "@ms/separate-backends"`) — a native
-  source build; their pyproject **declares** the fork source but is not
-  uv-buildable here (run in the ET-source dev env; `.pte` ships on HF).
+- The MLX models gemma*, lfm2_5_vl and `sdxs_512_dreamshaper/mlx`, and every
+  `<model>/vulkan/` sub-project, need executorch built from the
+  software-mansion-labs fork (`branch = "@ms/separate-backends-1.4.1"`) — a
+  native source build. Their
+  pyproject **declares** the fork source but is not uv-buildable here: besides
+  the build itself, upstream's CMake refuses a checkout directory not named
+  exactly `executorch` (pytorch/executorch#6475) and uv names git checkouts by
+  commit hash, so `uv sync` dies before compiling. Run these exports in the
+  ET-source dev env (recipe in `skills/backends/vulkan`, which covers MLX
+  too); the `.pte` ships on HF.
 
 The `model.json` `extras` survive only as human-readable stack labels; the
 `export` preflight (`registry.check_extras`) is a light presence sanity-check.
 `executorch` and torch are pinned in each model's pyproject, not installed
 separately.
 
-## Weights are never committed
+## Provenance and validation evidence
+
+Keep the source repo and checkpoint revision, upstream license/notices, export
+patches, commands, and validation results with the model. See
+[third-party notices](../../docs/third-party-notices.md); the harness's MIT license
+is not a license grant for model weights or vendored code.
+
+For failures use [recover-export](../recover-export/SKILL.md). For correctness,
+precision/quantization changes, and latency tuning use
+[validate-and-optimize](../validate-and-optimize/SKILL.md). Keep baseline and
+candidate artifacts separate and document the shipping runtime build.
+
+## Do not add generated weights
 
 `.pt`/`.pth`/`.pte` are gitignored. Every model fetches/builds its weights at
 export time (HF `from_pretrained` / `hf_hub_download`, URL-zip download,
-keras->pytorch convert, ultralytics auto-download). Tests live in `tests/`
-(also gitignored — local only).
+keras->pytorch convert, ultralytics auto-download). Preserve the existing
+explicit vendored-data exceptions and LFS files in historical commits; do not
+use those as a precedent for committing new generated artifacts. The old
+`tests/` suite is gitignored and is not included in a fresh clone.

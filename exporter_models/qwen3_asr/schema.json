@@ -1,0 +1,192 @@
+{
+  "preprocess": {
+    "inputs": [
+      {
+        "kind": "Tensor",
+        "dtype": "float32",
+        "shape": [
+          {
+            "kind": "range",
+            "range": {
+              "min": 401,
+              "max": 480000,
+              "step": 1
+            }
+          }
+        ]
+      }
+    ],
+    "outputs": [
+      {
+        "kind": "Tensor",
+        "dtype": "float32",
+        "shape": [
+          {
+            "kind": "constant",
+            "value": 1
+          },
+          {
+            "kind": "constant",
+            "value": 128
+          },
+          {
+            "kind": "range",
+            "range": {
+              "min": 2,
+              "max": 3000,
+              "step": 1
+            }
+          }
+        ]
+      }
+    ],
+    "runtimeConstraints": []
+  },
+  "audio_encoder": {
+    "inputs": [
+      {
+        "kind": "Tensor",
+        "dtype": "float32",
+        "shape": [
+          {
+            "kind": "constant",
+            "value": 1
+          },
+          {
+            "kind": "constant",
+            "value": 128
+          },
+          {mel_frames}
+        ]
+      },
+      {
+        "kind": "Tensor",
+        "dtype": "int64",
+        "shape": [
+          {
+            "kind": "constant",
+            "value": 1
+          }
+        ]
+      }
+    ],
+    "outputs": [
+      {
+        "kind": "Tensor",
+        "dtype": "float32",
+        "shape": [
+          {
+            "kind": "constant",
+            "value": 1
+          },
+          {audio_tokens},
+          {
+            "kind": "constant",
+            "value": {dim}
+          }
+        ]
+      }
+    ],
+    "runtimeConstraints": []
+  },
+  "token_embedding": {
+    "inputs": [
+      {
+        "kind": "Tensor",
+        "dtype": "int64",
+        "shape": [
+          {
+            "kind": "constant",
+            "value": 1
+          },
+          {
+            "kind": "range",
+            "range": {
+              "min": 1,
+              "max": {max_context},
+              "step": 1
+            }
+          }
+        ]
+      }
+    ],
+    "outputs": [
+      {
+        "kind": "Tensor",
+        "dtype": "float32",
+        "shape": [
+          {
+            "kind": "constant",
+            "value": 1
+          },
+          {
+            "kind": "range",
+            "range": {
+              "min": 1,
+              "max": {max_context},
+              "step": 1
+            }
+          },
+          {
+            "kind": "constant",
+            "value": {dim}
+          }
+        ]
+      }
+    ],
+    "runtimeConstraints": []
+  },
+  "text_decoder": {
+    "inputs": [
+      {
+        "kind": "Tensor",
+        "dtype": "float32",
+        "shape": [
+          {
+            "kind": "constant",
+            "value": 1
+          },
+          {
+            "kind": "range",
+            "range": {
+              "min": 1,
+              "max": {max_prefill},
+              "step": 1
+            }
+          },
+          {
+            "kind": "constant",
+            "value": {dim}
+          }
+        ]
+      },
+      {
+        "kind": "Tensor",
+        "dtype": "int64",
+        "shape": [
+          {
+            "kind": "constant",
+            "value": 1
+          }
+        ]
+      }
+    ],
+    "outputs": [
+      {
+        "kind": "Tensor",
+        "dtype": "float32",
+        "shape": [
+          {
+            "kind": "constant",
+            "value": 1
+          },
+          {
+            "kind": "constant",
+            "value": {vocab}
+          }
+        ]
+      }
+    ],
+    "runtimeConstraints": []
+  }
+}

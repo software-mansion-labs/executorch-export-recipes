@@ -1,5 +1,7 @@
 # Per-model Vulkan export environment for selfie_segmentation.
-#   uv run --project exporter_models/selfie_segmentation/vulkan exporter export selfie_segmentation --backend vulkan --output-dir <dir>
+#   Not uv-runnable: the executorch fork pin below cannot be built by uv (see
+#   skills/backends/vulkan, "Environment"). From a source-built fork checkout:
+#   PYTHONPATH=src python -m exporter.cli export selfie_segmentation --backend vulkan --output-dir <dir>
 #
 # NOTE (VULKAN EXPORTER SOURCE PIN):
 # executorch comes from software-mansion-labs/executorch, branch

@@ -1,5 +1,7 @@
 # Per-model Vulkan export environment for multi_qa_minilm_l6_cos_v1.
-#   uv run --project exporter_models/multi_qa_minilm_l6_cos_v1/vulkan exporter export multi_qa_minilm_l6_cos_v1 --backend vulkan --output-dir <dir>
+#   Not uv-runnable: the executorch fork pin below cannot be built by uv (see
+#   skills/backends/vulkan, "Environment"). From a source-built fork checkout:
+#   PYTHONPATH=src python -m exporter.cli export multi_qa_minilm_l6_cos_v1 --backend vulkan --output-dir <dir>
 #
 # NOTE (VULKAN EXPORTER SOURCE PIN):
 # executorch is pinned to software-mansion-labs/executorch, branch

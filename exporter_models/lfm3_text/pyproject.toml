@@ -1,0 +1,33 @@
+# Per-model export environment for lfm3_text (xnnpack, mlx, vulkan).
+#   Not uv-runnable: the executorch fork pin below cannot be built by uv (see
+#   skills/backends/vulkan, "Environment"). From a source-built fork checkout:
+#   PYTHONPATH=src python -m exporter.cli export lfm3_text --backend <b> --output-dir <dir>
+#
+# NOTE (EXECUTORCH FORK PIN):
+# software-mansion-labs/executorch @ms/separate-backends-1.4.1: the MLX .pte must
+# match the runtime's op union (exporter.backends.require_mlx_runtime_fork) and the
+# Vulkan export targets the fork's shaders. All three backends were exported from
+# the same fork checkout (1.4.1+0de5ce9).
+#
+# NOTE (NO TRANSFORMERS): the decoder is vendored (_lfm3/), so export needs no
+# transformers. reference.py runs the upstream remote code, which needs
+# transformers >= 5.20; run it in a separate env (see NOTES.md).
+[project]
+name = "exporter-model-lfm3-text"
+version = "0"
+requires-python = "==3.10.*"
+dependencies = [
+    "exporter",
+    "torch==2.14.0.dev20260702",
+    "executorch",
+    "safetensors==0.8.0",
+    "huggingface_hub",
+]
+
+[tool.uv]
+environments = ["sys_platform == 'darwin' and platform_machine == 'arm64'"]
+
+[tool.uv.sources]
+exporter = { path = "../..", editable = true }
+torch = { url = "https://download.pytorch.org/whl/nightly/cpu/torch-2.14.0.dev20260702-cp310-cp310-macosx_14_0_arm64.whl" }
+executorch = { git = "https://github.com/software-mansion-labs/executorch", branch = "@ms/separate-backends-1.4.1" }

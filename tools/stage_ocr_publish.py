@@ -159,7 +159,7 @@ def stage(exports_dir: Path, out_dir: Path):
                 # Keep the vendored config in step: it is the source the registry
                 # resolves and the export reads `variant.file` from, so the next
                 # re-export writes these exact file names.
-                vendored = _MODELS_DIR / key / (f"{size}/{backend}" if size else backend)
+                vendored = _MODELS_DIR / key / (f"{backend}/{size}" if size else backend)
                 vendored.mkdir(parents=True, exist_ok=True)
                 (vendored / "config.json").write_text(text)
                 print(f"  {meta['repo']}/{dest.relative_to(repo_dir)}/{name}")
