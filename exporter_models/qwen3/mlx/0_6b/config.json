@@ -9,8 +9,8 @@
   "license": "apache-2.0",
   "variants": [
     {
-      "file": "qwen_3_0_6b_mlx_int4.pte",
-      "precision": "4w",
+      "file": "qwen_3_0_6b_mlx_int8.pte",
+      "precision": "8w",
       "quantized": true,
       "default": true,
       "methods": {
@@ -40,15 +40,16 @@
                 1,
                 151936
               ],
-              "dtype": "bfloat16"
+              "dtype": "float32"
             }
           ]
         },
         "get_bos_id": 151644,
         "get_eos_ids": [
-          151645
+          151645,
+          151643
         ],
-        "get_max_context_len": 2048,
+        "get_max_context_len": 8192,
         "get_max_seq_len": 2048,
         "get_n_layers": 28,
         "get_vocab_size": 151936,
