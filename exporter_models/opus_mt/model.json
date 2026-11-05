@@ -1,0 +1,6 @@
+{
+  "hf": "https://huggingface.co/software-mansion/react-native-executorch-opus-mt",
+  "config": "{backend}/{size}/config.json",
+  "sizes": ["en_de", "de_en", "en_es", "es_en", "en_fr", "fr_en"],
+  "backends": ["xnnpack", "coreml", "mlx", "vulkan"]
+}

@@ -1,0 +1,29 @@
+# Per-model export environment for opus_mt (XNNPACK and Core ML).
+#   uv run --project exporter_models/opus_mt exporter export opus_mt --size en-de --backend xnnpack --output-dir <dir>
+#
+# MLX and Vulkan need the software-mansion-labs executorch fork (see
+# skills/backends/vulkan, "Environment") and run in a source-built env instead.
+[project]
+name = "exporter-model-opus-mt"
+version = "0"
+requires-python = "==3.10.*"
+dependencies = [
+    "exporter",
+    "torch==2.14.0",
+    "executorch==1.4.1",
+    "coremltools==9.0",
+    "torchao==0.18.0",
+    "transformers==5.14.1",
+    "safetensors==0.8.0",
+    "sentencepiece==0.2.1",
+    "tokenizers",
+    "sacrebleu==2.5.1",
+]
+
+[tool.uv]
+# Exports run only on this macOS arm64 host; limit resolution to it so the
+# torch +cpu-vs-plain platform split can't fail the lock.
+environments = ["sys_platform == 'darwin' and platform_machine == 'arm64'"]
+
+[tool.uv.sources]
+exporter = { path = "../..", editable = true }

@@ -1,0 +1,6 @@
+{
+  "hf": "https://huggingface.co/software-mansion/react-native-executorch-eurollm",
+  "config": "{backend}/{size}/config.json",
+  "sizes": ["1_7b"],
+  "backends": ["xnnpack", "mlx", "vulkan"]
+}
