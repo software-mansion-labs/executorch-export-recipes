@@ -1,0 +1,6 @@
+{
+  "config": "{backend}/config.json",
+  "backends": [
+    "qnn"
+  ]
+}

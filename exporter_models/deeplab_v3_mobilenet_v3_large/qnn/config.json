@@ -1,0 +1,492 @@
+{
+  "$schema": "https://huggingface.co/software-mansion/react-native-executorch-spec/resolve/main/config.schema.json",
+  "model": "deeplab_v3",
+  "family": "deeplab",
+  "capabilities": [
+    "semantic-segmentation"
+  ],
+  "backend": "qnn",
+  "license": "bsd-3-clause",
+  "variants": [
+    {
+      "file": "deeplab_v3_mobilenet_v3_large_qnn_a8w8_v69.pte",
+      "precision": "a8w8",
+      "quantized": true,
+      "default": false,
+      "size": "mobilenet_v3_large",
+      "methods": {
+        "forward": {
+          "inputs": [
+            {
+              "shape": [
+                1,
+                3,
+                520,
+                520
+              ],
+              "dtype": "float32"
+            }
+          ],
+          "outputs": [
+            {
+              "shape": [
+                1,
+                520,
+                520
+              ],
+              "dtype": "int32"
+            }
+          ]
+        }
+      }
+    },
+    {
+      "file": "deeplab_v3_mobilenet_v3_large_qnn_a8w8_v73.pte",
+      "precision": "a8w8",
+      "quantized": true,
+      "default": false,
+      "size": "mobilenet_v3_large",
+      "methods": {
+        "forward": {
+          "inputs": [
+            {
+              "shape": [
+                1,
+                3,
+                520,
+                520
+              ],
+              "dtype": "float32"
+            }
+          ],
+          "outputs": [
+            {
+              "shape": [
+                1,
+                520,
+                520
+              ],
+              "dtype": "int32"
+            }
+          ]
+        }
+      }
+    },
+    {
+      "file": "deeplab_v3_mobilenet_v3_large_qnn_a8w8_v75.pte",
+      "precision": "a8w8",
+      "quantized": true,
+      "default": false,
+      "size": "mobilenet_v3_large",
+      "methods": {
+        "forward": {
+          "inputs": [
+            {
+              "shape": [
+                1,
+                3,
+                520,
+                520
+              ],
+              "dtype": "float32"
+            }
+          ],
+          "outputs": [
+            {
+              "shape": [
+                1,
+                520,
+                520
+              ],
+              "dtype": "int32"
+            }
+          ]
+        }
+      }
+    },
+    {
+      "file": "deeplab_v3_mobilenet_v3_large_qnn_a8w8_v79.pte",
+      "precision": "a8w8",
+      "quantized": true,
+      "default": false,
+      "size": "mobilenet_v3_large",
+      "methods": {
+        "forward": {
+          "inputs": [
+            {
+              "shape": [
+                1,
+                3,
+                520,
+                520
+              ],
+              "dtype": "float32"
+            }
+          ],
+          "outputs": [
+            {
+              "shape": [
+                1,
+                520,
+                520
+              ],
+              "dtype": "int32"
+            }
+          ]
+        }
+      }
+    },
+    {
+      "file": "deeplab_v3_mobilenet_v3_large_qnn_a8w8_v81.pte",
+      "precision": "a8w8",
+      "quantized": true,
+      "default": true,
+      "size": "mobilenet_v3_large",
+      "methods": {
+        "forward": {
+          "inputs": [
+            {
+              "shape": [
+                1,
+                3,
+                520,
+                520
+              ],
+              "dtype": "float32"
+            }
+          ],
+          "outputs": [
+            {
+              "shape": [
+                1,
+                520,
+                520
+              ],
+              "dtype": "int32"
+            }
+          ]
+        }
+      }
+    },
+    {
+      "file": "deeplab_v3_resnet50_qnn_a8w8_v69.pte",
+      "precision": "a8w8",
+      "quantized": true,
+      "default": false,
+      "size": "resnet50",
+      "methods": {
+        "forward": {
+          "inputs": [
+            {
+              "shape": [
+                1,
+                3,
+                520,
+                520
+              ],
+              "dtype": "float32"
+            }
+          ],
+          "outputs": [
+            {
+              "shape": [
+                1,
+                520,
+                520
+              ],
+              "dtype": "int32"
+            }
+          ]
+        }
+      }
+    },
+    {
+      "file": "deeplab_v3_resnet50_qnn_a8w8_v73.pte",
+      "precision": "a8w8",
+      "quantized": true,
+      "default": false,
+      "size": "resnet50",
+      "methods": {
+        "forward": {
+          "inputs": [
+            {
+              "shape": [
+                1,
+                3,
+                520,
+                520
+              ],
+              "dtype": "float32"
+            }
+          ],
+          "outputs": [
+            {
+              "shape": [
+                1,
+                520,
+                520
+              ],
+              "dtype": "int32"
+            }
+          ]
+        }
+      }
+    },
+    {
+      "file": "deeplab_v3_resnet50_qnn_a8w8_v75.pte",
+      "precision": "a8w8",
+      "quantized": true,
+      "default": false,
+      "size": "resnet50",
+      "methods": {
+        "forward": {
+          "inputs": [
+            {
+              "shape": [
+                1,
+                3,
+                520,
+                520
+              ],
+              "dtype": "float32"
+            }
+          ],
+          "outputs": [
+            {
+              "shape": [
+                1,
+                520,
+                520
+              ],
+              "dtype": "int32"
+            }
+          ]
+        }
+      }
+    },
+    {
+      "file": "deeplab_v3_resnet50_qnn_a8w8_v79.pte",
+      "precision": "a8w8",
+      "quantized": true,
+      "default": false,
+      "size": "resnet50",
+      "methods": {
+        "forward": {
+          "inputs": [
+            {
+              "shape": [
+                1,
+                3,
+                520,
+                520
+              ],
+              "dtype": "float32"
+            }
+          ],
+          "outputs": [
+            {
+              "shape": [
+                1,
+                520,
+                520
+              ],
+              "dtype": "int32"
+            }
+          ]
+        }
+      }
+    },
+    {
+      "file": "deeplab_v3_resnet50_qnn_a8w8_v81.pte",
+      "precision": "a8w8",
+      "quantized": true,
+      "default": false,
+      "size": "resnet50",
+      "methods": {
+        "forward": {
+          "inputs": [
+            {
+              "shape": [
+                1,
+                3,
+                520,
+                520
+              ],
+              "dtype": "float32"
+            }
+          ],
+          "outputs": [
+            {
+              "shape": [
+                1,
+                520,
+                520
+              ],
+              "dtype": "int32"
+            }
+          ]
+        }
+      }
+    },
+    {
+      "file": "deeplab_v3_resnet101_qnn_a8w8_v69.pte",
+      "precision": "a8w8",
+      "quantized": true,
+      "default": false,
+      "size": "resnet101",
+      "methods": {
+        "forward": {
+          "inputs": [
+            {
+              "shape": [
+                1,
+                3,
+                520,
+                520
+              ],
+              "dtype": "float32"
+            }
+          ],
+          "outputs": [
+            {
+              "shape": [
+                1,
+                520,
+                520
+              ],
+              "dtype": "int32"
+            }
+          ]
+        }
+      }
+    },
+    {
+      "file": "deeplab_v3_resnet101_qnn_a8w8_v73.pte",
+      "precision": "a8w8",
+      "quantized": true,
+      "default": false,
+      "size": "resnet101",
+      "methods": {
+        "forward": {
+          "inputs": [
+            {
+              "shape": [
+                1,
+                3,
+                520,
+                520
+              ],
+              "dtype": "float32"
+            }
+          ],
+          "outputs": [
+            {
+              "shape": [
+                1,
+                520,
+                520
+              ],
+              "dtype": "int32"
+            }
+          ]
+        }
+      }
+    },
+    {
+      "file": "deeplab_v3_resnet101_qnn_a8w8_v75.pte",
+      "precision": "a8w8",
+      "quantized": true,
+      "default": false,
+      "size": "resnet101",
+      "methods": {
+        "forward": {
+          "inputs": [
+            {
+              "shape": [
+                1,
+                3,
+                520,
+                520
+              ],
+              "dtype": "float32"
+            }
+          ],
+          "outputs": [
+            {
+              "shape": [
+                1,
+                520,
+                520
+              ],
+              "dtype": "int32"
+            }
+          ]
+        }
+      }
+    },
+    {
+      "file": "deeplab_v3_resnet101_qnn_a8w8_v79.pte",
+      "precision": "a8w8",
+      "quantized": true,
+      "default": false,
+      "size": "resnet101",
+      "methods": {
+        "forward": {
+          "inputs": [
+            {
+              "shape": [
+                1,
+                3,
+                520,
+                520
+              ],
+              "dtype": "float32"
+            }
+          ],
+          "outputs": [
+            {
+              "shape": [
+                1,
+                520,
+                520
+              ],
+              "dtype": "int32"
+            }
+          ]
+        }
+      }
+    },
+    {
+      "file": "deeplab_v3_resnet101_qnn_a8w8_v81.pte",
+      "precision": "a8w8",
+      "quantized": true,
+      "default": false,
+      "size": "resnet101",
+      "methods": {
+        "forward": {
+          "inputs": [
+            {
+              "shape": [
+                1,
+                3,
+                520,
+                520
+              ],
+              "dtype": "float32"
+            }
+          ],
+          "outputs": [
+            {
+              "shape": [
+                1,
+                520,
+                520
+              ],
+              "dtype": "int32"
+            }
+          ]
+        }
+      }
+    }
+  ]
+}

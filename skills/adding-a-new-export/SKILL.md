@@ -74,7 +74,7 @@ root MIT license does not relicense weights or third-party code; consult
      `sys.modules` key per dir/backend). Each model owns its code.
    - **Lower:** simple single-method XNNPACK models can use the shared
      `from exporter.backends import lower; lower(ep, config["backend"])`.
-     Everything else lowers inline — see `skills/backends/{xnnpack,coreml,mlx}`.
+     Everything else lowers inline — see `skills/backends/{xnnpack,coreml,mlx,qnn}`.
    - Write the buffer to `Path(out_dir) / config["variant"]["file"]`.
 
 5. **Author the model's uv project:** add `exporter_models/<model>/pyproject.toml`

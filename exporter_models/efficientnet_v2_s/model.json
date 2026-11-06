@@ -9,6 +9,7 @@
     "xnnpack",
     "coreml",
     "vulkan",
-    "mlx"
+    "mlx",
+    "qnn"
   ]
 }

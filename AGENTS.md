@@ -61,7 +61,7 @@ harness imports `export.py` to discover it without a full backend env).
   make evidence-based retries, and validate the recovered artifact.
 - **[Validation and optimization](skills/validate-and-optimize/SKILL.md)** —
   preserve output quality while measuring and improving target-device speed.
-- **`skills/backends/{xnnpack,coreml,mlx,vulkan}`** — per-backend lowering
+- **`skills/backends/{xnnpack,coreml,mlx,vulkan,qnn}`** — per-backend lowering
   recipes, quantization, gotchas, and how to **profile / verify delegation** of
   a produced `.pte` with a compatible event-traced runtime and developer tools.
 
