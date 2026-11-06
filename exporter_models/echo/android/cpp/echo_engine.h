@@ -14,7 +14,9 @@
 
 namespace echo {
 
-inline constexpr const char* kDynamicDecoder = "codec_dec_xnnpack.pte";
+// export/xnnpack (harness) and export_encoder.py file names
+inline constexpr const char* kDynamicDecoder = "codec_decoder_xnnpack_fp32.pte";
+inline constexpr const char* kEncoder = "codec_encoder_xnnpack_fp32_multi.pte";
 
 constexpr int kSampleRate = 24000;
 constexpr int kHop = 960;
@@ -31,14 +33,14 @@ struct Stats {
 
 class Engine {
  public:
-  // dir holds tokenizer.json, the backbone(s), codec_enc_xnnpack_multi.pte, codec_dec_xnnpack.pte.
+  // dir holds tokenizer.json, the backbone(s), kEncoder and the decoder(s).
   // A bucketed backbone (QNN, static Core ML) has fixed P <= PB, T <= TB; requests that do not fit it
   // run on `fallback` (a dynamic-shape backbone, e.g. Vulkan) when one is given.
   // decoder_frames > 0: the decoder is a static-shape export of that many frames (codes are padded with
   // the last frame, the audio is cut back). encoder "" skips the codec encoder (set_reference_codes only).
   std::string load(const std::string& dir, const std::string& backbone, const std::string& fallback = "",
                    const std::string& decoder = kDynamicDecoder,
-                   const std::string& encoder = "codec_enc_xnnpack_multi.pte", int decoder_frames = 0);
+                   const std::string& encoder = kEncoder, int decoder_frames = 0);
 
   // Reference given as codec codes [8, frames] (benchmarks, or a voice encoded earlier).
   void set_reference_codes(const std::vector<int64_t>& codes, int frames, int speech_frames);

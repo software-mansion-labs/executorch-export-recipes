@@ -25,7 +25,7 @@ JNIEXPORT jstring JNICALL Java_com_swmansion_echodemo_Echo_load(JNIEnv* env, jcl
   g_engine = new echo::Engine();
   const std::string dec = decoder ? str(env, decoder) : "";
   std::string e = g_engine->load(str(env, dir), str(env, backbone), fallback ? str(env, fallback) : "",
-                                 dec.empty() ? echo::kDynamicDecoder : dec, "codec_enc_xnnpack_multi.pte", decoderFrames);
+                                 dec.empty() ? echo::kDynamicDecoder : dec, echo::kEncoder, decoderFrames);
   if (!e.empty()) {
     delete g_engine;
     g_engine = nullptr;

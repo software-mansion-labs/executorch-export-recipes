@@ -103,9 +103,13 @@ breaks on prompts with P > 512 (Polish WER 987% -> 0% with it).
 ## QNN (standalone, not in the harness)
 
 `qnn/export_qnn.py` lowers the backbone, `qnn/export_codec_qnn.py` the codec
-decoder, both for SM8850 (QAIRT 2.47); `qnn/calibrate.py` builds the backbone
-a16w8 calibration set. Each script's docstring has its contract and the HTP
-workarounds. Needs a box with enough RAM for one backbone export at a time.
+decoder, both for SM8850; `qnn/calibrate.py` builds the backbone a16w8
+calibration set. Each script's docstring has its contract and the HTP
+workarounds. Environment: QAIRT 2.47 (`QNN_SDK_ROOT`) and the fork
+`@ms/separate-backends-1.4.1` built with its QNN backend (verified at 328163835;
+plus transformers 5.14.1 as pinned in `pyproject.toml`).
+One backbone export at a time needs ~30 GB of RAM. The demo app (`android/`)
+lists every file it loads and the command that makes it.
 
 ```
 python qnn/export_qnn.py echo_qnn_fp16_t256.pte --precision fp16          # P = 320 + 192, fp16 KV

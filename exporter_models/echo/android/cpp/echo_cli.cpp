@@ -23,7 +23,7 @@ int main(int argc, char** argv) {
   // ECHO_DECODER / ECHO_DECODER_FRAMES pick another codec decoder, e.g. a static QNN one.
   const char* dec = std::getenv("ECHO_DECODER");
   const char* dec_frames = std::getenv("ECHO_DECODER_FRAMES");
-  std::string e = dec ? eng.load(argv[1], argv[2], argc > 10 ? argv[10] : "", dec, "codec_enc_xnnpack_multi.pte",
+  std::string e = dec ? eng.load(argv[1], argv[2], argc > 10 ? argv[10] : "", dec, echo::kEncoder,
                                  dec_frames ? std::atoi(dec_frames) : 0)
                       : eng.load(argv[1], argv[2], argc > 10 ? argv[10] : "");
   if (!e.empty()) { std::printf("LOAD_FAIL %s\n", e.c_str()); return 3; }
