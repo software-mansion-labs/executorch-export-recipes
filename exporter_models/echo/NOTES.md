@@ -101,15 +101,14 @@ breaks on prompts with P > 512 (Polish WER 987% -> 0% with it).
 
 ## QNN (standalone, not in the harness)
 
-`qnn/export_qnn.py` lowers both methods at one static bucket (P = 320, T = 256)
-for SM8850 with HTP weight sharing; `qnn/calibrate.py` builds the a16w8
-calibration set from the source repo's dev set. Needs QAIRT 2.47 and a box
-with enough RAM for the full model. These scripts were consolidated from the ones that
-built the measured QNN files and were not re-run after that (the calibration set they
-produce is identical).
+`qnn/export_qnn.py` lowers the backbone, `qnn/export_codec_qnn.py` the codec
+decoder, both for SM8850 (QAIRT 2.47); `qnn/calibrate.py` builds the backbone
+a16w8 calibration set. Each script's docstring has its contract and the HTP
+workarounds. Needs a box with enough RAM for one backbone export at a time.
 
 ```
-python qnn/export_qnn.py echo_qnn_fp16_p320_t256.pte --precision fp16
+python qnn/export_qnn.py echo_qnn_fp16_t256.pte --precision fp16          # P = 320 + 192, fp16 KV
+python qnn/export_codec_qnn.py echo_codec_qnn_a16w8_t256.pte --precision a16w8
 python qnn/calibrate.py calib_p320_t256.pt
 python qnn/export_qnn.py echo_qnn_a16w8_p320_t256.pte --precision a16w8 --calib calib_p320_t256.pt
 ```
@@ -117,9 +116,15 @@ python qnn/export_qnn.py echo_qnn_a16w8_p320_t256.pte --precision a16w8 --calib 
 Differences from the dynamic contract: ids and positions are int32 (no int64
 on the HTP); padding is masked with additive -1e4 (`key_bias` [P] on
 `encode_prefix`, `self_bias` [T] on `denoise`, padded entries of `bias`).
+fp16 splits denoise into `denoise` (argmax + log-prob of codebooks 0-1, main
+passes) and `denoise_full` (raw logits, polish passes) and passes KV as fp16.
 a16w8 uses the w8a16 checkpoint and also returns the last hidden state:
 otherwise the last layer's RoPE'd key only feeds a graph output and the HTP
 reads its gathered cos/sin wrongly (pytorch/executorch#24125).
+
+Galaxy S26 Ultra, 10 s of speech (184-token prompt, 250 frames), fp16 backbone
++ a16w8 codec: prefix 26 ms + 10 passes 271 ms + codec 45 ms = 342 ms (29x
+real time), Whisper-exact. fp16 codec: 80 ms, 53 dB to fp32.
 
 ## Results
 

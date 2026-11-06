@@ -124,7 +124,16 @@ class Attention(nn.Module):
         self.k_norm = RMSNorm(hd, cfg["rms_norm_eps"])
         self.register_buffer("rot", _rotation(hd), persistent=False)
 
+    rot_mode = "linear"  # "slice": cat(-x2, x1), for backends that slice natively (QNN)
+    # QNN: concatenate keys rather than scores and expect the 1/sqrt(hd) scale already folded into
+    # q_norm (fold_attention_scale). Same math; on the HTP the per-score mul/add/cat over
+    # [kv, 2N, P+N] cost more than all the linears together.
+    fused = False
+
     def rope(self, x, cos, sin):
+        if Attention.rot_mode == "slice":
+            half = self.hd // 2
+            return x * cos + torch.cat([-x[..., half:], x[..., :half]], dim=-1) * sin
         return x * cos + F.linear(x, self.rot) * sin
 
     def kv(self, h: torch.Tensor, cos: torch.Tensor, sin: torch.Tensor):
@@ -146,6 +155,19 @@ class Attention(nn.Module):
         # .contiguous().view(-1) rather than reshape: export turns a reshape of a
         # strided tensor into a view with a symbolic size, which XNNPACK rejects.
         q = q.contiguous().view(self.n_kv, -1, self.hd)
+        if Attention.fused:
+            bias_all = self_bias
+            if prefix is not None:
+                kp, vp, bias = prefix
+                k, v = torch.cat([kp, k], dim=1), torch.cat([vp, v], dim=1)
+                own = self_bias if self_bias is not None else torch.zeros(q.shape[1] // (self.n_heads // self.n_kv), dtype=bias.dtype)
+                bias_all = torch.cat([bias, own])
+            scores = torch.bmm(q, k.transpose(1, 2))
+            if bias_all is not None:
+                scores = scores + bias_all
+            out = torch.bmm(torch.softmax(scores, dim=-1), v)
+            out = out.view(self.n_heads, -1, self.hd).transpose(0, 1).contiguous().view(-1, self.n_heads * self.hd)
+            return self.o_proj(out)
         scores = torch.bmm(q, k.transpose(1, 2)) * self.hd**-0.5
         if self_bias is not None:
             scores = scores + self_bias
@@ -157,6 +179,15 @@ class Attention(nn.Module):
         out = torch.bmm(torch.softmax(scores, dim=-1), v)  # [KV, g*N, HD]
         out = out.view(self.n_heads, -1, self.hd).transpose(0, 1).contiguous().view(-1, self.n_heads * self.hd)
         return self.o_proj(out)
+
+
+def fold_attention_scale(model):
+    """For Attention.fused: scale q_norm's weight by 1/sqrt(hd) (RoPE is linear, so it commutes)."""
+    with torch.no_grad():
+        for layer in model.llm.layers:
+            attn = layer.self_attn
+            attn.q_norm.weight.mul_(attn.hd**-0.5)
+    return model
 
 
 class MLP(nn.Module):
@@ -179,7 +210,6 @@ class Layer(nn.Module):  # weights only; the methods below drive it
         self.post_attention_layernorm = RMSNorm(cfg["hidden_size"], cfg["rms_norm_eps"])
         self.mlp = MLP(cfg)
 
-
 class FactorizedEmbedding(nn.Module):
     """Echo's rank-256 text embedding: table lookup, then a 256 -> D projection."""
 
@@ -201,6 +231,10 @@ class _LLM(nn.Module):
 
 
 class Echo(nn.Module):
+    # "one": a single lookup with per-codebook offsets, then a sum over codebooks (QNN: 4.7x
+    # faster than eight lookups); "per_codebook" for backends that cannot reduce over dim 0.
+    embed_mode = "per_codebook"
+
     def __init__(self, config: dict):
         super().__init__()
         cfg = config["llm_config"]
@@ -251,10 +285,35 @@ class Echo(nn.Module):
     def embed_audio(self, codes: torch.Tensor) -> torch.Tensor:
         # [C, N] -> [N, D]: one embedding row per codebook, summed. One lookup per
         # codebook plus adds, since neither XNNPACK nor Vulkan reduces over dim 0.
+        if Echo.embed_mode == "one":
+            return self.audio_embeddings(codes + self.codebook_layer_offsets[:, None]).sum(0)
         x = self.audio_embeddings(codes[0])
         for c in range(1, self.n_cb):
             x = x + self.audio_embeddings(codes[c] + c * self.vocab)
         return x
+
+    def split_main_head(self, ncb=2):
+        # Real-id and mask-id rows of the first ncb codebooks as their own constants, so the
+        # exported graph holds no slice of the 1025-wide head.
+        w = self.audio_heads.weight.detach().view(self.n_cb, self.vocab, -1)[:ncb]
+        self.register_buffer("head_real", w[:, : self.mask_id].flatten(0, 1).contiguous(), persistent=False)
+        self.register_buffer("head_mask", w[:, self.mask_id].contiguous(), persistent=False)
+
+    def main_head(self, x, ncb=2):
+        """What a main sampling pass reads, for codebooks 0..ncb-1: the argmax over the real ids
+        and its log-prob under the full softmax (mask id included), as [ncb, N] int32 / float.
+
+        The mask row is split off so every wide tensor is 1024 wide (HVX-aligned):
+        max log p = ls_top - softplus(mask - lse_real), ls_top = top - lse_real."""
+        if not hasattr(self, "head_real"):
+            self.split_main_head(ncb)
+        real = F.linear(x, self.head_real).view(-1, ncb, self.mask_id)
+        mask = F.linear(x, self.head_mask)
+        top = real.amax(-1)
+        ls_top = torch.log_softmax(real, dim=-1).amax(-1)
+        z = mask - top + ls_top
+        conf = ls_top - (F.relu(z) + torch.log(1 + torch.exp(-z.abs())))
+        return real.argmax(-1).to(torch.int32).t(), conf.t()
 
     # -- exported methods ---------------------------------------------------
 
@@ -276,7 +335,7 @@ class Echo(nn.Module):
         # wrongly on the HTP (pytorch/executorch#24125).
         return (*kv, x) if return_hidden else tuple(kv)
 
-    def denoise(self, codes, pos, bias, *kv, self_bias=None):
+    def denoise(self, codes, pos, bias, *kv, self_bias=None, head="logprobs"):
         x = self.embed_audio(codes)
         cos, sin = self.rope(pos)
         for i, layer in enumerate(self.llm.layers):
@@ -285,6 +344,12 @@ class Echo(nn.Module):
             x = x + layer.self_attn(h, cos, sin, k, v, (kv[2 * i], kv[2 * i + 1], bias), self_bias)
             x = x + layer.mlp(layer.post_attention_layernorm(x))
         x = self.llm.norm(x)
+        if head == "raw":
+            # [N, C * V] logits, token-major. Every read of the polish passes is an argmax that a
+            # per-row constant does not move, so the log_softmax is not needed.
+            return self.audio_heads(x)
+        if head == "main":
+            return self.main_head(x)
         logits = self.audio_heads(x).view(-1, self.n_cb, self.vocab).transpose(0, 1)
         # The mask id is never a prediction.
         return torch.log_softmax(logits, dim=-1)[..., : self.mask_id]
