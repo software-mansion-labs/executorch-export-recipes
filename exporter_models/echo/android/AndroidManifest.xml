@@ -1,0 +1,18 @@
+<?xml version="1.0" encoding="utf-8"?>
+<manifest xmlns:android="http://schemas.android.com/apk/res/android"
+    package="com.swmansion.echodemo" android:versionCode="1" android:versionName="0.1">
+    <uses-sdk android:minSdkVersion="26" android:targetSdkVersion="34" />
+    <uses-permission android:name="android.permission.RECORD_AUDIO" />
+    <application android:label="Echo voice cloning" android:extractNativeLibs="true"
+        android:theme="@android:style/Theme.DeviceDefault">
+        <!-- the QNN HTP stub talks to the DSP through this vendor library (Android 12+ needs the declaration) -->
+        <uses-native-library android:name="libcdsprpc.so" android:required="false" />
+        <activity android:name=".MainActivity" android:exported="true"
+            android:windowSoftInputMode="adjustResize" android:configChanges="orientation|screenSize|keyboardHidden">
+            <intent-filter>
+                <action android:name="android.intent.action.MAIN" />
+                <category android:name="android.intent.category.LAUNCHER" />
+            </intent-filter>
+        </activity>
+    </application>
+</manifest>

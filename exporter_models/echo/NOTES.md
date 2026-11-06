@@ -31,6 +31,7 @@ reference is `run/voice_cloning.ipynb` in the source repo, ported in
 Android pairs the Vulkan backbone with the XNNPACK codec files: Vulkan cannot
 hold the decoder in one blob above T = 16 and is 8x slower than XNNPACK on it.
 The encoder is XNNPACK only (80 blobs, exact against `codec.encode`).
+`android/` is the demo app (QNN or Vulkan backbone; see its README).
 
 ## Contract
 
