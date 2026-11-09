@@ -9,6 +9,8 @@
     "e2b"
   ],
   "backends": [
-    "mlx"
+    "mlx",
+    "xnnpack",
+    "vulkan"
   ]
 }

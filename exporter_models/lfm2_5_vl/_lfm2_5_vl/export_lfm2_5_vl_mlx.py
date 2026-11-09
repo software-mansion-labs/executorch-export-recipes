@@ -25,6 +25,7 @@ Usage:
         [--dtype bf16|fp16|fp32] [--output lfm2_5_vl_mlx.pte]
 """
 
+import json
 import logging
 import os
 from argparse import ArgumentParser, BooleanOptionalAction
@@ -118,7 +119,12 @@ def export_image_encoder(
 
 
 def export_text_decoder(lfm2, dtype: DType = DType.fp32) -> torch.export.ExportedProgram:
+    compute_dtype = dtype.to_torch_dtype()
+
     class TextDecoder(torch.nn.Module):
+        """float32 in and out, so the method matches the RNE multimodal runner
+        contract; the decoder itself still computes in `dtype`."""
+
         def __init__(self, text_model):
             super().__init__()
             self.text_model = text_model
@@ -126,12 +132,15 @@ def export_text_decoder(lfm2, dtype: DType = DType.fp32) -> torch.export.Exporte
         def forward(
             self, embeddings: torch.Tensor, input_pos: torch.Tensor
         ) -> torch.Tensor:
-            return self.text_model(None, {"input_pos": input_pos}, embeddings)
+            out = self.text_model(
+                None, {"input_pos": input_pos}, embeddings.to(compute_dtype)
+            )
+            return out.to(torch.float32) if isinstance(out, torch.Tensor) else out
 
     decoder = TextDecoder(lfm2.text_model)
     dim = lfm2.text_model_args.dim
     dummy_seq = 8
-    dummy_embeddings = torch.randn(1, dummy_seq, dim, dtype=dtype.to_torch_dtype())
+    dummy_embeddings = torch.randn(1, dummy_seq, dim, dtype=torch.float32)
     dummy_input_pos = torch.arange(dummy_seq, dtype=torch.int64)
     # Decoder prefill is chunked by the runner; cap the seq dim at the chunk
     # size so per-step activation memory stays bounded (KV cache stays at
@@ -156,13 +165,24 @@ def export_text_decoder(lfm2, dtype: DType = DType.fp32) -> torch.export.Exporte
     return manager.export_program
 
 
-def export_token_embedding(lfm2) -> torch.export.ExportedProgram:
+def export_token_embedding(lfm2, max_seq_len: int = PREFILL_SEQ_CAP) -> torch.export.ExportedProgram:
     language_model = lfm2.model_.model.language_model
-    token_dim = Dim("token_dim_1", min=1, max=MAX_SEQ_LEN)
+    token_dim = Dim("token_dim_1", min=1, max=max_seq_len)
     dynamic_shapes = [{1: token_dim}]
-    logging.info("Exporting token embedding (fp32)...")
-    embed_module = language_model.get_input_embeddings()
-    example_ids = torch.zeros(1, MAX_SEQ_LEN, dtype=torch.int64)
+    logging.info("Exporting token embedding (float32 out)...")
+
+    class TokenEmbedding(torch.nn.Module):
+        """Emits float32 whatever the table's dtype, matching text_decoder's input."""
+
+        def __init__(self, embed):
+            super().__init__()
+            self.embed = embed
+
+        def forward(self, ids: torch.Tensor) -> torch.Tensor:
+            return self.embed(ids).to(torch.float32)
+
+    embed_module = TokenEmbedding(language_model.get_input_embeddings())
+    example_ids = torch.zeros(1, max_seq_len, dtype=torch.int64)
     with torch.no_grad():
         ep = torch.export.export(
             embed_module, (example_ids,), dynamic_shapes=dynamic_shapes, strict=False
@@ -180,6 +200,7 @@ def export_all(
     max_seq_len: int = MAX_SEQ_LEN,
     max_context_len: int = MAX_SEQ_LEN,
     params_path: Optional[str] = None,
+    qmode: str = "4w",
     _return_program: bool = False,
 ):
     logging.info(f"Loading {model_dir}...")
@@ -209,16 +230,17 @@ def export_all(
     if quantize:
         from executorch.backends.mlx.llm.quantization import quantize_model_
 
-        # int4 weight-only (4w) for the decoder linears + token embedding, via
-        # TorchAO — same path that fully delegates for the Llama MLX export.
-        # Vision encoder weights stay unquantized (runs once per image; quant
-        # gives little win) but still follow the bf16 compute dtype below.
-        logging.info("Quantizing text decoder linears (4w)...")
-        quantize_model_(lfm2.text_model, qlinear_config="4w", qlinear_group_size=32)
-        logging.info("Quantizing token embedding (4w)...")
+        # Weight-only `qmode` (4w for int4, 8w for int8) for the decoder
+        # linears + token embedding, via TorchAO — same path that fully
+        # delegates for the Llama MLX export. Vision encoder weights stay
+        # unquantized (runs once per image; quant gives little win) but still
+        # follow the bf16 compute dtype below.
+        logging.info(f"Quantizing text decoder linears ({qmode})...")
+        quantize_model_(lfm2.text_model, qlinear_config=qmode, qlinear_group_size=32)
+        logging.info(f"Quantizing token embedding ({qmode})...")
         quantize_model_(
             lfm2.model_.model.language_model,
-            qembedding_config="4w",
+            qembedding_config=qmode,
             qembedding_group_size=32,
         )
 
@@ -227,7 +249,7 @@ def export_all(
     logging.info("[2/3] Exporting text decoder...")
     decoder_ep = export_text_decoder(lfm2, dtype)
     logging.info("[3/3] Exporting token embedding...")
-    token_ep = export_token_embedding(lfm2)
+    token_ep = export_token_embedding(lfm2, max_seq_len=max_seq_len)
 
     logging.info("Lowering to Edge IR + MLX...")
     lowered = to_edge_transform_and_lower(
@@ -269,6 +291,117 @@ def export_all(
             # .item() in rope.get_freqs that breaks export. Matches gemma4 MM.
             "enable_dynamic_shape": True,
             "get_eos_ids": [7],  # <|im_end|>
+            "get_model_schema": json.dumps({
+                "vision_encoder": {
+                    "inputs": [
+                        {
+                            "kind": "Tensor",
+                            "dtype": "float32",
+                            "shape": [
+                                {"kind": "constant", "value": 1},
+                                {"kind": "constant", "value": 3},
+                                {"kind": "constant", "value": IMAGE_SIZE},
+                                {"kind": "constant", "value": IMAGE_SIZE},
+                            ],
+                        }
+                    ],
+                    "outputs": [
+                        {
+                            "kind": "Tensor",
+                            "dtype": "float32",
+                            "shape": [
+                                {"kind": "constant", "value": 1},
+                                {"kind": "constant", "value": 256},
+                                {"kind": "constant", "value": lfm2.text_model_args.dim},
+                            ],
+                        }
+                    ],
+                    "runtimeConstraints": [],
+                },
+                "token_embedding": {
+                    "inputs": [
+                        {
+                            "kind": "Tensor",
+                            "dtype": "int64",
+                            "shape": [
+                                {"kind": "constant", "value": 1},
+                                {
+                                    "kind": "range",
+                                    "range": {
+                                        "min": 1,
+                                        "max": PREFILL_SEQ_CAP - 1,
+                                        "step": 1,
+                                    },
+                                },
+                            ],
+                        }
+                    ],
+                    "outputs": [
+                        {
+                            "kind": "Tensor",
+                            "dtype": "float32",
+                            "shape": [
+                                {"kind": "constant", "value": 1},
+                                {
+                                    "kind": "range",
+                                    "range": {
+                                        "min": 1,
+                                        "max": PREFILL_SEQ_CAP - 1,
+                                        "step": 1,
+                                    },
+                                },
+                                {"kind": "constant", "value": lfm2.text_model_args.dim},
+                            ],
+                        }
+                    ],
+                    "runtimeConstraints": [],
+                },
+                "text_decoder": {
+                    "inputs": [
+                        {
+                            "kind": "Tensor",
+                            "dtype": "float32",
+                            "shape": [
+                                {"kind": "constant", "value": 1},
+                                {
+                                    "kind": "range",
+                                    "range": {
+                                        "min": 1,
+                                        "max": PREFILL_SEQ_CAP - 1,
+                                        "step": 1,
+                                    },
+                                },
+                                {"kind": "constant", "value": lfm2.text_model_args.dim},
+                            ],
+                        },
+                        {
+                            "kind": "Tensor",
+                            "dtype": "int64",
+                            "shape": [
+                                {
+                                    "kind": "range",
+                                    "range": {
+                                        "min": 1,
+                                        "max": PREFILL_SEQ_CAP - 1,
+                                        "step": 1,
+                                    },
+                                }
+                            ],
+                        },
+                    ],
+                    "outputs": [
+                        {
+                            "kind": "Tensor",
+                            "dtype": "float32",
+                            "shape": [
+                                {"kind": "constant", "value": 1},
+                                {"kind": "constant", "value": lfm2.text_model_args.vocab_size},
+                            ],
+                        }
+                    ],
+                    "runtimeConstraints": [],
+                },
+            }),
         },
         compile_config=EdgeCompileConfig(_check_ir_validity=False),
     )

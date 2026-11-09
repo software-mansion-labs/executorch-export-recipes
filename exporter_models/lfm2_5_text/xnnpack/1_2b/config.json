@@ -45,7 +45,7 @@
         "get_eos_ids": [
           7
         ],
-        "get_max_context_len": 2048,
+        "get_max_context_len": 16384,
         "get_max_seq_len": 2048,
         "get_n_layers": 16,
         "get_vocab_size": 65536,
@@ -90,7 +90,7 @@
         "get_eos_ids": [
           7
         ],
-        "get_max_context_len": 2048,
+        "get_max_context_len": 16384,
         "get_max_seq_len": 2048,
         "get_n_layers": 16,
         "get_vocab_size": 65536,

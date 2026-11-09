@@ -41,6 +41,7 @@ Usage:
 """
 
 import contextlib
+import json
 import logging
 import os
 from argparse import ArgumentParser, BooleanOptionalAction
@@ -572,6 +573,37 @@ def export_token_embedding(lfm2, quantize: bool) -> torch.export.ExportedProgram
         )
 
 
+def _model_schema(hidden_dim: int, vocab_size: int, seq_cap: int) -> dict:
+    """Companion `get_model_schema` for the RNE multimodal runner.
+
+    `token_embedding` and `text_decoder` share one `seqLen` range, bounded by the
+    decoder's chunk cap: the runner embeds and decodes chunk by chunk, so the
+    embedding's wider 2048 graph bound is never used past it.
+    """
+    seq = {"kind": "range", "range": {"min": 1, "max": seq_cap - 1, "step": 1}}
+    const = lambda v: {"kind": "constant", "value": v}  # noqa: E731
+    return {
+        "vision_encoder": {
+            "inputs": [{"kind": "Tensor", "dtype": "float32", "shape": [const(1), const(3), const(IMAGE_SIZE), const(IMAGE_SIZE)]}],
+            "outputs": [{"kind": "Tensor", "dtype": "float32", "shape": [const(1), const(256), const(hidden_dim)]}],
+            "runtimeConstraints": [],
+        },
+        "token_embedding": {
+            "inputs": [{"kind": "Tensor", "dtype": "int64", "shape": [const(1), seq]}],
+            "outputs": [{"kind": "Tensor", "dtype": "float32", "shape": [const(1), seq, const(hidden_dim)]}],
+            "runtimeConstraints": [],
+        },
+        "text_decoder": {
+            "inputs": [
+                {"kind": "Tensor", "dtype": "float32", "shape": [const(1), seq, const(hidden_dim)]},
+                {"kind": "Tensor", "dtype": "int64", "shape": [seq]},
+            ],
+            "outputs": [{"kind": "Tensor", "dtype": "float32", "shape": [const(1), const(vocab_size)]}],
+            "runtimeConstraints": [],
+        },
+    }
+
+
 def export_all(
     model_dir: str,
     output: Optional[str],
@@ -652,6 +684,13 @@ def export_all(
                 "enable_dynamic_shape": True,
                 # EOS = <|im_end|> (token 7).
                 "get_eos_ids": [7],
+                "get_model_schema": json.dumps(
+                    _model_schema(
+                        lfm2.text_model_args.dim,
+                        lfm2.text_model_args.vocab_size,
+                        PREFILL_SEQ_CAP,
+                    )
+                ),
             },
             compile_config=EdgeCompileConfig(_check_ir_validity=False),
         )

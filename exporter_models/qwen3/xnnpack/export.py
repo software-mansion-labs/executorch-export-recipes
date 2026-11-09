@@ -77,9 +77,57 @@ def export(config: dict, out_dir: str) -> str:
     # Runner constants come from the config -- the single source of truth.
     # export_llama derives the rest (vocab) from params.
     consts = variant.get("constants", {})
-    cfg.base.metadata = json.dumps(
-        {k: consts[k] for k in ("get_bos_id", "get_eos_ids") if k in consts}
-    )
+    max_seq = consts.get("get_max_seq_len", 2048)
+    vocab_sz = consts.get("get_vocab_size", spec["params"]["vocab_size"])
+    out_dtype = "float32" if variant["precision"] != "fp16" and variant["precision"] != "bf16" else ("float16" if variant["precision"] == "fp16" else "bfloat16")
+
+    model_schema = {
+        "forward": {
+            "inputs": [
+                {
+                    "kind": "Tensor",
+                    "dtype": "int64",
+                    "shape": [
+                        {"kind": "constant", "value": 1},
+                        {
+                            "kind": "range",
+                            "range": {
+                                "min": 1,
+                                "max": max_seq - 1,
+                                "step": 1,
+                            },
+                        },
+                    ],
+                },
+                {
+                    "kind": "Tensor",
+                    "dtype": "int64",
+                    "shape": [{"kind": "constant", "value": 1}],
+                },
+            ],
+            "outputs": [
+                {
+                    "kind": "Tensor",
+                    "dtype": out_dtype,
+                    "shape": [
+                        {"kind": "constant", "value": 1},
+                        {"kind": "constant", "value": vocab_sz},
+                    ],
+                }
+            ],
+            "runtimeConstraints": [],
+        }
+    }
+    root_schema_path = _MODEL_DIR.parent / "model.schema.json"
+    if root_schema_path.exists():
+        import jsonschema
+
+        root_schema = json.loads(root_schema_path.read_text())
+        jsonschema.validate(instance=model_schema, schema=root_schema)
+
+    metadata_dict = {k: consts[k] for k in ("get_bos_id", "get_eos_ids") if k in consts}
+    metadata_dict["get_model_schema"] = json.dumps(model_schema)
+    cfg.base.metadata = json.dumps(metadata_dict)
     cfg.model.use_kv_cache = True
     cfg.model.use_sdpa_with_kv_cache = True
     if variant["precision"] == "bf16":
