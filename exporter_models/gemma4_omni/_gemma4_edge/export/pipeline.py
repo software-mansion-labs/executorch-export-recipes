@@ -1047,16 +1047,18 @@ def _build_partitioners(recipe: Recipe) -> dict:
     1.00x, i.e. none). Fresh instances per method, as the XNNPACK recipes
     build them.
 
-    Vulkan: ONE `VulkanPartitioner` instance shared across every Vulkan
-    method, exactly as the Vulkan recipes do. No storage-type override, no
+    Vulkan: ONE `VulkanPartitioner` instance shared across the decoder and
+    vision methods. No storage-type override, no
     memory-layout override, no fp16 flag, no allowlist.
       - `require_dynamic_shapes=True` makes the partitioner refuse ops whose
         Vulkan implementation has no `resize_fn`, instead of silently
         producing a delegate that computes against stale shapes.
-      - `torchao.dequantize_affine` is blocklisted so it stays on the host,
-        where `do_quant_fusion_and_const_prop` can rewrite the
-        dequantize+embedding pattern into the packed
-        `quantized_decomposed.embedding_{byte,4bit}` kernels.
+      - `token_embedding` stays entirely on the CPU. With no partitioners,
+        `do_quant_fusion_and_const_prop` rewrites its dequantize+embedding
+        patterns into packed `quantized_decomposed.embedding_{byte,4bit}`
+        kernels instead of uploading the tables to Vulkan.
+      - `torchao.dequantize_affine` is blocklisted in the remaining Vulkan
+        methods so leftover quantized lookups can use the same CPU fusion.
 
     `audio_encoder` runs on XNNPACK even inside an otherwise-Vulkan PTE: the
     Vulkan `gemma_custom_sdpa` per-head + softcap shader measured cos 0.40
@@ -1080,7 +1082,13 @@ def _build_partitioners(recipe: Recipe) -> dict:
     )
     out: dict = {}
     for method in recipe.method_names:
-        if method == "audio_encoder" and recipe.audio_backend == "xnnpack":
+        if method == "token_embedding":
+            # EXPORT PATCH (#1613): keep the large embedding tables in packed
+            # CPU storage. Vulkan embedding fusion uploads them at load time;
+            # XNNPACK partitioning can instead fold dequantized tables into
+            # the delegate. Leave this method portable for quant fusion below.
+            out[method] = []
+        elif method == "audio_encoder" and recipe.audio_backend == "xnnpack":
             out[method] = _xnnpack_pair()
         else:
             out[method] = [shared]

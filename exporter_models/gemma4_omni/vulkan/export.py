@@ -1,5 +1,8 @@
 """Gemma 4 E2B multimodal (omni) model, Vulkan backend, int4.
 
+Token/PLE embedding lookup uses packed CPU kernels to avoid uploading the
+large tables to Vulkan during load; the decoder and vision encoder use Vulkan.
+
 4-method PTE matching LLM_GEMMA_SPEC in react-native-executorch:
   - token_embedding: input_ids [1, S] (int64) -> inputs_embeds [1, S, 1536] (fp32), ple_tokens [1, S, 35, 256] (fp32)
   - text_decoder: embeds [1, S, 1536] (fp32), ple_tokens [1, S, 35, 256] (fp32), input_pos [S] (int64) -> logits [1, 1, 262144] (fp32)
@@ -249,7 +252,8 @@ def export(config: dict, out_dir: str) -> str:
         name="vulkan-omni",
         backend="vulkan",
         modality="multimodal",
-        validated_on_device=True,
+        # Native load/inference passed; the decoder/eager parity gate is still unmet.
+        validated_on_device=False,
         quant=edge_config.QuantSpec(
             linear_bits=LINEAR_BITS,
             linear_group_size=LINEAR_GROUP_SIZE,
