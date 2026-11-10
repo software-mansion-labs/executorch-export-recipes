@@ -18,6 +18,7 @@ def main():
     parser.add_argument('--output', type=Path, required=True)
     parser.add_argument('--pte', type=Path)
     parser.add_argument('--reference', action='store_true')
+    parser.add_argument('--mlx-codec', action='store_true', help='Validate the MLX floor/overlap-add codec path against upstream')
     parser.add_argument('--native-dir', type=Path, help='Saved exact-runtime outputs from the fixed seed-42 fixtures')
     args = parser.parse_args()
     if not args.pte and not args.reference and not args.native_dir:
@@ -39,6 +40,7 @@ def main():
     missing, extra = audio.load_state_dict({k:v.float() for k,v in convert(state, EncoderConfig.from_hf(hf)).items()},strict=False)
     assert set(missing) == set(COMPUTED_BUFFERS) and not extra, (missing, extra)
     codec = Codec().eval()
+    codec.overlap_add = args.mlx_codec
     prefixes = {'quantizer.project_out.':'project_out.', 'from_quantizer.':'from_quantizer.', 'decoder.lfm.':'trunk.', 'decoder.lin.':'lin.'}
     converted = {}
     for k,v in load_file(str(source / 'audio_tokenizer/model.safetensors')).items():

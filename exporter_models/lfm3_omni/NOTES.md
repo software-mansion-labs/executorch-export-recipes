@@ -1,8 +1,9 @@
 # LFM3 Omni 2B
 
-XNNPACK export and native simulator numerical checks pass. MLX int4 export is
-produced, but full MLX runtime validation remains incomplete. See the limitations
-below before treating either artifact as physical-device verified.
+XNNPACK export and native simulator numerical checks pass. The corrected MLX
+int4 export also passes component parity, text, speech synthesis and mixed-output
+smoke checks on an iPhone SE (3rd generation). See the limits below; these checks
+are not a broad quality evaluation or performance benchmark.
 
 ## Provenance
 
@@ -46,7 +47,10 @@ vision start/end markers. Thinking is not enabled.
 The codec is decoded offline. EXPORT PATCH: inverse real FFT and overlap-add are
 expressed as a fixed real-valued inverse-DFT transposed convolution and envelope
 normalization. This preserves waveform semantics without complex tensor operators.
-The codec is kept fp32. Vision/audio towers and speech heads are unquantized;
+For MLX, the inverse DFT uses matrix multiplication plus four-hop overlap-add
+instead of transposed convolution. Explicit floor operations reconstruct the FSQ
+digits. Codec weights stay in original fp32, without an intermediate bf16 cast.
+Vision/audio towers and speech heads are unquantized;
 XNNPACK quantizes the language trunk with 8da4w, MLX with 4w or 8w.
 
 ## Environment and export
@@ -142,6 +146,53 @@ operators in the lowered graph. XNNPACK delegate counts were vision 56, audio 10
 text 350, depth 36, codec 75; token/audio embeddings remain portable operators.
 These are delegation observations, not speed measurements.
 
+## Physical MLX recovery and validation (2026-11-10)
+
+Target: iPhone SE (3rd generation), A15, iOS 27.0.1. Gallery uses React Native
+ExecuTorch commit `4b7d6fd6fea10f9b3422121d6e439ccf88df93b2` and its bundled
+native binaries. No runtime or React Native library modifications were made.
+Exports use the pinned Software Mansion ExecuTorch fork above, sequentially.
+
+Two codec failures were reproduced and isolated:
+
+- Inverse-DFT transposed convolution attempted to allocate 18,903,859,200 bytes
+  for one frame on the available Mac MLX runtime. The physical decoder also
+  failed with `Error::Internal`. The model-owned matrix multiply/overlap-add
+  decomposition removes that temporary without changing waveform math.
+- Intermediate probes located an FSQ mismatch before the first linear layer:
+  integer floor division was lowered as true division. Explicit fp32 floor
+  operations recover exact mixed-radix digits for valid codes 0..2015.
+
+The MLX path matches the original eager codec exactly on fixed 1/4/32/256-frame
+fixtures. On the **full corrected artifact**, physical fp32 codec outputs pass the
+predeclared max-absolute-error budget of 0.0005:
+
+| Frames | Max absolute error | Cosine |
+| --- | --- | --- |
+| 1 | 1.89e-7 | >0.9999999999 |
+| 4 | 2.62e-6 | >0.9999999999 |
+| 32 | 4.71e-6 | >0.9999999999 |
+| 256 | 6.98e-5 | >0.9999999996 |
+
+Physical vision, depth, audio embedding, and audio encoder (400/16400/80400
+samples) pass against source-validated fp32 native fixtures with the declared
+bf16 budget: normalized RMSE <=0.05 and cosine >=0.995. Observed normalized RMSE
+ranges from 0.00357 to 0.02577; minimum cosine is 0.99967.
+
+The actual Gallery worklet produced `4` for the fixed arithmetic prompt,
+0.8 seconds of audio for `Hello.`, and `Hello! How can I help you today?` plus
+3.84 seconds of audio for mixed output. Outputs were finite and terminated
+normally. Native playback completed. An audio-input conversational smoke check
+also completed; this is not an ASR accuracy measurement.
+
+Corrected full MLX int4 SHA256:
+`43488c93c3dd7669c977ddd15fc68d1e2a1dbf28a67397c1d3190ba2e53c5ee6`.
+Earlier MLX artifacts with the codec failures must not be published.
+
+Use `validate.py --mlx-codec` with the existing reference/native modes to select
+the MLX codec decomposition. Weights, exported programs and diagnostic fixtures
+remain outside Git.
+
 ## Remaining limits
 
 The available Mac MLX runtime uses an older generated wire mapping. The shipping
@@ -151,15 +202,15 @@ QuantizedMatmul instructions (tag 122) and no ScatterAdd instruction; that older
 host interprets tag 122 as ScatterAdd. A separate local diagnostic copy remapped
 223 instruction-type bytes across the seven graphs to the older mapping, preserving
 all weights and other graph fields. It then generated **4** and EOS for the same prompt.
-This confirms the wire mismatch and a narrow Mac MLX generation smoke test, not
-execution of the unchanged shipping artifact on iOS. No runtime or React Native
-library code was patched. The original artifact and its recorded hash are unchanged. The exporter mapping has CumMax=112, ArgPartition=121,
+That diagnostic established a Mac host wire mismatch. The corrected full export
+has since been tested directly on iOS as described above. No runtime or React Native
+library code was patched. The earlier artifact is retained separately for reproduction. The exporter mapping has CumMax=112, ArgPartition=121,
 QuantizedMatmul=122 and ScatterAdd=123. Do not replace or patch the React Native
 library to bypass this boundary. Physical iOS MLX validation also requires a
 physical device; the simulator has no MLX delegate.
 
-No physical-device speed, latency, offline-capture or microphone/camera behavior
-is claimed. Broad text/speech quality evaluation, long-context/window-boundary
+No physical-device speed, latency, network-disabled behavior or live
+microphone/camera capture is claimed. Broad text/speech quality evaluation, long-context/window-boundary
 checks and quantized held-out evaluation remain outside the completed smoke checks.
 The MLX int8 recipe is present but was not exported or validated in this run.
 

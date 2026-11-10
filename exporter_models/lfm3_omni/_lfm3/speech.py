@@ -176,6 +176,7 @@ class Codec(nn.Module):
                    norm_eps=1e-5, conv_L_cache=7, use_sandwich_norm=True,
                    layer_types=['conv','conv','sliding_attention','conv','sliding_attention','conv','sliding_attention','conv'],
                    sliding_window=30, rope_parameters={'sliding_attention': {'rope_theta': 1000000.0}})
+        self.overlap_add = False
         self.project_out = nn.Linear(48, 256)
         self.from_quantizer = nn.Linear(256, 512)
         self.trunk = Trunk(cfg)
@@ -194,7 +195,16 @@ class Codec(nn.Module):
         # Layout [1,12,F] -> [1,F,12,4]. EOS frames must be removed by caller.
         c = codes.transpose(1, 2).unsqueeze(-1)
         half = self.levels // 2
-        latents = (((c // self.basis) % self.levels - half) / half).reshape(1, codes.shape[-1], 48)
+        if self.overlap_add:
+            # EXPORT PATCH: this MLX lowering treats integer floor division as
+            # true division. Codes are nonnegative and <=2015, so explicit
+            # fp32 floor operations decode the exact mixed-radix FSQ digits.
+            half = torch.floor(self.levels.float() / 2)
+            quotient = torch.floor(c.float() / self.basis.float())
+            digits = quotient - torch.floor(quotient / self.levels.float()) * self.levels.float()
+            latents = ((digits - half) / half).reshape(1, codes.shape[-1], 48)
+        else:
+            latents = (((c // self.basis) % self.levels - half) / half).reshape(1, codes.shape[-1], 48)
         dtype = self.project_out.weight.dtype
         x = self.from_quantizer(self.project_out(latents.to(dtype)))
         x = x.unsqueeze(2).expand(-1, -1, 6, -1).reshape(1, codes.shape[-1] * 6, 512)
@@ -202,6 +212,20 @@ class Codec(nn.Module):
         mag, phase = x.chunk(2, 1)
         mag = mag.exp()
         spec = torch.cat([mag * phase.cos(), mag * phase.sin()], 1)
-        audio = F.conv_transpose1d(spec, self.inverse_dft, stride=320)
-        envelope = F.conv_transpose1d(torch.ones_like(spec[:, :1]), self.envelope_window, stride=320)
+        if self.overlap_add:
+            # EXPORT PATCH: MLX transposed convolution materializes a >18 GB
+            # temporary even for one codec frame. The exact inverse DFT is a
+            # per-window matrix multiply followed by four overlapping hops.
+            windows = spec.transpose(1, 2) @ self.inverse_dft[:, 0, :]
+            audio = self._overlap_add(windows)
+            envelope = self._overlap_add(self.envelope_window.expand_as(windows))
+        else:
+            audio = F.conv_transpose1d(spec, self.inverse_dft, stride=320)
+            envelope = F.conv_transpose1d(torch.ones_like(spec[:, :1]), self.envelope_window, stride=320)
         return (audio[:, 0, 480:-480] / envelope[:, 0, 480:-480]).float()
+
+    @staticmethod
+    def _overlap_add(windows):
+        hops = windows.reshape(1, -1, 4, 320)
+        return sum(F.pad(hops[:, :, i, :].reshape(1, 1, -1),
+                         (i * 320, (3 - i) * 320)) for i in range(4))

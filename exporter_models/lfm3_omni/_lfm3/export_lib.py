@@ -102,10 +102,13 @@ def export(config, out_dir, backend):
     modules, lm = build_all(source, backend, consts['get_max_context_len'])
     if backend == 'mlx':
         from executorch.backends.mlx.llm.quantization import quantize_model_
-        for m in modules.values(): m.to(torch.bfloat16)
+        for name, module in modules.items():
+            if name != 'audio_decoder':
+                module.to(torch.bfloat16)
         modules['audio_encoder'].log_mel.float()
         # Codec math/DFT and FSQ constants require original dtypes/precision.
         modules['audio_decoder'].float()
+        modules['audio_decoder'].overlap_add = True
         bits = {'int4':'4w','int8':'8w'}[variant['precision']]
         quantize_model_(lm, qlinear_config=bits, qlinear_group_size=64, qembedding_config=bits, qembedding_group_size=64)
     else:
