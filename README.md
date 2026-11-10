@@ -182,3 +182,12 @@ Original Software Mansion code and documentation are licensed under [MIT](LICENS
 Vendored code retains its upstream licenses; see [third-party notices](docs/third-party-notices.md).
 Model weights, datasets, and exported artifacts remain subject to their own
 terms. This repository's license does not relicense those materials.
+
+### LFM3 Omni
+
+`lfm3_omni --size 2b` exports LiquidAI/LFM3-Omni-2B for XNNPACK or MLX,
+including vision/audio input, text decoding, the MaskGIT speech depth decoder,
+codebook feedback embeddings, and LiquidCodec speech synthesis. This is a custom
+multimethod contract, rather than the standard text-only LLM runner contract.
+See [the recipe notes](exporter_models/lfm3_omni/NOTES.md) for the pinned model,
+backend environment, input limits, and verification results.

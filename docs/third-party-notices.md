@@ -15,6 +15,7 @@ and component licenses continue to apply.
 | OpenAI Whisper | `exporter_models/whisper/_custom_whisper/` | Full MIT notices are included in the vendored source files. |
 | MI-GAN | `exporter_models/migan/_migan.py` | [Upstream MIT license](../LICENSE); retain the attribution in the source. |
 | Depth Anything 3 | `exporter_models/depth_anything_v3/_upstream/` | [Apache 2.0 license](../exporter_models/depth_anything_v3/_upstream/LICENSE) and notices in the individual source files. |
+| LiquidAI LFM3 Omni | `exporter_models/lfm3_omni/` | Reimplemented architecture adapted from HuggingFace code under [Apache 2.0](../exporter_models/lfm3_omni/LICENSE.code); weights remain under the [LFM Open License v1.0](../exporter_models/lfm3_omni/LICENSE.weights). Pinned source revision and local transformations are documented in the model NOTES. |
 | ZipDepth | `exporter_models/zipdepth/_upstream/` | [Upstream MIT license](../exporter_models/zipdepth/_upstream/LICENSE). |
 
 License text sources:
