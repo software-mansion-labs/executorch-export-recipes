@@ -1,7 +1,8 @@
 # LFM3 Omni 2B
 
-Implementation checkpoint. Final `.pte` runtime verification is still pending.
-Do not treat the checks below as verification of exported or on-device inference.
+XNNPACK export and native simulator numerical checks pass. MLX int4 export is
+produced, but full MLX runtime validation remains incomplete. See the limitations
+below before treating either artifact as physical-device verified.
 
 ## Provenance
 
@@ -92,9 +93,99 @@ Acceptance was cosine >= 0.99999 and maximum absolute error <= 0.0005.
 | Audio encoder + projector | 400 / 16400 / 80400 waveform samples | 0 / 0.000000537 / 0.00000120 | pass |
 | Vision tower + projector | fixed byte-valued RGB image, matching upstream patchification | 0.0000334 | pass |
 
-Pending: text-trunk comparison, actual artifact method metadata and hashes,
-quantized task quality, loaded-runtime parity, delegation report, XNNPACK simulator
-inference and Gallery lifecycle checks. MLX iOS delegate validation requires a
-physical device; the iOS simulator has no MLX delegate. No device performance claim
-is made. All seven method graphs were captured for both backends; lowering and
-serialization have not yet been verified.
+## Exported artifacts and exact native runtime
+
+| Artifact | Bytes | SHA256 |
+| --- | --- | --- |
+| XNNPACK 8da4w | 3248028928 | `aefbfd0fc40eed0f1b2951371e4343c49f11f145ddafaa70259691eb0d026741` |
+| MLX int4 | 1951492992 | `12ce4d818a77c3ed7c098cc5b5ebd6612107863f599949b04740e58c1ca7de9d` |
+
+A native arm64 iOS simulator probe linked the **same** ExecutorchLib,
+XnnpackBackend and threadpool binaries packaged by Gallery's pinned library,
+commit `4b7d6fd6fea10f9b3422121d6e439ccf88df93b2`. All seven methods executed.
+The standard Mac pybinding omits `quantized_decomposed::embedding_byte.out`,
+which the shipping simulator binary includes; its failure to load the embedding
+method does not establish a failure in the shipping runtime.
+
+Against the eager wrappers, native depth maximum absolute error was 0.0000244,
+codec 1/4/32-frame error <= 0.00000274, and audio input 400/16400/80400-sample
+error <= 0.00000473. All passed the predeclared component budget above.
+A fixed 512-pixel image's native vision output also matched the original upstream
+pipeline (maximum absolute error 0.0000294, cosine >= 0.99999).
+
+Quantized text was compared with the original upstream fp32 Lfm3Model on a saved
+31-token prompt, before generation. The acceptance budget, set before measurement,
+was cosine >= 0.98, normalized RMSE <= 0.10, top-10 token overlap >= 0.5, and
+matching greedy first token. Results: cosine **0.997907**, normalized RMSE
+**0.066048**, top-10 overlap **0.9**, maximum absolute logit error **3.86805**,
+and matching first token **28**. Native greedy generation answered the fixed
+question “What is 2 + 2? Answer briefly.” with **4**, then the end-of-turn token.
+This is a narrow regression check, not a broad quality evaluation or benchmark.
+
+Run `validate.py --source SNAPSHOT --reference --output REPORT.json` in the
+transformers 5.20.2 reference environment. It checks the speech and audio
+reimplementations against upstream. In a compatible native host environment,
+use `--pte MODEL.pte` instead of `--reference` to check a loaded artifact.
+`--native-dir DIR` compares saved simulator component outputs for the same seed-42
+fixtures. `validate_text.py --source SNAPSHOT --native-dir DIR --output REPORT.json`
+compares saved `prompt.bin` (int64 IDs) and `prefill-logits.bin` (float32) with the
+original upstream text model. Run these checks separately from exports.
+
+Initialization detail: the export explicitly marks `conv_state` buffers with
+`InitializedMutableBufferPass`, preserving zero short-convolution histories for
+fresh loads. Unwritten XNNPACK KV rows are masked or excluded before they become
+visible. A fresh model per independent turn avoids relying on unsupported cache
+reset semantics across methods.
+
+Delegation: MLX lowers each of the seven methods to one delegate with no host
+operators in the lowered graph. XNNPACK delegate counts were vision 56, audio 101,
+text 350, depth 36, codec 75; token/audio embeddings remain portable operators.
+These are delegation observations, not speed measurements.
+
+## Remaining limits
+
+The available Mac MLX runtime uses an older generated wire mapping. The shipping
+artifact therefore fails host text decoding with `scatter_add_axis` reporting a
+rank/axis mismatch. Inspection confirms that the exported text graph has 180
+QuantizedMatmul instructions (tag 122) and no ScatterAdd instruction; that older
+host interprets tag 122 as ScatterAdd. A separate local diagnostic copy remapped
+223 instruction-type bytes across the seven graphs to the older mapping, preserving
+all weights and other graph fields. It then generated **4** and EOS for the same prompt.
+This confirms the wire mismatch and a narrow Mac MLX generation smoke test, not
+execution of the unchanged shipping artifact on iOS. No runtime or React Native
+library code was patched. The original artifact and its recorded hash are unchanged. The exporter mapping has CumMax=112, ArgPartition=121,
+QuantizedMatmul=122 and ScatterAdd=123. Do not replace or patch the React Native
+library to bypass this boundary. Physical iOS MLX validation also requires a
+physical device; the simulator has no MLX delegate.
+
+No physical-device speed, latency, offline-capture or microphone/camera behavior
+is claimed. Broad text/speech quality evaluation, long-context/window-boundary
+checks and quantized held-out evaluation remain outside the completed smoke checks.
+The MLX int8 recipe is present but was not exported or validated in this run.
+
+## Reproducing native simulator checks
+
+`native_probe.cpp` links the Gallery library's existing native binaries, so it
+checks its operator coverage instead of the more limited Python wheel. This does
+not change or rebuild the React Native library. With its npm package installed:
+
+```sh
+RNE_LIBRARY=/absolute/path/to/node_modules/react-native-executorch
+RNE_SIM_FRAMEWORK="$RNE_LIBRARY/third-party/ios/ExecutorchLib.xcframework/ios-arm64-simulator"
+xcrun --sdk iphonesimulator clang++ -std=c++20 -O1 -target arm64-apple-ios17.0-simulator \
+  -isysroot "$(xcrun --sdk iphonesimulator --show-sdk-path)" \
+  -I"$RNE_LIBRARY/third-party/include" -F"$RNE_SIM_FRAMEWORK" \
+  exporter_models/lfm3_omni/native_probe.cpp -framework ExecutorchLib \
+  -framework Foundation -framework Accelerate \
+  -Wl,-force_load,"$RNE_LIBRARY/third-party/ios/XnnpackBackend.xcframework/ios-arm64-simulator/libXnnpackBackend.a" \
+  "$RNE_LIBRARY/third-party/ios/libs/executorch/libthreadpool_simulator.a" \
+  -Wl,-rpath,"$RNE_SIM_FRAMEWORK" -o /absolute/path/to/native-probe
+python exporter_models/lfm3_omni/write_fixtures.py --output /absolute/path/to/fixtures --tokenizer SNAPSHOT/tokenizer.json
+xcrun simctl spawn SIMULATOR_UDID /absolute/path/to/native-probe MODEL.pte /absolute/path/to/fixtures/text
+xcrun simctl spawn SIMULATOR_UDID /absolute/path/to/native-probe MODEL.pte /absolute/path/to/fixtures/components components
+python exporter_models/lfm3_omni/validate.py --source SNAPSHOT --native-dir /absolute/path/to/fixtures/components --output REPORT.json
+```
+
+All paths passed to the simulator process must be absolute. The optional `vision`
+probe mode consumes `image.bin` as float32 contiguous `[1,3,512,512]` RGB 0..255
+and saves `actual-vision.bin`. Keep fixtures and probe/build outputs outside Git.

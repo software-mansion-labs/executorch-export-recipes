@@ -22,6 +22,7 @@ def lower(eps: dict, backend: str, variant: dict, consts: dict):
     from executorch.exir import EdgeCompileConfig, to_edge_transform_and_lower
     from executorch.exir.capture._config import ExecutorchBackendConfig
     from executorch.exir.passes import MemoryPlanningPass
+    from executorch.exir.passes.init_mutable_pass import InitializedMutableBufferPass
     from executorch.exir.passes.sym_shape_eval_pass import ConstraintBasedSymShapeEvalPass
 
     passes = []
@@ -54,6 +55,9 @@ def lower(eps: dict, backend: str, variant: dict, consts: dict):
         report_delegation(name, edge.exported_program(name))
     return edge.to_executorch(
         ExecutorchBackendConfig(
+            # Short-convolution histories must start at zero after loading.
+            # KV cache entries are overwritten before their positions become visible.
+            passes=[InitializedMutableBufferPass(["conv_state"])],
             extract_delegate_segments=True,
             do_quant_fusion_and_const_prop=True,
             memory_planning_pass=MemoryPlanningPass(alloc_graph_input=False),
