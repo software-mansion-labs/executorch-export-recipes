@@ -1,0 +1,263 @@
+{
+  "embed": {
+    "inputs": [
+      {
+        "kind": "Tensor",
+        "dtype": "float32",
+        "shape": [
+          {
+            "kind": "constant",
+            "value": 1
+          },
+          {
+            "kind": "range",
+            "range": {
+              "min": 8,
+              "max": 1008,
+              "step": 8
+            }
+          },
+          {
+            "kind": "constant",
+            "value": 128
+          }
+        ]
+      }
+    ],
+    "outputs": [
+      {
+        "kind": "Tensor",
+        "dtype": "float32",
+        "shape": [
+          {
+            "kind": "constant",
+            "value": 1
+          },
+          {
+            "kind": "range",
+            "range": {
+              "min": 1,
+              "max": 126,
+              "step": 1
+            }
+          },
+          {
+            "kind": "constant",
+            "value": 512
+          }
+        ]
+      }
+    ],
+    "runtimeConstraints": []
+  },
+  "encode": {
+    "inputs": [
+      {
+        "kind": "Tensor",
+        "dtype": "float32",
+        "shape": [
+          {
+            "kind": "constant",
+            "value": 1
+          },
+          {
+            "kind": "range",
+            "range": {
+              "min": 2,
+              "max": 800,
+              "step": 1
+            }
+          },
+          {
+            "kind": "constant",
+            "value": 512
+          }
+        ]
+      },
+      {
+        "kind": "Tensor",
+        "dtype": "int64",
+        "shape": [
+          {
+            "kind": "constant",
+            "value": 1
+          },
+          {
+            "kind": "range",
+            "range": {
+              "min": 2,
+              "max": 800,
+              "step": 1
+            }
+          }
+        ]
+      }
+    ],
+    "outputs": [
+      {
+        "kind": "Tensor",
+        "dtype": "float32",
+        "shape": [
+          {
+            "kind": "constant",
+            "value": 1
+          },
+          {
+            "kind": "range",
+            "range": {
+              "min": 16,
+              "max": 6400,
+              "step": 8
+            }
+          },
+          {
+            "kind": "constant",
+            "value": 8
+          }
+        ]
+      },
+      {
+        "kind": "Tensor",
+        "dtype": "float32",
+        "shape": [
+          {
+            "kind": "constant",
+            "value": 1
+          },
+          {
+            "kind": "range",
+            "range": {
+              "min": 2,
+              "max": 800,
+              "step": 1
+            }
+          },
+          {
+            "kind": "constant",
+            "value": 8
+          }
+        ]
+      }
+    ],
+    "runtimeConstraints": [
+      {
+        "kind": "equality",
+        "dims": [
+          {
+            "paramSide": "input",
+            "tensorIdx": 0,
+            "dimIdx": 1
+          },
+          {
+            "paramSide": "input",
+            "tensorIdx": 1,
+            "dimIdx": 1
+          }
+        ]
+      }
+    ]
+  },
+  "compress": {
+    "inputs": [
+      {
+        "kind": "Tensor",
+        "dtype": "float32",
+        "shape": [
+          {
+            "kind": "constant",
+            "value": 1
+          },
+          {
+            "kind": "range",
+            "range": {
+              "min": 265,
+              "max": 800,
+              "step": 1
+            }
+          },
+          {
+            "kind": "constant",
+            "value": 512
+          }
+        ]
+      },
+      {
+        "kind": "Tensor",
+        "dtype": "float32",
+        "shape": [
+          {
+            "kind": "constant",
+            "value": 1
+          },
+          {
+            "kind": "range",
+            "range": {
+              "min": 265,
+              "max": 800,
+              "step": 1
+            }
+          },
+          {
+            "kind": "constant",
+            "value": 8
+          }
+        ]
+      }
+    ],
+    "outputs": [
+      {
+        "kind": "Tensor",
+        "dtype": "float32",
+        "shape": [
+          {
+            "kind": "constant",
+            "value": 1
+          },
+          {
+            "kind": "constant",
+            "value": 264
+          },
+          {
+            "kind": "constant",
+            "value": 512
+          }
+        ]
+      },
+      {
+        "kind": "Tensor",
+        "dtype": "float32",
+        "shape": [
+          {
+            "kind": "constant",
+            "value": 1
+          },
+          {
+            "kind": "constant",
+            "value": 264
+          },
+          {
+            "kind": "constant",
+            "value": 8
+          }
+        ]
+      }
+    ],
+    "runtimeConstraints": [
+      {
+        "kind": "equality",
+        "dims": [
+          {
+            "paramSide": "input",
+            "tensorIdx": 0,
+            "dimIdx": 1
+          },
+          {
+            "paramSide": "input",
+            "tensorIdx": 1,
+            "dimIdx": 1
+          }
+        ]
+      }
+    ]
+  }
+}

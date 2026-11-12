@@ -11,7 +11,7 @@ _CAPABILITIES = frozenset({
     "image-embedding", "image-generation", "voice-activity-detection",
     "text-detection", "text-recognition", "translation",
     "image-text-to-text", "audio-text-to-text",
-    "image-inpainting",
+    "image-inpainting", "speaker-diarization",
 })
 _BACKENDS = frozenset({"xnnpack", "coreml", "mlx", "vulkan"})
 
