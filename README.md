@@ -70,7 +70,7 @@ current catalog. Examples include:
 | Text generation | [Gemma 4](exporter_models/gemma4/), [LFM2.5](exporter_models/lfm2_5_text/), [Qwen 3](exporter_models/qwen3/), [Llama 3.2](exporter_models/llama3_2/) |
 | Vision and multimodal | [LFM2.5 VL](exporter_models/lfm2_5_vl/), [Gemma 4 Omni](exporter_models/gemma4_omni/), [CLIP](exporter_models/clip_vit_base_patch32_vision/) |
 | Detection and segmentation | [YOLO26](exporter_models/yolo26/), [RF-DETR](exporter_models/rfdetr_nano_detector/), [FastSAM](exporter_models/fast_sam/) |
-| Speech | [Whisper](exporter_models/whisper/), [Moonshine](exporter_models/moonshine/), [Kokoro](exporter_models/kokoro/), [FSMN VAD](exporter_models/fsmn_vad/) |
+| Speech | [Nemotron 3 diarization](exporter_models/nemotron3_diarization/), [Whisper](exporter_models/whisper/), [Moonshine](exporter_models/moonshine/), [Kokoro](exporter_models/kokoro/), [FSMN VAD](exporter_models/fsmn_vad/) |
 | OCR and document processing | [PaddleOCR](exporter_models/paddleocr/), [EasyOCR](exporter_models/easyocr/), [document layout](exporter_models/paddleocr_layout/) |
 | Embeddings and image processing | [LFM2.5 embeddings](exporter_models/lfm2_5_embedding_350m/), [Depth Anything V3](exporter_models/depth_anything_v3/), [MI-GAN](exporter_models/migan/), [style transfer](exporter_models/style_transfer_mosaic/) |
 

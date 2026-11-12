@@ -1,0 +1,150 @@
+{
+  "$schema": "https://huggingface.co/software-mansion/react-native-executorch-spec/resolve/main/config.schema.json",
+  "model": "nemotron3_diarization",
+  "family": "nemotron3",
+  "capabilities": [
+    "speaker-diarization"
+  ],
+  "backend": "xnnpack",
+  "license": "openmdw-1.1",
+  "variants": [
+    {
+      "file": "nemotron3_diarization_xnnpack_fp32.pte",
+      "precision": "fp32",
+      "quantized": false,
+      "default": true,
+      "methods": {
+        "preprocess": {
+          "inputs": [
+            {
+              "dtype": "float32",
+              "shape": [
+                160000
+              ]
+            },
+            {
+              "dtype": "int64",
+              "shape": [
+                1
+              ]
+            }
+          ],
+          "outputs": [
+            {
+              "dtype": "float32",
+              "shape": [
+                1,
+                1001,
+                128
+              ]
+            }
+          ]
+        },
+        "embed": {
+          "inputs": [
+            {
+              "dtype": "float32",
+              "shape": [
+                1,
+                1008,
+                128
+              ]
+            }
+          ],
+          "outputs": [
+            {
+              "dtype": "float32",
+              "shape": [
+                1,
+                126,
+                512
+              ]
+            }
+          ]
+        },
+        "encode": {
+          "inputs": [
+            {
+              "dtype": "float32",
+              "shape": [
+                1,
+                800,
+                512
+              ]
+            },
+            {
+              "dtype": "int64",
+              "shape": [
+                1,
+                800
+              ]
+            }
+          ],
+          "outputs": [
+            {
+              "dtype": "float32",
+              "shape": [
+                1,
+                6400,
+                8
+              ]
+            },
+            {
+              "dtype": "float32",
+              "shape": [
+                1,
+                800,
+                8
+              ]
+            }
+          ]
+        },
+        "compress": {
+          "inputs": [
+            {
+              "dtype": "float32",
+              "shape": [
+                1,
+                800,
+                512
+              ]
+            },
+            {
+              "dtype": "float32",
+              "shape": [
+                1,
+                800,
+                8
+              ]
+            }
+          ],
+          "outputs": [
+            {
+              "dtype": "float32",
+              "shape": [
+                1,
+                264,
+                512
+              ]
+            },
+            {
+              "dtype": "float32",
+              "shape": [
+                1,
+                264,
+                8
+              ]
+            }
+          ]
+        },
+        "sample_rate": 16000,
+        "frame_stride": 0.01,
+        "subsampling_factor": 8,
+        "max_num_of_spks": 8,
+        "spkcache_len": 264,
+        "fifo_len": 264,
+        "cache_update_period": 222
+      }
+    }
+  ]
+}
