@@ -1,0 +1,8 @@
+Fluid Speech Pro
+Copyright (c) 2026 FluidVoice. Licensed under CC BY 4.0 (see LICENSE).
+
+This model is built on:
+- NVIDIA Parakeet TDT 0.6B v3 (https://huggingface.co/nvidia/parakeet-tdt-0.6b-v3), CC BY 4.0, NVIDIA Corporation.
+- Moondream Parakeet Ultra (https://huggingface.co/moondream/parakeet-ultra), CC BY 4.0, Moondream.
+
+Attribution for use: "Fluid Speech Pro by FluidVoice. Built on NVIDIA Parakeet TDT 0.6B v3 and Moondream Parakeet Ultra."

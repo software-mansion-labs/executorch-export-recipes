@@ -1,0 +1,7 @@
+{
+  "hf": "https://huggingface.co/FluidVoice-Labs/fluid-speech-pro",
+  "repo": "FluidVoice-Labs/fluid-speech-pro",
+  "config": "{backend}/config.json",
+  "backends": ["xnnpack"],
+  "multi_pte": true
+}
