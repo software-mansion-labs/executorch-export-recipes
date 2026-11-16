@@ -1,4 +1,4 @@
-"""Export full FP32 Fluid Speech Pro as independently loadable components."""
+"""Export Fluid Speech Pro components, with optional experimental INT8 linears."""
 import importlib.util
 from pathlib import Path
 import sys
@@ -18,6 +18,9 @@ def export(config: dict, out_dir: str) -> None:
     module = importlib.util.module_from_spec(spec)
     sys.modules[spec.name] = module
     spec.loader.exec_module(module)
+    schema_spec = importlib.util.spec_from_file_location('fluid_speech_schema', ROOT / '_schema.py')
+    schema_module = importlib.util.module_from_spec(schema_spec)
+    schema_spec.loader.exec_module(schema_module)
     torch.set_num_threads(4)
     model = module.prepare_capture(module.load_source())
     # Precompute positional encodings before graph capture; no source weights change.
@@ -36,7 +39,9 @@ def export(config: dict, out_dir: str) -> None:
     ]
     with torch.inference_mode(), typecheck.disable_checks():
         for name, wrapper, inputs, dynamic in boundaries:
-            filename = f'fluid_speech_pro_{name}_xnnpack_fp32.pte'
+            quantized = name == 'encoder' and config.get('quantize_encoder') == 'int8dyn'
+            precision = 'int8dyn' if quantized else 'fp32'
+            filename = f'fluid_speech_pro_{name}_xnnpack_{precision}.pte'
             if filename not in selected:
                 continue
             print(f'Capturing {name}', flush=True)
@@ -53,8 +58,37 @@ def export(config: dict, out_dir: str) -> None:
                         dynamic_shapes=({2:8*groups+residue},{}),strict=False)
             else:
                 ep = capture(wrapper, inputs, dynamic_shapes=dynamic, strict=False)
+            if quantized:
+                from executorch.backends.xnnpack.quantizer.xnnpack_quantizer import XNNPACKQuantizer, get_symmetric_quantization_config
+                from torchao.quantization.pt2e.quantize_pt2e import prepare_pt2e, convert_pt2e
+                quantizer = XNNPACKQuantizer().set_operator_type(
+                    torch.ops.aten.linear.default,
+                    get_symmetric_quantization_config(is_per_channel=True, is_dynamic=True))
+                print('Quantizing encoder linears: dynamic INT8 activations / per-channel INT8 weights', flush=True)
+                prepared = prepare_pt2e(ep.module(), quantizer)
+                prepared(*inputs)  # Initializes weight observers; no speech calibration.
+                converted = convert_pt2e(prepared)
+                ep = capture(converted, inputs, dynamic_shapes=dynamic, strict=False)
+                # Backend parity fixtures are saved before lowering, independent
+                # of the original FP32/source task-quality comparison.
+                torch.manual_seed(17)
+                checks = []
+                for frames in [3, 63, 126]:
+                    values = (torch.randn(1, frames, 1024), torch.tensor([frames-1]))
+                    checks.append((values, tuple(x.clone() for x in converted(*values))))
+                torch.save(checks, Path(out_dir) / 'encoder-quantized-reference.pt')
+                del prepared, converted
             print(f'Lowering {name}', flush=True)
-            edge = to_edge_transform_and_lower(ep, partitioner=[XnnpackPartitioner()],
+            partitioners = [XnnpackPartitioner()]
+            if quantized:
+                from executorch.backends.xnnpack.partition.config.xnnpack_config import ConfigPrecisionType
+                # Separate quantized islands before merging float regions: the
+                # combined greedy partitioner can create dependency cycles.
+                partitioners = [XnnpackPartitioner(config_precisions=ConfigPrecisionType.DYNAMIC_QUANT, per_op_mode=True),
+                                XnnpackPartitioner(config_precisions=ConfigPrecisionType.FP32)]
+                torch.export.save(ep, Path(out_dir) / 'encoder-quantized.pt2')
+            edge = to_edge_transform_and_lower(ep, partitioner=partitioners,
+                constant_methods=schema_module.dynamic_schema(name),
                 compile_config=EdgeCompileConfig(_check_ir_validity=False))
             program = edge.to_executorch(config=ExecutorchBackendConfig())
             path = Path(out_dir) / filename
