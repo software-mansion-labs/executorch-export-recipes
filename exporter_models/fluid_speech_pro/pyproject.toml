@@ -1,0 +1,13 @@
+[project]
+name = "exporter-model-fluid-speech-pro"
+version = "0"
+requires-python = "==3.10.*"
+dependencies = [
+  "exporter", "torch==2.14.0", "executorch==1.4.1",
+  "nemo-toolkit[asr]==3.0.0", "transformers==4.57.6",
+  "safetensors==0.8.0", "soundfile==0.13.1", "sentencepiece==0.2.1",
+]
+[tool.uv]
+environments = ["sys_platform == 'darwin' and platform_machine == 'arm64'"]
+[tool.uv.sources]
+exporter = { path = "../..", editable = true }

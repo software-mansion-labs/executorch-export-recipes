@@ -1,0 +1,475 @@
+{
+  "$schema": "https://huggingface.co/software-mansion/react-native-executorch-spec/resolve/main/config.schema.json",
+  "model": "fluid_speech_pro",
+  "family": "parakeet-tdt",
+  "capabilities": [
+    "speech-to-text"
+  ],
+  "backend": "xnnpack",
+  "license": "cc-by-4.0",
+  "variants": [
+    {
+      "file": "fluid_speech_pro_preprocess_xnnpack_fp32.pte",
+      "precision": "fp32",
+      "quantized": false,
+      "default": false,
+      "methods": {
+        "forward": {
+          "inputs": [
+            {
+              "dtype": "float32",
+              "shape": [
+                1,
+                160000
+              ]
+            },
+            {
+              "dtype": "int64",
+              "shape": [
+                1
+              ]
+            }
+          ],
+          "outputs": [
+            {
+              "dtype": "float32",
+              "shape": [
+                1,
+                128,
+                1001
+              ]
+            },
+            {
+              "dtype": "int64",
+              "shape": [
+                1
+              ]
+            }
+          ]
+        }
+      }
+    },
+    {
+      "file": "fluid_speech_pro_encoder_xnnpack_fp32.pte",
+      "precision": "fp32",
+      "quantized": false,
+      "default": true,
+      "methods": {
+        "forward": {
+          "inputs": [
+            {
+              "dtype": "float32",
+              "shape": [
+                1,
+                63,
+                1024
+              ]
+            },
+            {
+              "dtype": "int64",
+              "shape": [
+                1
+              ]
+            }
+          ],
+          "outputs": [
+            {
+              "dtype": "float32",
+              "shape": [
+                1,
+                1024,
+                63
+              ]
+            },
+            {
+              "dtype": "int64",
+              "shape": [
+                1
+              ]
+            }
+          ]
+        }
+      }
+    },
+    {
+      "file": "fluid_speech_pro_predictor_xnnpack_fp32.pte",
+      "precision": "fp32",
+      "quantized": false,
+      "default": false,
+      "methods": {
+        "forward": {
+          "inputs": [
+            {
+              "dtype": "int64",
+              "shape": [
+                1,
+                1
+              ]
+            },
+            {
+              "dtype": "float32",
+              "shape": [
+                2,
+                1,
+                640
+              ]
+            },
+            {
+              "dtype": "float32",
+              "shape": [
+                2,
+                1,
+                640
+              ]
+            }
+          ],
+          "outputs": [
+            {
+              "dtype": "float32",
+              "shape": [
+                1,
+                1,
+                640
+              ]
+            },
+            {
+              "dtype": "float32",
+              "shape": [
+                2,
+                1,
+                640
+              ]
+            },
+            {
+              "dtype": "float32",
+              "shape": [
+                2,
+                1,
+                640
+              ]
+            }
+          ]
+        }
+      }
+    },
+    {
+      "file": "fluid_speech_pro_joint_xnnpack_fp32.pte",
+      "precision": "fp32",
+      "quantized": false,
+      "default": false,
+      "methods": {
+        "forward": {
+          "inputs": [
+            {
+              "dtype": "float32",
+              "shape": [
+                1,
+                1,
+                1024
+              ]
+            },
+            {
+              "dtype": "float32",
+              "shape": [
+                1,
+                1,
+                640
+              ]
+            }
+          ],
+          "outputs": [
+            {
+              "dtype": "float32",
+              "shape": [
+                1,
+                1,
+                1,
+                8198
+              ]
+            }
+          ]
+        }
+      }
+    },
+    {
+      "file": "fluid_speech_pro_subsample_xnnpack_fp32.pte",
+      "precision": "fp32",
+      "quantized": false,
+      "default": false,
+      "methods": {
+        "forward_0": {
+          "inputs": [
+            {
+              "dtype": "float32",
+              "shape": [
+                1,
+                128,
+                496
+              ]
+            },
+            {
+              "dtype": "int64",
+              "shape": [
+                1
+              ]
+            }
+          ],
+          "outputs": [
+            {
+              "dtype": "float32",
+              "shape": [
+                1,
+                62,
+                1024
+              ]
+            },
+            {
+              "dtype": "int64",
+              "shape": [
+                1
+              ]
+            }
+          ]
+        },
+        "forward_1": {
+          "inputs": [
+            {
+              "dtype": "float32",
+              "shape": [
+                1,
+                128,
+                497
+              ]
+            },
+            {
+              "dtype": "int64",
+              "shape": [
+                1
+              ]
+            }
+          ],
+          "outputs": [
+            {
+              "dtype": "float32",
+              "shape": [
+                1,
+                63,
+                1024
+              ]
+            },
+            {
+              "dtype": "int64",
+              "shape": [
+                1
+              ]
+            }
+          ]
+        },
+        "forward_2": {
+          "inputs": [
+            {
+              "dtype": "float32",
+              "shape": [
+                1,
+                128,
+                498
+              ]
+            },
+            {
+              "dtype": "int64",
+              "shape": [
+                1
+              ]
+            }
+          ],
+          "outputs": [
+            {
+              "dtype": "float32",
+              "shape": [
+                1,
+                63,
+                1024
+              ]
+            },
+            {
+              "dtype": "int64",
+              "shape": [
+                1
+              ]
+            }
+          ]
+        },
+        "forward_3": {
+          "inputs": [
+            {
+              "dtype": "float32",
+              "shape": [
+                1,
+                128,
+                499
+              ]
+            },
+            {
+              "dtype": "int64",
+              "shape": [
+                1
+              ]
+            }
+          ],
+          "outputs": [
+            {
+              "dtype": "float32",
+              "shape": [
+                1,
+                63,
+                1024
+              ]
+            },
+            {
+              "dtype": "int64",
+              "shape": [
+                1
+              ]
+            }
+          ]
+        },
+        "forward_4": {
+          "inputs": [
+            {
+              "dtype": "float32",
+              "shape": [
+                1,
+                128,
+                500
+              ]
+            },
+            {
+              "dtype": "int64",
+              "shape": [
+                1
+              ]
+            }
+          ],
+          "outputs": [
+            {
+              "dtype": "float32",
+              "shape": [
+                1,
+                63,
+                1024
+              ]
+            },
+            {
+              "dtype": "int64",
+              "shape": [
+                1
+              ]
+            }
+          ]
+        },
+        "forward_5": {
+          "inputs": [
+            {
+              "dtype": "float32",
+              "shape": [
+                1,
+                128,
+                501
+              ]
+            },
+            {
+              "dtype": "int64",
+              "shape": [
+                1
+              ]
+            }
+          ],
+          "outputs": [
+            {
+              "dtype": "float32",
+              "shape": [
+                1,
+                63,
+                1024
+              ]
+            },
+            {
+              "dtype": "int64",
+              "shape": [
+                1
+              ]
+            }
+          ]
+        },
+        "forward_6": {
+          "inputs": [
+            {
+              "dtype": "float32",
+              "shape": [
+                1,
+                128,
+                502
+              ]
+            },
+            {
+              "dtype": "int64",
+              "shape": [
+                1
+              ]
+            }
+          ],
+          "outputs": [
+            {
+              "dtype": "float32",
+              "shape": [
+                1,
+                63,
+                1024
+              ]
+            },
+            {
+              "dtype": "int64",
+              "shape": [
+                1
+              ]
+            }
+          ]
+        },
+        "forward_7": {
+          "inputs": [
+            {
+              "dtype": "float32",
+              "shape": [
+                1,
+                128,
+                503
+              ]
+            },
+            {
+              "dtype": "int64",
+              "shape": [
+                1
+              ]
+            }
+          ],
+          "outputs": [
+            {
+              "dtype": "float32",
+              "shape": [
+                1,
+                63,
+                1024
+              ]
+            },
+            {
+              "dtype": "int64",
+              "shape": [
+                1
+              ]
+            }
+          ]
+        }
+      }
+    }
+  ]
+}
