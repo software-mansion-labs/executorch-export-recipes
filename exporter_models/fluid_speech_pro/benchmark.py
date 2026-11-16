@@ -45,6 +45,7 @@ def main():
     parser.add_argument('--tokenizer', required=True)
     parser.add_argument('--report', required=True)
     parser.add_argument('--iterations', type=int, default=10)
+    parser.add_argument('--encoder-file', default='fluid_speech_pro_encoder_xnnpack_fp32.pte')
     args = parser.parse_args()
     assert args.iterations >= 3
     torch.set_num_threads(4)
@@ -57,7 +58,8 @@ def main():
     methods, programs = {}, {}
     started = time.perf_counter()
     for name in ['preprocess','subsample','encoder','predictor','joint']:
-        program=runtime.load_program(str(Path(args.pte_dir)/f'fluid_speech_pro_{name}_xnnpack_fp32.pte'))
+        filename=args.encoder_file if name=='encoder' else f'fluid_speech_pro_{name}_xnnpack_fp32.pte'
+        program=runtime.load_program(str(Path(args.pte_dir)/filename))
         programs[name]=program
         methods[name]=({r:program.load_method(f'forward_{r}') for r in range(8)} if name=='subsample' else program.load_method('forward'))
     load_ms=(time.perf_counter()-started)*1000
@@ -78,7 +80,7 @@ def main():
         f,fl=run('preprocess',torch.nn.functional.pad(x,(0,160000-len(crop))),torch.tensor([len(crop)]))
         f=f[:,:,:len(crop)//160+1].contiguous()
         return greedy(lambda *v:run('encoder',*run('subsample',*v)),lambda *v:run('predictor',*v),lambda *v:run('joint',*v),f,fl)
-    report=dict(source_revision=SOURCE_REVISION,runtime='ExecuTorch 1.4.1 XNNPACK host CPU',torch=torch.__version__,platform=platform.platform(),threads=4,load_ms=load_ms,short_audio_policy='NeMo3 tensor transcription: symmetric zero padding to1second',cohorts=[],latency=[],limits=fixture.get('limits',''))
+    report=dict(source_revision=SOURCE_REVISION,runtime='ExecuTorch 1.4.1 XNNPACK host CPU',torch=torch.__version__,platform=platform.platform(),threads=4,encoder_file=args.encoder_file,load_ms=load_ms,short_audio_policy='NeMo3 tensor transcription: symmetric zero padding to1second',cohorts=[],latency=[],limits=fixture.get('limits',''))
     with torch.inference_mode():
         transcribe(audio[:16000])
         for cohort in fixture['cohorts']:
