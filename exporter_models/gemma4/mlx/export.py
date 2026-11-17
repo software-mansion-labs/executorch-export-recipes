@@ -204,11 +204,10 @@ def export(config: dict, out_dir: str) -> str:
             "runtimeConstraints": [],
         }
     }
-    root_schema_path = _HERE.parent.parent / "model.schema.json"
-    if root_schema_path.exists():
-        import jsonschema
+    root_schema_path = _HERE.parents[2] / "model.schema.json"
+    import jsonschema
 
-        jsonschema.validate(instance=model_schema, schema=json.loads(root_schema_path.read_text()))
+    jsonschema.validate(instance=model_schema, schema=json.loads(root_schema_path.read_text()))
 
     # The config is the source of truth; it may not claim a chunk size the
     # graph cannot take (the runner prefills in chunks of get_max_seq_len).

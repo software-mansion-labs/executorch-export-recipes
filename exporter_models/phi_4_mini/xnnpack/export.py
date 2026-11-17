@@ -116,12 +116,11 @@ def export(config: dict, out_dir: str) -> str:
             "runtimeConstraints": [],
         }
     }
-    root_schema_path = _MODEL_DIR.parent / "model.schema.json"
-    if root_schema_path.exists():
-        import jsonschema
+    root_schema_path = _MODEL_DIR.parents[1] / "model.schema.json"
+    import jsonschema
 
-        root_schema = json.loads(root_schema_path.read_text())
-        jsonschema.validate(instance=model_schema, schema=root_schema)
+    root_schema = json.loads(root_schema_path.read_text())
+    jsonschema.validate(instance=model_schema, schema=root_schema)
 
     metadata_dict = {k: consts[k] for k in ("get_bos_id", "get_eos_ids") if k in consts}
     metadata_dict["get_model_schema"] = json.dumps(model_schema)
