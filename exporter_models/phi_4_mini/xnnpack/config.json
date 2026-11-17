@@ -40,7 +40,7 @@
                 1,
                 200064
               ],
-              "dtype": "bfloat16"
+              "dtype": "float32"
             }
           ]
         },

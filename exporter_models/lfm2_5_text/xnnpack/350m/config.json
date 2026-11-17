@@ -81,7 +81,7 @@
                 1,
                 65536
               ],
-              "dtype": "float16"
+              "dtype": "float32"
             }
           ]
         },

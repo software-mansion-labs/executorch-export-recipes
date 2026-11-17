@@ -79,7 +79,7 @@ def export(config: dict, out_dir: str) -> str:
     consts = variant.get("constants", {})
     max_seq = consts.get("get_max_seq_len", 2048)
     vocab_sz = consts.get("get_vocab_size", spec["params"]["vocab_size"])
-    out_dtype = "float32" if variant["precision"] != "fp16" and variant["precision"] != "bf16" else ("float16" if variant["precision"] == "fp16" else "bfloat16")
+    out_dtype = "float32"
 
     model_schema = {
         "forward": {
@@ -147,11 +147,23 @@ def export(config: dict, out_dir: str) -> str:
     cfg.export.max_context_length = consts["get_max_context_len"]
     cfg.export.output_name = out_path
 
+    import torch
+    from executorch.examples.models.llama.llama_transformer import Transformer
+
+    original_forward = Transformer.forward
+
+    def forward_float32(self, *args, **kwargs):
+        logits = original_forward(self, *args, **kwargs)
+        return logits.to(torch.float32)
+
+    Transformer.forward = forward_float32
+
     cwd = os.getcwd()
     os.chdir(tempfile.gettempdir())
     try:
         export_llama(cfg)
     finally:
+        Transformer.forward = original_forward
         os.chdir(cwd)
         os.unlink(params_path)
     return out_path

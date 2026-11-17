@@ -76,11 +76,23 @@ def export(config: dict, out_dir: str) -> str:
     cfg.export.max_context_length = consts["get_max_context_len"]
     cfg.export.output_name = out_path
 
+    import torch
+    from executorch.examples.models.llama.llama_transformer import Transformer
+
+    original_forward = Transformer.forward
+
+    def forward_float32(self, *args, **kwargs):
+        logits = original_forward(self, *args, **kwargs)
+        return logits.to(torch.float32)
+
+    Transformer.forward = forward_float32
+
     cwd = os.getcwd()
     os.chdir(tempfile.gettempdir())
     try:
         export_llama(cfg)
     finally:
+        Transformer.forward = original_forward
         os.chdir(cwd)
         os.unlink(params_path)
     return out_path

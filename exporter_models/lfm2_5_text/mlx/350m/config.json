@@ -36,7 +36,7 @@
                 1,
                 65536
               ],
-              "dtype": "bfloat16"
+              "dtype": "float32"
             }
           ]
         },
