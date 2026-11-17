@@ -24,7 +24,7 @@ from executorch.examples.models.llama.source_transformation.sdpa import (
 )
 from executorch.examples.models.model_base import EagerModelBase
 from torch.export import Dim
-from transformers import AutoModelForImageTextToText
+from transformers import AutoModelForImageTextToText, AutoProcessor
 
 
 MAX_SEQ_LEN = 2048
@@ -225,16 +225,8 @@ class Lfm2p5VlModel(EagerModelBase):
         self.hf_model = AutoModelForImageTextToText.from_pretrained(
             model_dir, device_map="cpu", torch_dtype=torch.float32
         )
-        try:
-            self.processor = AutoProcessor.from_pretrained(model_dir)
-            self.tokenizer = getattr(self.processor, "tokenizer", None)
-        except Exception:
-            from transformers import AutoTokenizer
-            self.processor = None
-            try:
-                self.tokenizer = AutoTokenizer.from_pretrained(model_dir)
-            except Exception:
-                self.tokenizer = None
+        self.processor = AutoProcessor.from_pretrained(model_dir)
+        self.tokenizer = self.processor.tokenizer
 
         self.conversation = [
             {
