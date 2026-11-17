@@ -1,44 +1,11 @@
-"""Gemma 4 E2B text decoder, Vulkan backend, int4.
+"""Gemma 4 E2B text decoder, vulkan backend, int4.
 
-Validated on device. Ships as the `vulkan/` half of the React-Native text
-bundle.
-
-Single-method PTE named `forward` (see the xnnpack sibling for why the name is
-not optional).
-
-REQUIRES PATCHED VULKAN KERNELS, from:
-
-    software-mansion-labs/executorch
-    branch @ms/separate-backends          (ET 1.3.1 -- the SAME branch mlx uses)
-    verified at 2daed17d827b7d7cc2f61d44dc20794c81d8da94
-
-They are NOT vendored here: the softmax max-subtraction fix, the gelu/tanh fp16
-clamp, `GemmaSDPA.cpp` implementing `et_vk::gemma_sdpa_with_kv_cache` and
-`et_vk::gemma_custom_sdpa`, the `op_registry.py` entries the partitioner needs,
-and several `resize_fn` fixes for dynamic shapes. Export and runtime must come
-from the same tree state -- a PTE built against one set of shaders and run
-against another produces gibberish at runtime, not an error, and that is the
-first thing to check when on-device output is nonsense.
-
-The kernels originated on the fork's `@mkopcins/gemma4` branch (ET 1.2.0a0) and
-were ADAPTED onto 1.3.1, not copied: the tile loaders gained a `D` argument and
-the shaders now declare `Q_LAYOUT/K_LAYOUT DHSB`. The on-device validation this
-recipe claims was measured against the 1.2 shaders -- re-run the smoke test
-before trusting those numbers. See NOTES.md, "Backend prerequisites".
-
-Two settings that look like bugs and are not:
-
-- `LOGITS_DTYPE = fp32` while the rest of the model is fp16. That is what the
-  on-device-tested recipe does; it is preserved rather than "fixed", because
-  changing it is a numerics change nobody has measured.
-- `PREFILL_LEN = 128`, so `get_max_seq_len` is 128. The forward's seq dim is
-  bounded at 128 by construction, so runners must chunk prefill at <=128. The
-  KV cache still serves 2048 positions via `get_max_context_len`.
-
-Everything the XNNPACK recipe turns on for host-op reduction is unavailable
-here: the Vulkan SDPA source transform REJECTS ring KV, `use_dynamic_kv_slice`
-and `use_bshd_kv=False` by raising. The fused custom op does that work in the
-shader instead.
+Exports forward(tokens[1, S], input_pos[1]) -> float32 logits[1, vocab].
+Runner constants and prefill/context bounds come from vulkan/e2b/config.json.
+Uses the Software Mansion ExecuTorch 1.4.1 fork,
+@ms/separate-backends-1.4.1; Vulkan requires its patched kernels.
+The current runner adapters and artifact require fresh device validation;
+historical upstream validation does not validate this export.
 """
 import importlib
 import importlib.util
@@ -148,7 +115,7 @@ def export(config: dict, out_dir: str) -> str:
         name="vulkan-text",
         backend="vulkan",
         modality="text",
-        validated_on_device=True,
+        validated_on_device=False,
         quant=edge_config.QuantSpec(
             linear_bits=LINEAR_BITS,
             linear_group_size=LINEAR_GROUP_SIZE,

@@ -1,25 +1,13 @@
 # Edge-port XNNPACK recipe from @mkopcins/gemma4, adapted to the RNE text runner
 # via `_edge_adapters` (scalar input_pos, last-position fp32 logits, lean load).
-"""Gemma 4 E2B text decoder, XNNPACK backend, int4.
+"""Gemma 4 E2B text decoder, xnnpack backend, int4.
 
-Validated on device. Ships as the `xnnpack/` half of the React-Native text
-bundle.
-
-Single-method PTE. The method MUST be named `forward`:
-`extension/llm/runner/text_decoder_runner.h` hardcodes `load_method("forward")`
-and a single-method PTE named anything else aborts at load.
-
-The settings below are the on-device-tested values, baked. Two deviations from
-the bundle that actually shipped, both deliberate and both inherited from the
-recipe package:
-
-- `ple_embedding_bits = 4`, where the shipped bundle used int2. int2 saves
-  ~580 MB but flipped the multimodal first-token argmax, and that int2 PTE was
-  flagged as still owing an on-device chat smoke before shipping. Set
-  `PLE_EMBEDDING_BITS = 2` to reproduce the shipped bundle exactly.
-- `return_last_only = False`, so the runner slices the last position itself
-  after a prefill chunk. The source recipe's docstring claimed True while its
-  code said False; the code is what shipped.
+Exports forward(tokens[1, S], input_pos[1]) -> float32 logits[1, vocab].
+Runner constants and prefill/context bounds come from xnnpack/e2b/config.json.
+Uses the Software Mansion ExecuTorch 1.4.1 fork,
+@ms/separate-backends-1.4.1; Vulkan requires its patched kernels.
+The current runner adapters and artifact require fresh device validation;
+historical upstream validation does not validate this export.
 """
 import importlib
 import importlib.util
@@ -55,11 +43,7 @@ FP16_RETARGET = False
 # inside the ModelHostObject constructor over EVERY method, so an fp16 output
 # makes the whole .pte fail to LOAD rather than degrading anything.
 #
-# COST, not measured on device: with `RETURN_LAST_ONLY = False` the logits are
-# [1, S, 262144], so at S=1024 this takes that buffer from ~512 MB to ~1 GB of
-# arena. If it does not fit, the fix is `RETURN_LAST_ONLY = True` (logits
-# become [1, 1, 262144]) together with a runner that stops slicing the last
-# position itself — a runner-contract change, so not made here.
+# The runner adapter returns only the last position as fp32 [1, vocab].
 LOGITS_DTYPE = torch.float32
 
 # --- sequence bounds --------------------------------------------------------

@@ -45,13 +45,13 @@ usable stateful-KV-cache support, this is worth revisiting.
 
 All three backends export `forward(tokens[1, S], input_pos[1]) -> float32
 [1, vocab]` with an embedded `get_model_schema`, at the context length in the
-vendored `e2b/<backend>/config.json` (the single source of truth for the runner
+vendored `<backend>/e2b/config.json` (the single source of truth for the runner
 constants and the I/O contract). The configs describe what we export, not the
 older published `.pte`s (vector `input_pos`, `[1, S, vocab]` logits).
 
 | backend | port | prefill bound (`get_max_seq_len`) | notes |
 |---|---|---|---|
-| xnnpack | `_gemma4_edge/` | 1024 | quantized from the bf16 checkpoint, then retargeted to fp16 |
+| xnnpack | `_gemma4_edge/` | 512 | quantized from the bf16 checkpoint, then retargeted to fp16 |
 | vulkan | `_gemma4_edge/` | 128 | per-layer embeddings int4 (the 1.4.1 fork's Vulkan partitioner does not claim int2) |
 | mlx | `_text_decoder/` | 512 (graph bound 511, the sliding window) | `compile_friendly=False`, non-strict trace |
 
@@ -65,3 +65,25 @@ older published `.pte`s (vector `input_pos`, `[1, S, vocab]` logits).
 - Export with the software-mansion-labs ExecuTorch fork (`@ms/separate-backends-1.4.1`):
   the PyPI wheel serializes MLX graphs with a different op numbering, which the
   RNE runtime rejects with `InvalidProgram`.
+
+## MLX rewind safety
+
+Sliding attention uses a context-sized absolute-position KV cache with a
+window mask. Retaining past entries allows `reset(targetPos)` to rewind across
+multiple windows; future cache slots remain masked until overwritten. This
+uses more memory than a ring buffer. The same change is carried in the omni
+model's owned copy. Device memory and latency need remeasurement.
+
+## PR #3 review validation
+
+Review fixes were checked with 17 local regression cases covering config loading,
+context/dtype declarations, schema validation, output casts and restoration after
+export failure, and sliding masks before/after long rewinds in both model copies.
+All passed with torch 2.14.0. The exporter was mocked for the cast/cleanup tests;
+these checks do not establish full-model parity or delegate execution. All changed
+configs loaded through the registry (51 variants), and Bielik's two variants
+passed CLI dry-run. Python parsing and `git diff --check` passed.
+
+No revised `.pte` was produced. Full eager/artifact parity, task quality,
+delegation, device memory, and latency remain unverified. In particular, measure
+the memory increase from the absolute-position MLX sliding caches before shipping.
