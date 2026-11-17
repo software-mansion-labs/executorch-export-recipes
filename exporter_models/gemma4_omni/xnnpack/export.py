@@ -17,7 +17,7 @@ import torch.nn.functional as F
 
 _HERE = Path(__file__).resolve().parent
 _OMNI_DIR = _HERE.parent
-_GEMMA4_DIR = _OMNI_DIR.parent / "gemma4"
+_GEMMA4_DIR = _OMNI_DIR
 _EDGE_PKG = "gemma4_edge_omni"
 
 logger = logging.getLogger(__name__)

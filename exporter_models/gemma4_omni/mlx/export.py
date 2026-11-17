@@ -32,7 +32,7 @@ def _load_gemma4_pkg():
 
 def _lean_load():
     spec = importlib.util.spec_from_file_location(
-        "gemma4_lean_load", _HERE.parent.parent / "gemma4" / "_lean_load.py"
+        "gemma4_omni_lean_load", _HERE.parent / "_lean_load.py"
     )
     mod = importlib.util.module_from_spec(spec)
     spec.loader.exec_module(mod)

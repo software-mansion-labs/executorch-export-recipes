@@ -17,7 +17,7 @@ import torch.nn.functional as F
 
 _HERE = Path(__file__).resolve().parent
 _OMNI_DIR = _HERE.parent
-_GEMMA4_DIR = _OMNI_DIR.parent / "gemma4"
+_GEMMA4_DIR = _OMNI_DIR
 _EDGE_PKG = "gemma4_edge_omni"
 
 logger = logging.getLogger(__name__)
@@ -84,10 +84,10 @@ def _load_edge():
 
 def _edge_adapters():
     spec = importlib.util.spec_from_file_location(
-        "gemma4_edge_adapters", _GEMMA4_DIR / "_edge_adapters.py"
+        "gemma4_omni_edge_adapters", _GEMMA4_DIR / "_edge_adapters.py"
     )
     mod = importlib.util.module_from_spec(spec)
-    sys.modules["gemma4_edge_adapters"] = mod
+    sys.modules["gemma4_omni_edge_adapters"] = mod
     spec.loader.exec_module(mod)
     return mod
 
