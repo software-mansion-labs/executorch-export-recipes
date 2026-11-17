@@ -28,33 +28,19 @@ import torch
 import torch.nn as nn
 from executorch.backends.mlx.llm.cache import (
     KVCache as MLXKVCache,
-    RingBufferKVCache as MLXRingKVCache,
 )
 
 
-def _ring_sliding_window_mask(
+def _sliding_window_mask(
     start_pos: int,
     seq_len: int,
     window_size: int,
     buffer_size: int,
     dtype: torch.dtype,
 ) -> torch.Tensor:
-    """Additive ring-buffer sliding-window mask [1, 1, seq_len, buffer_size].
-
-    Stateless reconstruction of the slot→position mapping from start_pos and
-    buffer_size (mirrors RingBufferKVCache.create_sliding_window_mask), so it
-    works for consumer layers that hold no cache object.
-    """
+    """Sliding mask over absolute cache positions, safe across cache rewinds."""
     w = window_size
-    b = buffer_size
-    end_pos = start_pos + seq_len
-
-    slots = torch.arange(b, dtype=torch.long)
-    last_write_slot = (end_pos - 1) % b
-    current_cycle_base = end_pos - 1 - last_write_slot
-    pos_current = current_cycle_base + slots
-    pos_previous = current_cycle_base - b + slots
-    cache_pos = torch.where(slots <= last_write_slot, pos_current, pos_previous)
+    cache_pos = torch.arange(buffer_size, dtype=torch.long)
 
     pos_q = (start_pos + torch.arange(seq_len, dtype=torch.long)).view(-1, 1)
     delta = pos_q - cache_pos
@@ -169,21 +155,17 @@ def _replace_attention_forward(attn: nn.Module) -> None:
             kv_to_share = (k_cache, v_cache)
 
         if self.is_sliding:
-            # Sliding layers use the ring buffer with proper windowed eviction.
-            # The causal-slice fast path is ONLY valid while positions stay within
-            # one window; once start_pos exceeds sliding_window the ring wraps and
-            # a naive causal slice attends to scrambled/out-of-window positions
-            # (catastrophic divergence past the window — long conversations). Use
-            # the ring-window mask, which is correct at every position.
+            # Linear storage preserves historical K/V on rewind. The absolute
+            # position mask excludes future slots until they are overwritten.
             buffer_size = k_cache.shape[2]
             cache = self._mlx_mask_cache
-            key = ("ring", id(input_pos))
+            key = ("sliding", id(input_pos))
             if cache.get("_key") != key[1]:
                 cache.clear()
                 cache["_key"] = key[1]
             sdpa_mask = cache.get(key)
             if sdpa_mask is None:
-                sdpa_mask = _ring_sliding_window_mask(
+                sdpa_mask = _sliding_window_mask(
                     start_pos, T, self._mlx_sliding_window, buffer_size,
                     k_cache.dtype
                 )
@@ -295,8 +277,8 @@ def mlx_source_transformations(
 ) -> None:
     """Apply MLX source transformations to a Gemma 4 E2B text decoder in-place.
 
-    Gives EVERY attention its own MLX KV cache (ring buffer for sliding layers,
-    linear for full-attention layers) and rewrites the attention forward to use
+    Uses absolute-position MLX KV storage for all attention layers and rewrites
+    the attention forward to use
     ``mlx.rope`` / ``mlx.custom_sdpa``.
 
     YOCO donor-reuse is disabled for MLX: the donor's ``mlx.kv_cache_update``
@@ -309,7 +291,7 @@ def mlx_source_transformations(
     """
     config = model.config
 
-    # Shared per-forward mask cache. The ring and causal masks depend only on
+    # Shared per-forward mask cache. The sliding and causal masks depend only on
     # (start_pos, T) — identical across all 35 layers in a single forward — so
     # they are built once by the first layer that needs each and reused by the
     # rest. Under mx::compile the trace records the mask subgraph once instead
@@ -322,7 +304,7 @@ def mlx_source_transformations(
             continue
         attn = module
 
-        # Needed by sliding layers to build the ring mask.
+        # Needed by sliding layers to build the sliding mask.
         attn._mlx_sliding_window = config.sliding_window
         attn._mlx_compile_friendly = compile_friendly
         attn._mlx_ctx_len = config.max_seq_len
@@ -335,23 +317,14 @@ def mlx_source_transformations(
 
         # Only non-shared layers own a cache; YOCO consumers reuse the donor's.
         if not attn.is_kv_shared_layer:
-            if attn.is_sliding:
-                attn.kv_cache = MLXRingKVCache(
-                    max_batch_size=1,
-                    max_context_length=config.sliding_window,
-                    n_heads=attn.num_kv_heads,
-                    head_dim=attn.head_dim,
-                    dtype=dtype,
-                )
-            else:
-                attn.kv_cache = MLXKVCache(
-                    max_batch_size=1,
-                    max_context_length=config.max_seq_len,
-                    n_heads=attn.num_kv_heads,
-                    head_dim=attn.head_dim,
-                    enable_dynamic_shape=True,
-                    dtype=dtype,
-                )
+            attn.kv_cache = MLXKVCache(
+                max_batch_size=1,
+                max_context_length=config.max_seq_len,
+                n_heads=attn.num_kv_heads,
+                head_dim=attn.head_dim,
+                enable_dynamic_shape=True,
+                dtype=dtype,
+            )
             attn.kv_cache.use_index_copy = compile_friendly
 
         _replace_attention_forward(attn)
