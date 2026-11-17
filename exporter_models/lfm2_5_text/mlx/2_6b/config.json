@@ -45,7 +45,7 @@
         "get_eos_ids": [
           124900
         ],
-        "get_max_context_len": 8192,
+        "get_max_context_len": 16384,
         "get_max_seq_len": 129,
         "get_n_layers": 30,
         "get_vocab_size": 128000,
