@@ -101,6 +101,7 @@
       "file": "lfm_2_5_vl_1_6b_mlx_int8.pte",
       "precision": "8w",
       "quantized": true,
+      "default": false,
       "methods": {
         "vision_encoder": {
           "inputs": [
