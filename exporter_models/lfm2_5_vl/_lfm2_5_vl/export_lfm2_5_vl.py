@@ -22,6 +22,7 @@ Usage:
         [--dtype fp32|fp16] [--quantize] [--output lfm2_5_vl_xnnpack.pte]
 """
 
+import json
 import logging
 import os
 from argparse import ArgumentParser, BooleanOptionalAction
@@ -170,6 +171,7 @@ def export_text_decoder(
     lfm2,
     quantize: bool,
     dtype: DType = DType.fp32,
+    max_seq_len: int = MAX_SEQ_LEN,
 ) -> torch.export.ExportedProgram:
     """Export hybrid LFM2.5 decoder as 'text_decoder' method.
 
@@ -192,13 +194,13 @@ def export_text_decoder(
     dummy_seq = 8
     dummy_embeddings = torch.randn(1, dummy_seq, dim, dtype=dtype.to_torch_dtype())
     dummy_input_pos = torch.arange(dummy_seq, dtype=torch.int64)
-    token_dim = Dim("token_dim", min=1, max=MAX_SEQ_LEN)
+    token_dim = Dim("token_dim", min=1, max=max_seq_len)
     dynamic_shapes = ({1: token_dim}, {0: token_dim})
 
     manager = Lfm2p5VlEdgeManager(
         model=decoder,
         modelname="lfm2_5_vl_text_decoder",
-        max_seq_len=MAX_SEQ_LEN,
+        max_seq_len=max_seq_len,
         dtype=dtype,
         use_kv_cache=True,
         example_inputs=(dummy_embeddings, dummy_input_pos),
@@ -249,17 +251,11 @@ def export_text_decoder(
 def export_token_embedding(
     lfm2,
     quantize: bool,
+    max_seq_len: int = MAX_SEQ_LEN,
 ) -> torch.export.ExportedProgram:
-    """Export token embedding table as 'token_embedding' method.
-
-    Uses fixed MAX_SEQ_LEN=2048 input buffer. The C++ runner pads shorter
-    sequences to this length before calling, then slices the output back.
-
-    IMPORTANT: call this AFTER export_text_decoder. EmbeddingQuantHandler
-    mutates model.embed_tokens in-place (replaces fp32 weight with int8).
-    """
+    """Export token embedding table as 'token_embedding' method."""
     language_model = lfm2.model_.model.language_model
-    token_dim = Dim("token_dim_1", min=1, max=MAX_SEQ_LEN)
+    token_dim = Dim("token_dim_1", min=1, max=max_seq_len)
     dynamic_shapes = [{1: token_dim}]
 
     if quantize:
@@ -272,7 +268,7 @@ def export_token_embedding(
         logging.info("Exporting token embedding (fp32)...")
         embed_module = language_model.get_input_embeddings()
 
-    example_ids = torch.zeros(1, MAX_SEQ_LEN, dtype=torch.int64)
+    example_ids = torch.zeros(1, max_seq_len, dtype=torch.int64)
     with torch.no_grad():
         ep = torch.export.export(
             embed_module, (example_ids,), dynamic_shapes=dynamic_shapes, strict=False
@@ -306,10 +302,10 @@ def export_all(
 
     # Text decoder MUST come before token embedding (see export_token_embedding docstring)
     logging.info("[2/3] Exporting text decoder...")
-    decoder_ep = export_text_decoder(lfm2, quantize, dtype)
+    decoder_ep = export_text_decoder(lfm2, quantize, dtype, max_seq_len=max_seq_len)
 
     logging.info("[3/3] Exporting token embedding...")
-    token_ep = export_token_embedding(lfm2, quantize)
+    token_ep = export_token_embedding(lfm2, quantize, max_seq_len=max_seq_len)
 
     logging.info("Lowering to Edge IR + XNNPACK...")
     lowered = to_edge_transform_and_lower(
@@ -342,6 +338,117 @@ def export_all(
             # EOS = <|im_end|> (token 7). Runner reads this from PTE rather than
             # relying on tokenizer default.
             "get_eos_ids": [7],
+            "get_model_schema": json.dumps({
+                "vision_encoder": {
+                    "inputs": [
+                        {
+                            "kind": "Tensor",
+                            "dtype": "float32",
+                            "shape": [
+                                {"kind": "constant", "value": 1},
+                                {"kind": "constant", "value": 3},
+                                {"kind": "constant", "value": IMAGE_SIZE},
+                                {"kind": "constant", "value": IMAGE_SIZE},
+                            ],
+                        }
+                    ],
+                    "outputs": [
+                        {
+                            "kind": "Tensor",
+                            "dtype": "float32",
+                            "shape": [
+                                {"kind": "constant", "value": 1},
+                                {"kind": "constant", "value": 256},
+                                {"kind": "constant", "value": lfm2.text_model_args.dim},
+                            ],
+                        }
+                    ],
+                    "runtimeConstraints": [],
+                },
+                "token_embedding": {
+                    "inputs": [
+                        {
+                            "kind": "Tensor",
+                            "dtype": "int64",
+                            "shape": [
+                                {"kind": "constant", "value": 1},
+                                {
+                                    "kind": "range",
+                                    "range": {
+                                        "min": 1,
+                                        "max": max_seq_len - 1,
+                                        "step": 1,
+                                    },
+                                },
+                            ],
+                        }
+                    ],
+                    "outputs": [
+                        {
+                            "kind": "Tensor",
+                            "dtype": "float32",
+                            "shape": [
+                                {"kind": "constant", "value": 1},
+                                {
+                                    "kind": "range",
+                                    "range": {
+                                        "min": 1,
+                                        "max": max_seq_len - 1,
+                                        "step": 1,
+                                    },
+                                },
+                                {"kind": "constant", "value": lfm2.text_model_args.dim},
+                            ],
+                        }
+                    ],
+                    "runtimeConstraints": [],
+                },
+                "text_decoder": {
+                    "inputs": [
+                        {
+                            "kind": "Tensor",
+                            "dtype": "float32",
+                            "shape": [
+                                {"kind": "constant", "value": 1},
+                                {
+                                    "kind": "range",
+                                    "range": {
+                                        "min": 1,
+                                        "max": max_seq_len - 1,
+                                        "step": 1,
+                                    },
+                                },
+                                {"kind": "constant", "value": lfm2.text_model_args.dim},
+                            ],
+                        },
+                        {
+                            "kind": "Tensor",
+                            "dtype": "int64",
+                            "shape": [
+                                {
+                                    "kind": "range",
+                                    "range": {
+                                        "min": 1,
+                                        "max": max_seq_len - 1,
+                                        "step": 1,
+                                    },
+                                }
+                            ],
+                        },
+                    ],
+                    "outputs": [
+                        {
+                            "kind": "Tensor",
+                            "dtype": "float32",
+                            "shape": [
+                                {"kind": "constant", "value": 1},
+                                {"kind": "constant", "value": lfm2.text_model_args.vocab_size},
+                            ],
+                        }
+                    ],
+                    "runtimeConstraints": [],
+                },
+            }),
         },
         compile_config=EdgeCompileConfig(_check_ir_validity=False),
     )

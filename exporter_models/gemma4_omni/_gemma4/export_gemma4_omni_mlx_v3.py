@@ -41,13 +41,22 @@ class RunnerVisionEncoder(torch.nn.Module):
         self.register_buffer(
             "padding", torch.zeros(1, NUM_PATCHES, dtype=torch.bool), persistent=False
         )
+        k = int((NUM_PATCHES // SOFT_TOKENS) ** 0.5)
+        kid = torch.div(self.pos_ids, k, rounding_mode="floor")
+        kid = kid[..., 0] + (VIS_NX // k) * kid[..., 1]
+        w = torch.nn.functional.one_hot(kid, SOFT_TOKENS).float() / (k * k)
+        self.register_buffer(
+            "pool_weights", w.transpose(1, 2).contiguous(), persistent=False
+        )
 
     def forward(self, image: torch.Tensor) -> torch.Tensor:
         x = image * (1.0 / 255.0)
         p = PATCH_SIZE
-        x = x.unfold(2, p, p).unfold(3, p, p)
-        x = x.permute(0, 2, 3, 4, 5, 1).contiguous()
-        patches = x.flatten(3).flatten(1, 2)  # [1, 1120, 768]
+        patches = (
+            x.view(1, 3, VIS_NY, p, VIS_NX, p)
+            .permute(0, 2, 4, 3, 5, 1)
+            .reshape(1, NUM_PATCHES, 3 * p * p)
+        )
 
         inner = self.inner
         inputs_embeds = inner.patch_embedder(patches, self.pos_ids, self.padding)
@@ -56,15 +65,11 @@ class RunnerVisionEncoder(torch.nn.Module):
             attention_mask=~self.padding,
             pixel_position_ids=self.pos_ids,
         )
-        hidden, pooler_mask = inner.pooler(
-            hidden_states=enc_out.last_hidden_state,
-            pixel_position_ids=self.pos_ids,
-            padding_positions=self.padding,
-            output_length=SOFT_TOKENS,
-        )
+        hidden = (
+            self.pool_weights @ enc_out.last_hidden_state.float()
+        ) * inner.pooler.root_hidden_size
         if inner.standardize:
             hidden = (hidden - inner.std_bias) * inner.std_scale
-            hidden = hidden.masked_fill(~pooler_mask.unsqueeze(-1), 0.0)
         return inner.embed_vision(hidden)
 
 

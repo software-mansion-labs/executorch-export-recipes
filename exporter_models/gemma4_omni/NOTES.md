@@ -59,3 +59,9 @@ as data-dependent (apple/coremltools#2825, see `docs/coremltools-2825-repro.md`)
 the Core ML backend and collected a failure. It is not attempted because the cost is
 high and the prior is bad, not because it was tried and rejected. If Core ML gains
 usable stateful-KV-cache support, this is worth revisiting.
+
+The XNNPACK and Vulkan recipes own `_gemma4_edge/`, `_edge_adapters.py`, and
+`_lean_load.py` locally; MLX uses the same local lean loader. No export loads
+code from the sibling `gemma4` directory. The MLX sliding cache retains absolute
+positions for rewind safety, increasing cache memory; device validation remains
+outstanding for the revised graph.

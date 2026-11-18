@@ -40,7 +40,7 @@
                 1,
                 151665
               ],
-              "dtype": "bfloat16"
+              "dtype": "float32"
             }
           ]
         },
@@ -49,7 +49,7 @@
           151645,
           151643
         ],
-        "get_max_context_len": 2048,
+        "get_max_context_len": 16384,
         "get_max_seq_len": 2048,
         "get_n_layers": 36,
         "get_vocab_size": 151665,
@@ -98,7 +98,7 @@
           151645,
           151643
         ],
-        "get_max_context_len": 2048,
+        "get_max_context_len": 16384,
         "get_max_seq_len": 2048,
         "get_n_layers": 36,
         "get_vocab_size": 151665,

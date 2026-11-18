@@ -41,14 +41,25 @@ def export(config: dict, out_dir: str) -> str:
     out_path = str(Path(out_dir) / config["variant"]["file"])
     Path(out_dir).mkdir(parents=True, exist_ok=True)
 
+    consts = config.get("variant", {}).get("constants", {})
+    max_ctx = consts.get("get_max_context_len", 16384 if config.get("size") == "450m" else 8192)
+    max_seq = consts.get("get_max_seq_len", 64)
+
+    from executorch.extension.llm.export.builder import DType
+    dtype = DType.bf16
+
     cwd = os.getcwd()
     os.chdir(tempfile.gettempdir())
     try:
         export_all(
             model_dir=model_dir,
             output=out_path,
+            dtype=dtype,
             quantize=True,
+            max_seq_len=max_seq,
+            max_context_len=max_ctx,
             params_path=params_path,
+            qmode="8w" if config["variant"]["precision"] in ("8w", "int8") else "4w",
         )
     finally:
         os.chdir(cwd)

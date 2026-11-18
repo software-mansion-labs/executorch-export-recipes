@@ -40,7 +40,7 @@
                 1,
                 49152
               ],
-              "dtype": "bfloat16"
+              "dtype": "float32"
             }
           ]
         },
@@ -48,7 +48,7 @@
         "get_eos_ids": [
           2
         ],
-        "get_max_context_len": 2048,
+        "get_max_context_len": 16384,
         "get_max_seq_len": 2048,
         "get_n_layers": 30,
         "get_vocab_size": 49152,

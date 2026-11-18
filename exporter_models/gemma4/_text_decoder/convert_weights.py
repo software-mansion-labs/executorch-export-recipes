@@ -121,7 +121,8 @@ def _load_safetensors_weights(checkpoint_path: str) -> Dict[str, torch.Tensor]:
         for sf_file in safetensor_files:
             with safe_open(sf_file, framework="pt", device="cpu") as f:
                 for key in f.keys():
-                    state_dict[key] = f.get_tensor(key)
+                    if key.startswith("model.language_model."):
+                        state_dict[key] = f.get_tensor(key)
 
     return state_dict
 

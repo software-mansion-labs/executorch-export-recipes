@@ -117,6 +117,10 @@ class Gemma4TextModel(nn.Module):
         Returns:
             logits: Output logits of shape [batch, seq_len, vocab_size]
         """
+        if input_pos is not None and input_pos.numel() == 1:
+            seq_len = input_ids.shape[1] if input_ids is not None else inputs_embeds.shape[1]
+            input_pos = input_pos[0] + torch.arange(seq_len, device=input_pos.device, dtype=input_pos.dtype)
+
         # Self-decoder
         hidden_states, per_layer_inputs, shared_kv = self.self_decoder(
             input_ids=input_ids,
@@ -135,8 +139,8 @@ class Gemma4TextModel(nn.Module):
         # Final normalization
         hidden_states = self.norm(hidden_states)
 
-        # Only compute lm_head for the last token during prefill
-        hidden_states = hidden_states[:, -1:, :]
+        # Only compute lm_head for the last token during prefill (rank 2: [batch, hidden_size])
+        hidden_states = hidden_states[:, -1, :]
 
         # Output projection
         logits = self.lm_head(hidden_states)
@@ -145,7 +149,7 @@ class Gemma4TextModel(nn.Module):
         if self.final_logit_softcapping > 0:
             logits = scaled_tanh(logits, self.final_logit_softcapping)
 
-        return logits
+        return logits.to(torch.float32)
 
 
 class Gemma4ForCausalLM(nn.Module):
