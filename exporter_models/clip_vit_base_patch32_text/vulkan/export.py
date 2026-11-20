@@ -2,7 +2,6 @@ from pathlib import Path
 
 import torch
 import torch.nn.functional as F
-from transformers import AutoModel
 from torch.export import Dim, export as torch_export
 
 from exporter.schema import load_and_validate_schema
@@ -43,6 +42,8 @@ def _attention_rank3(self, hidden_states, attention_mask=None, **kwargs):
 
 class _ClipTextEncoder(torch.nn.Module):
     def __init__(self):
+        from transformers import AutoModel
+
         super().__init__()
         # eager attention: see the note in the vision export. sdpa fragments the
         # encoder into 26 delegate blobs; eager lowers it to 3.

@@ -1,7 +1,6 @@
 from pathlib import Path
 
 import torch
-import torchvision.models.segmentation as tvs
 from torch.export import export as torch_export
 
 
@@ -15,26 +14,27 @@ class _SegWrapper(torch.nn.Module):
         return self.model(x)["out"]
 
 
-_ARCHS = {
-    "deeplab_v3_mobilenet_v3_large": (
-        tvs.deeplabv3_mobilenet_v3_large,
-        lambda: tvs.DeepLabV3_MobileNet_V3_Large_Weights.DEFAULT,
-    ),
-    "deeplab_v3_resnet50": (
-        tvs.deeplabv3_resnet50,
-        lambda: tvs.DeepLabV3_ResNet50_Weights.DEFAULT,
-    ),
-    "deeplab_v3_resnet101": (
-        tvs.deeplabv3_resnet101,
-        lambda: tvs.DeepLabV3_ResNet101_Weights.DEFAULT,
-    ),
-}
-
-
 def _build(file_name: str):
-    for arch in sorted(_ARCHS, key=len, reverse=True):
+    import torchvision.models.segmentation as tvs
+
+    archs = {
+        "deeplab_v3_mobilenet_v3_large": (
+            tvs.deeplabv3_mobilenet_v3_large,
+            lambda: tvs.DeepLabV3_MobileNet_V3_Large_Weights.DEFAULT,
+        ),
+        "deeplab_v3_resnet50": (
+            tvs.deeplabv3_resnet50,
+            lambda: tvs.DeepLabV3_ResNet50_Weights.DEFAULT,
+        ),
+        "deeplab_v3_resnet101": (
+            tvs.deeplabv3_resnet101,
+            lambda: tvs.DeepLabV3_ResNet101_Weights.DEFAULT,
+        ),
+    }
+
+    for arch in sorted(archs, key=len, reverse=True):
         if file_name.startswith(arch):
-            ctor, weights = _ARCHS[arch]
+            ctor, weights = archs[arch]
             return ctor(weights=weights())
     raise ValueError(f"unknown deeplab arch for variant file '{file_name}'")
 

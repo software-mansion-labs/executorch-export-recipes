@@ -2,7 +2,6 @@ import random
 from pathlib import Path
 
 import torch
-import torchvision.models as tvm
 from torch.export import export as torch_export
 
 from exporter.backends import lower
@@ -45,6 +44,8 @@ def _calibrate(prepared, shape):
 
 
 def export(config: dict, out_dir: str) -> str:
+    import torchvision.models as tvm
+
     variant = config["variant"]
     shape = tuple(variant["methods"]["forward"]["inputs"][0]["shape"])
 

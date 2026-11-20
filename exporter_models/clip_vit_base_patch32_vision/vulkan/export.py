@@ -2,7 +2,6 @@ from pathlib import Path
 
 import torch
 import torch.nn.functional as F
-from transformers import AutoModel
 from torch.export import export as torch_export
 
 _SOURCE = "openai/clip-vit-base-patch32"
@@ -37,6 +36,8 @@ def _attention_rank3(self, hidden_states, attention_mask=None, **kwargs):
 
 class _ClipVisionEncoder(torch.nn.Module):
     def __init__(self):
+        from transformers import AutoModel
+
         super().__init__()
         # eager attention, deliberately. transformers defaults to sdpa, whose
         # decomposition emits aten.mul.Scalar and aten.any.dim inside every

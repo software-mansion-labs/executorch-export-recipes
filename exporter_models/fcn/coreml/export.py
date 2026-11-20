@@ -1,7 +1,6 @@
 from pathlib import Path
 
 import torch
-import torchvision.models.segmentation as tvs
 from torch.export import export as torch_export
 
 
@@ -35,16 +34,17 @@ class _SegWrapper(torch.nn.Module):
         return _ane_argmax(logits, 21).to(torch.int32)
 
 
-_ARCHS = {
-    "fcn_resnet50": (tvs.fcn_resnet50, lambda: tvs.FCN_ResNet50_Weights.DEFAULT),
-    "fcn_resnet101": (tvs.fcn_resnet101, lambda: tvs.FCN_ResNet101_Weights.DEFAULT),
-}
-
-
 def _build(file_name: str):
-    for arch in sorted(_ARCHS, key=len, reverse=True):
+    import torchvision.models.segmentation as tvs
+
+    archs = {
+        "fcn_resnet50": (tvs.fcn_resnet50, lambda: tvs.FCN_ResNet50_Weights.DEFAULT),
+        "fcn_resnet101": (tvs.fcn_resnet101, lambda: tvs.FCN_ResNet101_Weights.DEFAULT),
+    }
+
+    for arch in sorted(archs, key=len, reverse=True):
         if file_name.startswith(arch):
-            ctor, weights = _ARCHS[arch]
+            ctor, weights = archs[arch]
             return ctor(weights=weights())
     raise ValueError(f"unknown fcn arch for variant file '{file_name}'")
 

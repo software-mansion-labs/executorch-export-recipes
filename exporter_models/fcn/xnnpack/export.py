@@ -2,7 +2,6 @@ import random
 from pathlib import Path
 
 import torch
-import torchvision.models.segmentation as tvs
 from torch.export import export as torch_export
 
 from exporter.backends import lower
@@ -11,12 +10,6 @@ _RESIZE = [520, 520]
 _IMAGENET_MEAN = [0.485, 0.456, 0.406]
 _IMAGENET_STD = [0.229, 0.224, 0.225]
 _CALIBRATION_SIZE = 100
-
-_ARCHS = {
-    "fcn_resnet50": (tvs.fcn_resnet50, lambda: tvs.FCN_ResNet50_Weights.DEFAULT),
-    "fcn_resnet101": (tvs.fcn_resnet101, lambda: tvs.FCN_ResNet101_Weights.DEFAULT),
-}
-
 
 class _FcnWrapper(torch.nn.Module):
     def __init__(self, model):
@@ -29,9 +22,16 @@ class _FcnWrapper(torch.nn.Module):
 
 
 def _arch_for(file_name: str):
-    for arch in sorted(_ARCHS, key=len, reverse=True):
+    import torchvision.models.segmentation as tvs
+
+    archs = {
+        "fcn_resnet50": (tvs.fcn_resnet50, lambda: tvs.FCN_ResNet50_Weights.DEFAULT),
+        "fcn_resnet101": (tvs.fcn_resnet101, lambda: tvs.FCN_ResNet101_Weights.DEFAULT),
+    }
+
+    for arch in sorted(archs, key=len, reverse=True):
         if file_name.startswith(arch):
-            return _ARCHS[arch]
+            return archs[arch]
     raise ValueError(f"unknown fcn arch for variant file '{file_name}'")
 
 
