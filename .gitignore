@@ -15,7 +15,6 @@ __pycache__/
 !exporter_models/blazeface/_blazeface/anchorsback.npy
 docs/superpowers/
 .superpowers/
-tests/
 datasets/
 logs/
 *.pte
