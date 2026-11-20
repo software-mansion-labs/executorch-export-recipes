@@ -90,7 +90,8 @@ If export or runtime execution fails, use
   vendored-data exceptions. Preserve their provenance.
 - Original project code is MIT. Retain vendored copyright/license notices and
   model weight terms; see [docs/third-party-notices.md](docs/third-party-notices.md).
-- Tests live under `tests/` but are local-only (gitignored, not in the repo).
+- Recipe regression tests and the FaceMesh smoke check live under `tests/`.
+  See [Contributing](README.md#contributing) for the commands CI runs.
 - Per-model export deps are **pinned per model**: each `exporter_models/<model>/`
   is its own uv project (`pyproject.toml` + `uv.lock`) that path-depends on the
   harness and pins its exact stack (torch/executorch/transformers/…). Run inside

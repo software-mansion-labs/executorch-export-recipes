@@ -2,7 +2,6 @@ from pathlib import Path
 
 import torch
 import torch.nn.functional as F
-from transformers import AutoModel
 from torch.export import Dim, export as torch_export
 import torch.fx.experimental._config as fx_config
 
@@ -22,6 +21,8 @@ _MAX_TOKENS = 126
 
 class _Embedder(torch.nn.Module):
     def __init__(self):
+        from transformers import AutoModel
+
         super().__init__()
         self.model = AutoModel.from_pretrained(_SOURCE)
 

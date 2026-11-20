@@ -1,7 +1,6 @@
 from pathlib import Path
 
 import torch
-import torchvision.models as tvm
 from torch.export import export as torch_export
 
 _IMAGENET_MEAN = [0.485, 0.456, 0.406]
@@ -21,6 +20,8 @@ class _EfficientNetWrapper(torch.nn.Module):
 
 
 def export(config: dict, out_dir: str) -> str:
+    import torchvision.models as tvm
+
     import coremltools as ct
     from executorch.backends.apple.coreml.compiler import CoreMLBackend
     from executorch.backends.apple.coreml.partition import CoreMLPartitioner

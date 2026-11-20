@@ -1,7 +1,6 @@
 from pathlib import Path
 
 import torch
-import torchvision.models.segmentation as tvs
 from torch.export import export as torch_export
 
 
@@ -36,6 +35,8 @@ class _SegWrapper(torch.nn.Module):
 
 
 def _build(file_name: str):
+    import torchvision.models.segmentation as tvs
+
     return tvs.lraspp_mobilenet_v3_large(
         weights=tvs.LRASPP_MobileNet_V3_Large_Weights.DEFAULT
     )

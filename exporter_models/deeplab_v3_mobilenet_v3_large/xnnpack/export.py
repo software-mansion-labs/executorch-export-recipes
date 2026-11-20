@@ -2,7 +2,6 @@ import random
 from pathlib import Path
 
 import torch
-import torchvision.models.segmentation as tvs
 from torch.export import export as torch_export
 
 from exporter.backends import lower
@@ -20,21 +19,6 @@ _FLOAT_MODULES = {
     "deeplab_v3_mobilenet_v3_large": ["model.backbone.0", "model.classifier.4"],
 }
 _CALIBRATION_SIZES = {"deeplab_v3_mobilenet_v3_large": 500}
-
-_ARCHS = {
-    "deeplab_v3_mobilenet_v3_large": (
-        tvs.deeplabv3_mobilenet_v3_large,
-        lambda: tvs.DeepLabV3_MobileNet_V3_Large_Weights.DEFAULT,
-    ),
-    "deeplab_v3_resnet50": (
-        tvs.deeplabv3_resnet50,
-        lambda: tvs.DeepLabV3_ResNet50_Weights.DEFAULT,
-    ),
-    "deeplab_v3_resnet101": (
-        tvs.deeplabv3_resnet101,
-        lambda: tvs.DeepLabV3_ResNet101_Weights.DEFAULT,
-    ),
-}
 
 
 class _Float(torch.nn.Module):
@@ -58,9 +42,9 @@ class _DeeplabWrapper(torch.nn.Module):
         return self.model(x)["out"]
 
 
-def _arch_for(file_name: str) -> str:
+def _arch_for(file_name: str, archs: dict) -> str:
     # longest match first so resnet101 isn't shadowed by resnet50, etc.
-    for arch in sorted(_ARCHS, key=len, reverse=True):
+    for arch in sorted(archs, key=len, reverse=True):
         if file_name.startswith(arch):
             return arch
     raise ValueError(f"unknown deeplab arch for variant file '{file_name}'")
@@ -89,10 +73,27 @@ def _calibrate(prepared, count):
 
 
 def export(config: dict, out_dir: str) -> str:
+    import torchvision.models.segmentation as tvs
+
+    archs = {
+        "deeplab_v3_mobilenet_v3_large": (
+            tvs.deeplabv3_mobilenet_v3_large,
+            lambda: tvs.DeepLabV3_MobileNet_V3_Large_Weights.DEFAULT,
+        ),
+        "deeplab_v3_resnet50": (
+            tvs.deeplabv3_resnet50,
+            lambda: tvs.DeepLabV3_ResNet50_Weights.DEFAULT,
+        ),
+        "deeplab_v3_resnet101": (
+            tvs.deeplabv3_resnet101,
+            lambda: tvs.DeepLabV3_ResNet101_Weights.DEFAULT,
+        ),
+    }
+
     variant = config["variant"]
     shape = tuple(variant["methods"]["forward"]["inputs"][0]["shape"])
-    arch = _arch_for(variant["file"])
-    builder, weights = _ARCHS[arch]
+    arch = _arch_for(variant["file"], archs)
+    builder, weights = archs[arch]
     inputs = (torch.randn(shape, dtype=torch.float32),)
 
     model = _DeeplabWrapper(builder(weights=weights())).eval()

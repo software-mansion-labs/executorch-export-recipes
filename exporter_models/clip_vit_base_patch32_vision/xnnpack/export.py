@@ -2,7 +2,6 @@ from pathlib import Path
 
 import torch
 import torch.nn.functional as F
-from transformers import AutoModel
 from torch.export import export as torch_export
 
 from exporter.backends import lower
@@ -12,6 +11,8 @@ _SOURCE = "openai/clip-vit-base-patch32"
 
 class _ClipVisionEncoder(torch.nn.Module):
     def __init__(self):
+        from transformers import AutoModel
+
         super().__init__()
         model = AutoModel.from_pretrained(_SOURCE)
         self.vision_model = model.vision_model

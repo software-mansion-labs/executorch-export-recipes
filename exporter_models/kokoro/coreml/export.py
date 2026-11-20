@@ -37,7 +37,6 @@ import json
 import sys
 from pathlib import Path
 
-import numpy as np
 import torch
 
 _HERE = Path(__file__).resolve().parent
@@ -317,6 +316,8 @@ def _synthesizer_schema():
 
 
 def _spectral_corr(a, b):
+    import numpy as np
+
     fa = np.abs(np.fft.rfft(a.flatten().numpy().astype(np.float64)))
     fb = np.abs(np.fft.rfft(b.flatten().numpy().astype(np.float64)))
     return float(np.corrcoef(fa, fb)[0, 1])

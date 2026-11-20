@@ -176,6 +176,32 @@ Validate exported models against reference outputs and test them on the target
 runtime using the [validation skill](skills/validate-and-optimize/SKILL.md).
 Successfully producing a `.pte` file does not establish correctness.
 
+### Recipe regression tests
+
+On Python 3.10, install the harness, pytest, and CPU PyTorch for the offline
+recipe checks. Use the PyTorch CPU index below on Linux. On macOS, omit
+`--index-url https://download.pytorch.org/whl/cpu`.
+
+```bash
+uv sync --locked --extra dev
+uv pip install --index-url https://download.pytorch.org/whl/cpu 'torch==2.14.0'
+HF_HUB_OFFLINE=1 uv run --no-sync pytest -q tests/test_recipes.py
+```
+
+On macOS arm64, run the FaceMesh XNNPACK smoke check using the recipe's pinned
+environment. The recipe downloads its checksum-verified checkpoint on the first
+run. The test exports to a temporary directory and executes the resulting
+`.pte` with ExecuTorch.
+
+```bash
+uv run --locked --project exporter_models/facemesh python tests/smoke_facemesh.py
+```
+
+GitHub Actions runs both checks on pull requests and pushes to `main`. For
+recipes that need a dedicated source build or target device, follow the
+[backend guides](skills/backends/) to set up the runtime and run the
+[validation and profiling checks](skills/validate-and-optimize/SKILL.md).
+
 ## License
 
 Original Software Mansion code and documentation are licensed under [MIT](LICENSE).

@@ -1,7 +1,6 @@
 from pathlib import Path
 
 import torch
-import torchvision.models as tvm
 from torch.export import export as torch_export
 
 
@@ -22,6 +21,8 @@ class _EfficientNetWrapper(torch.nn.Module):
 
 
 def export(config: dict, out_dir: str) -> str:
+    import torchvision.models as tvm
+
     from executorch.backends.vulkan.partitioner.vulkan_partitioner import (
         VulkanPartitioner,
     )

@@ -1,0 +1,36 @@
+name: Export recipes
+
+on:
+  pull_request:
+  push:
+    branches: [main]
+
+permissions:
+  contents: read
+
+jobs:
+  regression:
+    name: Offline recipe regression
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    env:
+      HF_HUB_OFFLINE: "1"
+    steps:
+      - uses: actions/checkout@v6
+      - uses: astral-sh/setup-uv@v10.3.3
+        with:
+          python-version: "3.10"
+      - run: uv sync --locked --extra dev
+      - run: uv pip install --index-url https://download.pytorch.org/whl/cpu 'torch==2.14.0'
+      - run: uv run --no-sync pytest -q tests/test_recipes.py
+
+  facemesh-smoke:
+    name: FaceMesh XNNPACK export smoke
+    runs-on: macos-15
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v6
+      - uses: astral-sh/setup-uv@v10.3.3
+        with:
+          python-version: "3.10"
+      - run: uv run --locked --project exporter_models/facemesh python tests/smoke_facemesh.py

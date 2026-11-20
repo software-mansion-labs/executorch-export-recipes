@@ -2,7 +2,6 @@ import random
 from pathlib import Path
 
 import torch
-import torchvision.models.segmentation as tvs
 from torch.export import export as torch_export
 
 from exporter.backends import lower
@@ -40,6 +39,8 @@ def _calibrate(prepared):
 
 
 def export(config: dict, out_dir: str) -> str:
+    import torchvision.models.segmentation as tvs
+
     variant = config["variant"]
     shape = tuple(variant["methods"]["forward"]["inputs"][0]["shape"])
     inputs = (torch.randn(shape, dtype=torch.float32),)

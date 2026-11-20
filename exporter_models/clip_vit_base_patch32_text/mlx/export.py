@@ -20,7 +20,6 @@ from pathlib import Path
 
 import torch
 import torch.nn.functional as F
-from transformers import AutoModel
 from torch.export import Dim, export as torch_export
 
 from exporter.schema import load_and_validate_schema
@@ -35,6 +34,8 @@ _EOS = 49407
 
 class _ClipTextEncoder(torch.nn.Module):
     def __init__(self):
+        from transformers import AutoModel
+
         super().__init__()
         model = AutoModel.from_pretrained(_SOURCE)
         self.text_model = model.text_model

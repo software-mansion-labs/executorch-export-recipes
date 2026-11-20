@@ -1,7 +1,6 @@
 from pathlib import Path
 
 import torch
-import torchvision.models as tvm
 from torch.export import export as torch_export
 
 _IMAGENET_MEAN = [0.485, 0.456, 0.406]
@@ -41,6 +40,8 @@ class _Fp16IO(torch.nn.Module):
 
 
 def export(config: dict, out_dir: str) -> str:
+    import torchvision.models as tvm
+
     from executorch.backends.mlx.partitioner import MLXPartitioner
     from executorch.backends.mlx.passes import get_default_passes
     from executorch.exir import EdgeCompileConfig, to_edge_transform_and_lower
