@@ -50,6 +50,9 @@ class Variant:
     # Weight-only quantization of the nn.Embedding tables ("int8" | "int4"),
     # which the XNNPACK linear recipes (8da4w) leave at fp32.
     embedding_quantize: str | None = None
+    # QNN only: which SoCs the file's contexts cover (exporter.qnn.SOC_GROUPS).
+    # None is the default group.
+    soc_group: str | None = None
     # LLM runner constants declared in the config as non-IO method entries
     # (get_bos_id, get_eos_ids, get_max_seq_len, use_kv_cache, ...). Values are
     # int / list / bool / null. Embedded into the .pte at export time.
@@ -149,6 +152,7 @@ def load_spec(data: dict) -> Spec:
                 quantize=rv.get("quantize"),
                 compute_unit=rv.get("compute_unit"),
                 embedding_quantize=rv.get("embedding_quantize"),
+                soc_group=rv.get("soc_group"),
                 constants=constants,
             )
         )

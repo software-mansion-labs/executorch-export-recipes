@@ -91,6 +91,19 @@ Measured on an S26 Ultra (v81), single v81 vs FCB v69-v81, ET 1.6.0 + QAIRT 2.51
 
 Outputs are bit-identical. Without weight sharing, size and RSS grow ~5x.
 
+Keep v69 in its own file: it shares almost no weights with v73+. File MB against
+a single v81 .pte:
+
+| model | v81 | SM8550-SM8850 | SM8450+SM8475 | all 7 |
+|---|---|---|---|---|
+| lraspp a8w8 | 4.5 | 6.5 | 7.4 | 29.3 |
+| efficientnet_v2_s a8w8 | 24.7 | 27.5 | 32.9 | 149.0 |
+| ssdlite320 fp16 | 10.9 | 13.3 | 16.6 | 53.3 |
+| yolo26n 640 fp16 | 6.7 | 9.3 | 7.0 | 15.0 |
+
+`exporter.qnn.SOC_GROUPS` holds the groups; a variant selects one with
+`soc_group` in config.json.
+
 ## Recipe
 
 ```python

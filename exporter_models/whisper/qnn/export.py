@@ -31,6 +31,9 @@ The two variants differ only in the decoder, as in the Vulkan export: `fp16`
 keeps it in fp32 and `int8` quantizes its linears for XNNPACK.
 
 Only v81 is device-validated; v69-v79 target SoCs we do not have.
+
+Still one .pte per Hexagon version on ET 1.4.1 / QAIRT 2.47: built with ET 1.6 +
+QAIRT 2.51, single-SoC or FCB, the encode crashes the HTP at execute on SM8850.
 """
 
 import importlib

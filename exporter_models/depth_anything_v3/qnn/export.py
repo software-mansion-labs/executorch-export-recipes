@@ -1,17 +1,18 @@
-"""Depth Anything 3 Small -> Qualcomm QNN (HTP) .pte, one per Hexagon version.
+"""Depth Anything 3 Small -> Qualcomm QNN (HTP) .pte, one for every supported
+Snapdragon SoC (`exporter.qnn.SOC_GROUPS`).
 
 Same contract and export adaptations as the Vulkan export (static RoPE extent,
 eager attention, positional constants folded after functionalization; reused
 from `../vulkan/export.py`): float32 [1, 3, 518, 518] RGB normalized with
 ImageNet mean/std, raw depth [1, 518, 518]. fp16 on the HTP, one QNN
-partition, the Hexagon version read from the variant file's suffix.
+partition.
 
 On an S26 Ultra, over the 145 NYUv2 test images (affine-aligned against GT,
 RNE's stretch preprocessing): fp16 AbsRel 8.50% / delta1 92.25% against fp32
 8.49% / 92.30%, at 42.5 ms per inference (shipped Vulkan fp16: 236 ms). a8w8
 fails QNN context binary generation; Depth Anything V2's a8w8 lost 1.5 AbsRel
 points and its a16w8 was 10x slower than fp16, so quantization was not pursued.
-Only v81 is device-validated.
+Only the SM8850 context is device-validated.
 """
 
 import importlib.util
@@ -22,15 +23,9 @@ from pathlib import Path
 
 import torch
 
-_DIR = Path(__file__).resolve().parents[1]
+from exporter import qnn
 
-_HEXAGON_SOC = {
-    "v69": "SM8450",  # Snapdragon 8 Gen 1
-    "v73": "SM8550",  # Snapdragon 8 Gen 2
-    "v75": "SM8650",  # Snapdragon 8 Gen 3
-    "v79": "SM8750",  # Snapdragon 8 Elite
-    "v81": "SM8850",  # Snapdragon 8 Elite Gen 5
-}
+_DIR = Path(__file__).resolve().parents[1]
 
 
 def _load(path: Path, name: str):
@@ -41,16 +36,6 @@ def _load(path: Path, name: str):
     return module
 
 
-def _soc_for(file_name: str) -> str:
-    version = Path(file_name).stem.rsplit("_", 1)[-1]
-    if version not in _HEXAGON_SOC:
-        raise ValueError(
-            f"variant file '{file_name}' must end in a Hexagon version "
-            f"{sorted(_HEXAGON_SOC)}; it is what the .pte is compiled for"
-        )
-    return _HEXAGON_SOC[version]
-
-
 def export(config: dict, out_dir: str) -> str:
     if "QNN_SDK_ROOT" not in os.environ:
         raise RuntimeError(
@@ -58,10 +43,7 @@ def export(config: dict, out_dir: str) -> str:
             "AI Engine Direct SDK (see skills/backends/qnn)."
         )
 
-    from executorch.backends.qualcomm.serialization.qc_schema import QcomChipset
     from executorch.backends.qualcomm.utils.utils import (
-        generate_htp_compiler_spec,
-        generate_qnn_executorch_compiler_spec,
         get_qnn_context_binary_alignment,
         to_edge_transform_and_lower_to_qnn,
     )
@@ -72,7 +54,6 @@ def export(config: dict, out_dir: str) -> str:
     if variant["precision"] != "fp16":
         raise ValueError(f"only fp16 is exported for QNN, got {variant['precision']}")
     shape = tuple(variant["methods"]["forward"]["inputs"][0]["shape"])
-    soc = _soc_for(variant["file"])
 
     model = _load(_DIR / "_model.py", "depth_anything_v3_model_qnn").build_model()
     vulkan = _load(_DIR / "vulkan" / "export.py", "depth_anything_v3_vulkan_for_qnn")
@@ -86,10 +67,7 @@ def export(config: dict, out_dir: str) -> str:
             layer.forward = vulkan._static_rope.__get__(layer)
 
     inputs = (torch.zeros(shape, dtype=torch.float32),)
-    compiler_specs = generate_qnn_executorch_compiler_spec(
-        soc_model=getattr(QcomChipset, soc),
-        backend_options=generate_htp_compiler_spec(use_fp16=True),
-    )
+    compiler_specs = qnn.compiler_specs(variant, use_fp16=True)
     with torch.no_grad():
         graph = (
             torch.export.export(model, inputs, strict=False)
@@ -111,5 +89,5 @@ def export(config: dict, out_dir: str) -> str:
     out_path = Path(out_dir) / variant["file"]
     out_path.parent.mkdir(parents=True, exist_ok=True)
     out_path.write_bytes(program.buffer)
-    logging.info("wrote %s for %s (%s)", out_path, soc, variant["precision"])
+    logging.info("wrote %s (%s)", out_path, variant["precision"])
     return str(out_path)

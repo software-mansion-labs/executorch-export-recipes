@@ -1,10 +1,10 @@
-"""FCN -> Qualcomm QNN (HTP) .pte, one context binary per Hexagon version.
+"""FCN -> Qualcomm QNN (HTP) .pte, one for every supported Snapdragon SoC
+(`exporter.qnn.SOC_GROUPS`).
 
 Same two torchvision architectures and input contract as the xnnpack export
 (already ImageNet-normalized, RNE passes IMAGENET_NORM), and the same recipe as
-the DeepLabV3 QNN export: PTQ with min/max activation observers, a class
-index per pixel as output, and the target Hexagon version read from the variant
-file's suffix (`..._v81.pte`).
+the DeepLabV3 QNN export: PTQ with min/max activation observers, and a class
+index per pixel as output.
 
     QNN_CALIBRATION_SIZE  images used for PTQ calibration (default 100)
 
@@ -14,7 +14,7 @@ published XNNPACK int8 files.
 
 The variants are a8w8, which halves latency at the same mIoU on the same
 device and images: ResNet50 71.23% at 8.9 ms, ResNet101 74.98% at 15.3 ms.
-Only v81 is device-validated; v69-v79 target SoCs we do not have.
+Only the SM8850 context is device-validated.
 """
 
 import logging
@@ -26,6 +26,8 @@ import torch
 import torchvision.models.segmentation as tvs
 from torch.export import export as torch_export
 
+from exporter import qnn
+
 _RESIZE = [520, 520]
 _IMAGENET_MEAN = [0.485, 0.456, 0.406]
 _IMAGENET_STD = [0.229, 0.224, 0.225]
@@ -34,16 +36,6 @@ _DEFAULT_CALIBRATION_SIZE = 100
 _ARCHS = {
     "fcn_resnet50": (tvs.fcn_resnet50, lambda: tvs.FCN_ResNet50_Weights.DEFAULT),
     "fcn_resnet101": (tvs.fcn_resnet101, lambda: tvs.FCN_ResNet101_Weights.DEFAULT),
-}
-
-# Hexagon version -> a SoC that carries it. Flagship parts only: fp16 on the HTP
-# needs a premium-tier chip, and these all have the same 8 MB VTCM budget.
-_HEXAGON_SOC = {
-    "v69": "SM8450",  # Snapdragon 8 Gen 1
-    "v73": "SM8550",  # Snapdragon 8 Gen 2
-    "v75": "SM8650",  # Snapdragon 8 Gen 3
-    "v79": "SM8750",  # Snapdragon 8 Elite
-    "v81": "SM8850",  # Snapdragon 8 Elite Gen 5
 }
 
 
@@ -87,16 +79,6 @@ def _eps_for(file_name: str):
     return None
 
 
-def _soc_for(file_name: str) -> str:
-    version = Path(file_name).stem.rsplit("_", 1)[-1]
-    if version not in _HEXAGON_SOC:
-        raise ValueError(
-            f"variant file '{file_name}' must end in a Hexagon version "
-            f"{sorted(_HEXAGON_SOC)}; it is what the .pte is compiled for"
-        )
-    return _HEXAGON_SOC[version]
-
-
 def _calibrate(prepared):
     """Activation ranges for a16w8 PTQ, from VOC segmentation training images.
 
@@ -134,10 +116,7 @@ def export(config: dict, out_dir: str) -> str:
 
     from executorch.backends.qualcomm.export_utils import make_quantizer
     from executorch.backends.qualcomm.quantizer.quantizer import QuantDtype
-    from executorch.backends.qualcomm.serialization.qc_schema import QcomChipset
     from executorch.backends.qualcomm.utils.utils import (
-        generate_htp_compiler_spec,
-        generate_qnn_executorch_compiler_spec,
         get_qnn_context_binary_alignment,
         to_edge_transform_and_lower_to_qnn,
     )
@@ -149,7 +128,6 @@ def export(config: dict, out_dir: str) -> str:
     variant = config["variant"]
     shape = tuple(variant["methods"]["forward"]["inputs"][0]["shape"])
     builder, weights = _arch_for(variant["file"])
-    soc = _soc_for(variant["file"])
     quantized = variant["quantized"]
     inputs = (torch.randn(shape, dtype=torch.float32),)
 
@@ -157,10 +135,7 @@ def export(config: dict, out_dir: str) -> str:
 
     # fp16 is an HTP compile-time precision, not a quantization pass; a16w8 and
     # a8w8 are 16-/8-bit activations over 8-bit weights, done here before lowering.
-    compiler_specs = generate_qnn_executorch_compiler_spec(
-        soc_model=getattr(QcomChipset, soc),
-        backend_options=generate_htp_compiler_spec(use_fp16=not quantized),
-    )
+    compiler_specs = qnn.compiler_specs(variant, use_fp16=not quantized)
 
     if quantized:
         prepared = prepare_pt2e(
@@ -170,7 +145,7 @@ def export(config: dict, out_dir: str) -> str:
             # activation range: it cost DeepLabV3 1.59 mIoU.
             make_quantizer(
                 quant_dtype=getattr(QuantDtype, _QUANT_DTYPE[variant["precision"]]),
-                soc_model=soc,
+                soc_model=qnn.quantizer_socs(variant),
                 act_observer=MinMaxObserver,
                 eps=_eps_for(variant["file"]),
             ),
@@ -191,5 +166,5 @@ def export(config: dict, out_dir: str) -> str:
     out_path = Path(out_dir) / variant["file"]
     out_path.parent.mkdir(parents=True, exist_ok=True)
     out_path.write_bytes(program.buffer)
-    logging.info("wrote %s for %s (%s)", out_path, soc, variant["precision"])
+    logging.info("wrote %s (%s)", out_path, variant["precision"])
     return str(out_path)

@@ -1,13 +1,12 @@
-"""EfficientNetV2-S -> Qualcomm QNN (HTP) .pte, one context binary per Hexagon version.
+"""EfficientNetV2-S -> Qualcomm QNN (HTP) .pte, one for every supported Snapdragon
+SoC (`exporter.qnn.SOC_GROUPS`).
 
 Same contract as the xnnpack export: the graph takes a raw [0,1] image and does
 the ImageNet normalization itself, because RNE passes `{alpha: 1/255}` for this
 model rather than IMAGENET_NORM.
 
-A QNN .pte is compiled for one Hexagon version, so unlike the other backends each
-variant file carries the target as a suffix (`..._v81.pte`) and this script reads
-it back from the filename. One representative SoC per version is enough: the
-device-side runtime keys off the Hexagon version, not the chipset.
+The .pte is a Flexible Context Binary: one HTP context per SoC over one copy of
+the weights, and the runtime loads the device's.
 
 Calibration needs ImageNet-like images, which torchvision cannot fetch the way it
 fetches VOC. Point QNN_CALIBRATION_DIR at any ImageFolder-shaped directory of
@@ -18,10 +17,11 @@ JPEGs; ImageNetV2 matched-frequency works and is what these were calibrated on:
     QNN_CALIBRATION_DIR   directory of calibration images (required)
     QNN_CALIBRATION_SIZE  how many to use (default 100)
 
-a16w8 is the default. a8w8, with a histogram activation observer, is 1.75x faster
-for 1.4 top-1 on an S26 Ultra over 500 ImageNetV2 images: 70.40% at 1.34 ms against
-71.80% at 2.34 ms. Min/max is wrong at 8 bits here: outlier activations stretch the
-range until the logits carry nothing (0% top-1). Only v81 is device-validated.
+a16w8 is the default. a8w8, with a histogram activation observer, is 1.75x
+faster for 1.4 top-1 on an S26 Ultra over 500 ImageNetV2 images: 70.40% at 1.34
+ms against 71.80% at 2.34 ms. Min/max is wrong at 8 bits here: outlier
+activations stretch the range until the logits carry nothing (0% top-1). Only
+the SM8850 context is device-validated.
 """
 
 import logging
@@ -33,18 +33,11 @@ import torch
 import torchvision.models as tvm
 from torch.export import export as torch_export
 
+from exporter import qnn
+
 _IMAGENET_MEAN = [0.485, 0.456, 0.406]
 _IMAGENET_STD = [0.229, 0.224, 0.225]
 _DEFAULT_CALIBRATION_SIZE = 100
-
-# Hexagon version -> a SoC that carries it.
-_HEXAGON_SOC = {
-    "v69": "SM8450",  # Snapdragon 8 Gen 1
-    "v73": "SM8550",  # Snapdragon 8 Gen 2
-    "v75": "SM8650",  # Snapdragon 8 Gen 3
-    "v79": "SM8750",  # Snapdragon 8 Elite
-    "v81": "SM8850",  # Snapdragon 8 Elite Gen 5
-}
 
 
 class _EfficientNetWrapper(torch.nn.Module):
@@ -57,16 +50,6 @@ class _EfficientNetWrapper(torch.nn.Module):
     def forward(self, x):
         # The shipped .pte normalizes the raw [0,1] image inside the graph.
         return self.model((x - self.mean) / self.std)
-
-
-def _soc_for(file_name: str) -> str:
-    version = Path(file_name).stem.rsplit("_", 1)[-1]
-    if version not in _HEXAGON_SOC:
-        raise ValueError(
-            f"variant file '{file_name}' must end in a Hexagon version "
-            f"{sorted(_HEXAGON_SOC)}; it is what the .pte is compiled for"
-        )
-    return _HEXAGON_SOC[version]
 
 
 def _calibrate(prepared, size: int, resize: list):
@@ -117,10 +100,7 @@ def export(config: dict, out_dir: str) -> str:
 
     from executorch.backends.qualcomm.export_utils import make_quantizer
     from executorch.backends.qualcomm.quantizer.quantizer import QuantDtype
-    from executorch.backends.qualcomm.serialization.qc_schema import QcomChipset
     from executorch.backends.qualcomm.utils.utils import (
-        generate_htp_compiler_spec,
-        generate_qnn_executorch_compiler_spec,
         get_qnn_context_binary_alignment,
         to_edge_transform_and_lower_to_qnn,
     )
@@ -131,7 +111,6 @@ def export(config: dict, out_dir: str) -> str:
 
     variant = config["variant"]
     shape = tuple(variant["methods"]["forward"]["inputs"][0]["shape"])
-    soc = _soc_for(variant["file"])
     quantized = variant["quantized"]
     a8w8 = variant["precision"] == "a8w8"
     inputs = (torch.randn(shape, dtype=torch.float32),)
@@ -140,10 +119,7 @@ def export(config: dict, out_dir: str) -> str:
         tvm.efficientnet_v2_s(weights=tvm.EfficientNet_V2_S_Weights.DEFAULT)
     ).eval()
 
-    compiler_specs = generate_qnn_executorch_compiler_spec(
-        soc_model=getattr(QcomChipset, soc),
-        backend_options=generate_htp_compiler_spec(use_fp16=not quantized),
-    )
+    compiler_specs = qnn.compiler_specs(variant, use_fp16=not quantized)
 
     if quantized:
         prepared = prepare_pt2e(
@@ -155,7 +131,7 @@ def export(config: dict, out_dir: str) -> str:
             # module docstring.
             make_quantizer(
                 quant_dtype=getattr(QuantDtype, _QUANT_DTYPE[variant["precision"]]),
-                soc_model=soc,
+                soc_model=qnn.quantizer_socs(variant),
                 act_observer=HistogramObserver if a8w8 else MinMaxObserver,
                 per_channel_linear=a8w8,
             ),
@@ -180,5 +156,5 @@ def export(config: dict, out_dir: str) -> str:
     out_path = Path(out_dir) / variant["file"]
     out_path.parent.mkdir(parents=True, exist_ok=True)
     out_path.write_bytes(program.buffer)
-    logging.info("wrote %s for %s (%s)", out_path, soc, variant["precision"])
+    logging.info("wrote %s (%s)", out_path, variant["precision"])
     return str(out_path)

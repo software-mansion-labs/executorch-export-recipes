@@ -1,14 +1,12 @@
-"""DeepLabV3 -> Qualcomm QNN (HTP) .pte, one context binary per Hexagon version.
+"""DeepLabV3 -> Qualcomm QNN (HTP) .pte, one for every supported Snapdragon SoC
+(`exporter.qnn.SOC_GROUPS`).
 
 Same three torchvision architectures as the xnnpack export, and the same
 contract: input is already ImageNet-normalized (RNE passes IMAGENET_NORM), and
 only the main "out" head is returned.
 
-A QNN .pte is compiled for one Hexagon version, so unlike the other backends
-each variant file carries the target as a suffix (`..._v81.pte`) and this script
-reads it back from the filename. One representative SoC per version is enough:
-the device-side runtime keys off the Hexagon version, not the chipset, and every
-SoC listed here has 8 MB of VTCM.
+The .pte is a Flexible Context Binary: one HTP context per SoC over one copy of
+the weights, and the runtime loads the device's.
 
     QNN_CALIBRATION_SIZE  images used for PTQ calibration (default 100)
 
@@ -23,7 +21,7 @@ Ultra (200 VOC2012 val images; a16w8 -> a8w8): ResNet50 76.74% / 20.4 ms ->
 76.44% / 9.9 ms, ResNet101 78.90% / 29.4 ms -> 78.96% / 14.9 ms, MobileNetV3
 69.02% / 2.98 ms -> 69.14% / 1.34 ms. MobileNetV3 needs a histogram activation
 observer at 8 bits; with min/max one outlier stretches the range and costs ~11 mIoU.
-Only v81 is device-validated; v69-v79 target SoCs we do not have.
+Only the SM8850 context is device-validated.
 In the x86 HTP simulator v73-v79 match v81; v69 differs per pixel but scores the
 same over 200 VOC images (LR-ASPP a8w8 65.62%, a16w8 65.69%).
 """
@@ -36,6 +34,8 @@ from pathlib import Path
 import torch
 import torchvision.models.segmentation as tvs
 from torch.export import export as torch_export
+
+from exporter import qnn
 
 _RESIZE = [520, 520]
 _IMAGENET_MEAN = [0.485, 0.456, 0.406]
@@ -55,16 +55,6 @@ _ARCHS = {
         tvs.deeplabv3_resnet101,
         lambda: tvs.DeepLabV3_ResNet101_Weights.DEFAULT,
     ),
-}
-
-# Hexagon version -> a SoC that carries it. Flagship parts only: fp16 on the HTP
-# needs a premium-tier chip, and these all have the same 8 MB VTCM budget.
-_HEXAGON_SOC = {
-    "v69": "SM8450",  # Snapdragon 8 Gen 1
-    "v73": "SM8550",  # Snapdragon 8 Gen 2
-    "v75": "SM8650",  # Snapdragon 8 Gen 3
-    "v79": "SM8750",  # Snapdragon 8 Elite
-    "v81": "SM8850",  # Snapdragon 8 Elite Gen 5
 }
 
 
@@ -184,16 +174,6 @@ def _eps_for(file_name: str):
     return None
 
 
-def _soc_for(file_name: str) -> str:
-    version = Path(file_name).stem.rsplit("_", 1)[-1]
-    if version not in _HEXAGON_SOC:
-        raise ValueError(
-            f"variant file '{file_name}' must end in a Hexagon version "
-            f"{sorted(_HEXAGON_SOC)}; it is what the .pte is compiled for"
-        )
-    return _HEXAGON_SOC[version]
-
-
 def _calibrate(prepared):
     """Activation ranges for a16w8 PTQ, from VOC segmentation training images.
 
@@ -231,10 +211,7 @@ def export(config: dict, out_dir: str) -> str:
 
     from executorch.backends.qualcomm.export_utils import make_quantizer
     from executorch.backends.qualcomm.quantizer.quantizer import QuantDtype
-    from executorch.backends.qualcomm.serialization.qc_schema import QcomChipset
     from executorch.backends.qualcomm.utils.utils import (
-        generate_htp_compiler_spec,
-        generate_qnn_executorch_compiler_spec,
         get_qnn_context_binary_alignment,
         to_edge_transform_and_lower_to_qnn,
     )
@@ -246,7 +223,6 @@ def export(config: dict, out_dir: str) -> str:
     variant = config["variant"]
     shape = tuple(variant["methods"]["forward"]["inputs"][0]["shape"])
     builder, weights = _arch_for(variant["file"])
-    soc = _soc_for(variant["file"])
     quantized = variant["quantized"]
     histogram = (
         variant["precision"] == "a8w8" and variant["size"] == "mobilenet_v3_large"
@@ -257,10 +233,7 @@ def export(config: dict, out_dir: str) -> str:
 
     # fp16 is an HTP compile-time precision, not a quantization pass; a16w8 and
     # a8w8 are 16-/8-bit activations over 8-bit weights, done here before lowering.
-    compiler_specs = generate_qnn_executorch_compiler_spec(
-        soc_model=getattr(QcomChipset, soc),
-        backend_options=generate_htp_compiler_spec(use_fp16=not quantized),
-    )
+    compiler_specs = qnn.compiler_specs(variant, use_fp16=not quantized)
 
     if quantized:
         prepared = prepare_pt2e(
@@ -274,7 +247,7 @@ def export(config: dict, out_dir: str) -> str:
             # exception, see the module docstring.
             make_quantizer(
                 quant_dtype=getattr(QuantDtype, _QUANT_DTYPE[variant["precision"]]),
-                soc_model=soc,
+                soc_model=qnn.quantizer_socs(variant),
                 act_observer=HistogramObserver if histogram else MinMaxObserver,
                 per_channel_linear=variant["precision"] == "a8w8",
                 eps=_eps_for(variant["file"]),
@@ -296,5 +269,5 @@ def export(config: dict, out_dir: str) -> str:
     out_path = Path(out_dir) / variant["file"]
     out_path.parent.mkdir(parents=True, exist_ok=True)
     out_path.write_bytes(program.buffer)
-    logging.info("wrote %s for %s (%s)", out_path, soc, variant["precision"])
+    logging.info("wrote %s (%s)", out_path, variant["precision"])
     return str(out_path)
