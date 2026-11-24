@@ -72,10 +72,138 @@
       }
     },
     {
+      "file": "whisper_base_en_qnn_fp16_v69.pte",
+      "soc_group": "v69",
+      "precision": "fp16",
+      "quantized": false,
+      "default": false,
+      "methods": {
+        "decode": {
+          "inputs": [
+            {
+              "shape": [
+                1,
+                1
+              ],
+              "dtype": "int64"
+            },
+            {
+              "shape": [
+                1
+              ],
+              "dtype": "int64"
+            },
+            {
+              "shape": [
+                1,
+                1500,
+                6144
+              ],
+              "dtype": "float32"
+            }
+          ],
+          "outputs": [
+            {
+              "shape": [
+                1,
+                1,
+                51864
+              ],
+              "dtype": "float32"
+            }
+          ]
+        },
+        "encode": {
+          "inputs": [
+            {
+              "shape": [
+                480000
+              ],
+              "dtype": "float32"
+            }
+          ],
+          "outputs": [
+            {
+              "shape": [
+                1,
+                1500,
+                6144
+              ],
+              "dtype": "float32"
+            }
+          ]
+        }
+      }
+    },
+    {
       "file": "whisper_base_en_qnn_int8.pte",
       "precision": "int8",
       "quantized": true,
       "default": true,
+      "methods": {
+        "decode": {
+          "inputs": [
+            {
+              "shape": [
+                1,
+                1
+              ],
+              "dtype": "int64"
+            },
+            {
+              "shape": [
+                1
+              ],
+              "dtype": "int64"
+            },
+            {
+              "shape": [
+                1,
+                1500,
+                6144
+              ],
+              "dtype": "float32"
+            }
+          ],
+          "outputs": [
+            {
+              "shape": [
+                1,
+                1,
+                51864
+              ],
+              "dtype": "float32"
+            }
+          ]
+        },
+        "encode": {
+          "inputs": [
+            {
+              "shape": [
+                480000
+              ],
+              "dtype": "float32"
+            }
+          ],
+          "outputs": [
+            {
+              "shape": [
+                1,
+                1500,
+                6144
+              ],
+              "dtype": "float32"
+            }
+          ]
+        }
+      }
+    },
+    {
+      "file": "whisper_base_en_qnn_int8_v69.pte",
+      "soc_group": "v69",
+      "precision": "int8",
+      "quantized": true,
+      "default": false,
       "methods": {
         "decode": {
           "inputs": [

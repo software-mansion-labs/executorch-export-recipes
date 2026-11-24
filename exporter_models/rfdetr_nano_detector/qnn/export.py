@@ -1,5 +1,5 @@
 """RF-DETR nano detection -> Qualcomm QNN (HTP) .pte, one for every supported
-Snapdragon SoC (`exporter.qnn.SOCS`).
+Snapdragon SoC (`exporter.qnn.SOC_GROUPS`).
 
 Same model, patches, wrapper and input contract as the vulkan export (RGB
 normalized with ImageNet mean/std, [1,3,384,384]; boxes [300,4] in pixels,
@@ -91,7 +91,7 @@ def export(config: dict, out_dir: str) -> str:
     wrapper = _RFDETRDetectionWrapper(actual, model.model.resolution).eval()
     inputs = (torch.randn(shape, dtype=torch.float32),)
 
-    compiler_specs = qnn.compiler_specs(use_fp16=True)
+    compiler_specs = qnn.compiler_specs(variant, use_fp16=True)
     with torch.no_grad():
         # Non-strict first: the patches module is loaded by path, which a strict
         # (dynamo) trace cannot import.

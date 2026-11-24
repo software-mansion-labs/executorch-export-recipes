@@ -1,5 +1,5 @@
 """SSDLite320 MobileNetV3 -> Qualcomm QNN (HTP) .pte, one for every supported
-Snapdragon SoC (`exporter.qnn.SOCS`).
+Snapdragon SoC (`exporter.qnn.SOC_GROUPS`).
 
 Same vendored torchvision model, wrapper and input contract as the xnnpack
 export (RGB in [0, 1], CHW [3,320,320]; boxes [300,4], scores [300], labels
@@ -84,7 +84,7 @@ def export(config: dict, out_dir: str) -> str:
     model = _SsdliteWrapper(base_model).eval()
     inputs = (torch.randn(shape, dtype=torch.float32),)
 
-    compiler_specs = qnn.compiler_specs(use_fp16=True)
+    compiler_specs = qnn.compiler_specs(variant, use_fp16=True)
     edge = to_edge_transform_and_lower_to_qnn(
         model, inputs, compiler_specs, skip_node_op_set=_CPU_OPS
     )

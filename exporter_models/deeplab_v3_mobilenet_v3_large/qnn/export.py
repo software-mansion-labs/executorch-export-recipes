@@ -1,5 +1,5 @@
 """DeepLabV3 -> Qualcomm QNN (HTP) .pte, one for every supported Snapdragon SoC
-(`exporter.qnn.SOCS`).
+(`exporter.qnn.SOC_GROUPS`).
 
 Same three torchvision architectures as the xnnpack export, and the same
 contract: input is already ImageNet-normalized (RNE passes IMAGENET_NORM), and
@@ -233,7 +233,7 @@ def export(config: dict, out_dir: str) -> str:
 
     # fp16 is an HTP compile-time precision, not a quantization pass; a16w8 and
     # a8w8 are 16-/8-bit activations over 8-bit weights, done here before lowering.
-    compiler_specs = qnn.compiler_specs(use_fp16=not quantized)
+    compiler_specs = qnn.compiler_specs(variant, use_fp16=not quantized)
 
     if quantized:
         prepared = prepare_pt2e(
@@ -247,7 +247,7 @@ def export(config: dict, out_dir: str) -> str:
             # exception, see the module docstring.
             make_quantizer(
                 quant_dtype=getattr(QuantDtype, _QUANT_DTYPE[variant["precision"]]),
-                soc_model=qnn.quantizer_socs(),
+                soc_model=qnn.quantizer_socs(variant),
                 act_observer=HistogramObserver if histogram else MinMaxObserver,
                 per_channel_linear=variant["precision"] == "a8w8",
                 eps=_eps_for(variant["file"]),

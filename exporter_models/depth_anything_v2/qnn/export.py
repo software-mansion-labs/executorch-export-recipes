@@ -1,5 +1,5 @@
 """Depth Anything V2 Small -> Qualcomm QNN (HTP) .pte, one for every supported
-Snapdragon SoC (`exporter.qnn.SOCS`).
+Snapdragon SoC (`exporter.qnn.SOC_GROUPS`).
 
 Same model and contract as the other backends: float32 [1, 3, 518, 518] RGB
 normalized with ImageNet mean/std, raw relative depth [1, 518, 518]. fp16 on
@@ -54,7 +54,7 @@ def export(config: dict, out_dir: str) -> str:
 
     model = _load_model()
     inputs = (torch.zeros(shape, dtype=torch.float32),)
-    compiler_specs = qnn.compiler_specs(use_fp16=True)
+    compiler_specs = qnn.compiler_specs(variant, use_fp16=True)
     with torch.no_grad():
         traced = torch.export.export(model, inputs, strict=False).module()
         edge = to_edge_transform_and_lower_to_qnn(traced, inputs, compiler_specs)

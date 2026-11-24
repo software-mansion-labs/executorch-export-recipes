@@ -1,5 +1,5 @@
 """EfficientNetV2-S -> Qualcomm QNN (HTP) .pte, one for every supported Snapdragon
-SoC (`exporter.qnn.SOCS`).
+SoC (`exporter.qnn.SOC_GROUPS`).
 
 Same contract as the xnnpack export: the graph takes a raw [0,1] image and does
 the ImageNet normalization itself, because RNE passes `{alpha: 1/255}` for this
@@ -119,7 +119,7 @@ def export(config: dict, out_dir: str) -> str:
         tvm.efficientnet_v2_s(weights=tvm.EfficientNet_V2_S_Weights.DEFAULT)
     ).eval()
 
-    compiler_specs = qnn.compiler_specs(use_fp16=not quantized)
+    compiler_specs = qnn.compiler_specs(variant, use_fp16=not quantized)
 
     if quantized:
         prepared = prepare_pt2e(
@@ -131,7 +131,7 @@ def export(config: dict, out_dir: str) -> str:
             # module docstring.
             make_quantizer(
                 quant_dtype=getattr(QuantDtype, _QUANT_DTYPE[variant["precision"]]),
-                soc_model=qnn.quantizer_socs(),
+                soc_model=qnn.quantizer_socs(variant),
                 act_observer=HistogramObserver if a8w8 else MinMaxObserver,
                 per_channel_linear=a8w8,
             ),

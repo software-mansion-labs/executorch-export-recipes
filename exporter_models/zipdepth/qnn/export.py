@@ -1,5 +1,5 @@
 """ZipDepth base -> Qualcomm QNN (HTP) .pte, one for every supported Snapdragon SoC
-(`exporter.qnn.SOCS`).
+(`exporter.qnn.SOC_GROUPS`).
 
 Same contract as the other backends: float32 RGB [1, 3, 384, 384] in [0, 1]
 (ImageNet normalization is inside the model), raw depth [1, 384, 384]. fp16 on
@@ -121,7 +121,7 @@ def export(config: dict, out_dir: str) -> str:
 
     model = _build_model()
     inputs = (torch.zeros(shape, dtype=torch.float32),)
-    compiler_specs = qnn.compiler_specs(use_fp16=True)
+    compiler_specs = qnn.compiler_specs(variant, use_fp16=True)
     with torch.no_grad():
         traced = torch.export.export(model, inputs, strict=False).module()
         edge = to_edge_transform_and_lower_to_qnn(traced, inputs, compiler_specs)

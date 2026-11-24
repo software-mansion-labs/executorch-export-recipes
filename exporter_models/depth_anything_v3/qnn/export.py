@@ -1,5 +1,5 @@
 """Depth Anything 3 Small -> Qualcomm QNN (HTP) .pte, one for every supported
-Snapdragon SoC (`exporter.qnn.SOCS`).
+Snapdragon SoC (`exporter.qnn.SOC_GROUPS`).
 
 Same contract and export adaptations as the Vulkan export (static RoPE extent,
 eager attention, positional constants folded after functionalization; reused
@@ -67,7 +67,7 @@ def export(config: dict, out_dir: str) -> str:
             layer.forward = vulkan._static_rope.__get__(layer)
 
     inputs = (torch.zeros(shape, dtype=torch.float32),)
-    compiler_specs = qnn.compiler_specs(use_fp16=True)
+    compiler_specs = qnn.compiler_specs(variant, use_fp16=True)
     with torch.no_grad():
         graph = (
             torch.export.export(model, inputs, strict=False)

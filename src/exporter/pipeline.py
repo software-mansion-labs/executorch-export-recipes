@@ -48,6 +48,7 @@ def _variant_config(variant: Variant) -> dict:
         "quantize": variant.quantize,
         "compute_unit": variant.compute_unit,
         "embedding_quantize": variant.embedding_quantize,
+        "soc_group": variant.soc_group,
         "methods": {
             name: {
                 "inputs": [{"shape": t.shape, "dtype": t.dtype} for t in m.inputs],

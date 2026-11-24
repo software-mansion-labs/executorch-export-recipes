@@ -52,7 +52,93 @@
       }
     },
     {
+      "file": "yolo26m_384_qnn_fp16_v69.pte",
+      "soc_group": "v69",
+      "precision": "fp16",
+      "quantized": false,
+      "default": false,
+      "methods": {
+        "forward": {
+          "inputs": [
+            {
+              "shape": [
+                1,
+                3,
+                384,
+                384
+              ],
+              "dtype": "float32"
+            }
+          ],
+          "outputs": [
+            {
+              "shape": [
+                300,
+                4
+              ],
+              "dtype": "float32"
+            },
+            {
+              "shape": [
+                300
+              ],
+              "dtype": "float32"
+            },
+            {
+              "shape": [
+                300
+              ],
+              "dtype": "float32"
+            }
+          ]
+        }
+      }
+    },
+    {
       "file": "yolo26m_512_qnn_fp16.pte",
+      "precision": "fp16",
+      "quantized": false,
+      "default": false,
+      "methods": {
+        "forward": {
+          "inputs": [
+            {
+              "shape": [
+                1,
+                3,
+                512,
+                512
+              ],
+              "dtype": "float32"
+            }
+          ],
+          "outputs": [
+            {
+              "shape": [
+                300,
+                4
+              ],
+              "dtype": "float32"
+            },
+            {
+              "shape": [
+                300
+              ],
+              "dtype": "float32"
+            },
+            {
+              "shape": [
+                300
+              ],
+              "dtype": "float32"
+            }
+          ]
+        }
+      }
+    },
+    {
+      "file": "yolo26m_512_qnn_fp16_v69.pte",
+      "soc_group": "v69",
       "precision": "fp16",
       "quantized": false,
       "default": false,
@@ -98,6 +184,49 @@
       "precision": "fp16",
       "quantized": false,
       "default": true,
+      "methods": {
+        "forward": {
+          "inputs": [
+            {
+              "shape": [
+                1,
+                3,
+                640,
+                640
+              ],
+              "dtype": "float32"
+            }
+          ],
+          "outputs": [
+            {
+              "shape": [
+                300,
+                4
+              ],
+              "dtype": "float32"
+            },
+            {
+              "shape": [
+                300
+              ],
+              "dtype": "float32"
+            },
+            {
+              "shape": [
+                300
+              ],
+              "dtype": "float32"
+            }
+          ]
+        }
+      }
+    },
+    {
+      "file": "yolo26m_640_qnn_fp16_v69.pte",
+      "soc_group": "v69",
+      "precision": "fp16",
+      "quantized": false,
+      "default": false,
       "methods": {
         "forward": {
           "inputs": [

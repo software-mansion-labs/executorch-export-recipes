@@ -1,5 +1,5 @@
 """Whisper -> Qualcomm QNN (HTP) .pte, one for every supported Snapdragon SoC
-(`exporter.qnn.SOCS`).
+(`exporter.qnn.SOC_GROUPS`).
 
 Same contract and model adaptations as the Vulkan export (reused from
 `../vulkan/export.py`): `encode` takes the raw waveform with a dynamic length
@@ -173,7 +173,7 @@ def export(config: dict, out_dir: str) -> str:
         },
     )
 
-    compiler_specs = qnn.compiler_specs(use_fp16=True)
+    compiler_specs = qnn.compiler_specs(variant, use_fp16=True)
     # What to_edge_transform_and_lower_to_qnn does, for encode only: decode
     # takes no QNN passes, and the preprocessor needs a second partitioner.
     pass_manager = get_qnn_pass_manager_cls()()

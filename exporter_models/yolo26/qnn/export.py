@@ -1,5 +1,5 @@
 """YOLO26 detection -> Qualcomm QNN (HTP) .pte, one for every supported Snapdragon
-SoC (`exporter.qnn.SOCS`).
+SoC (`exporter.qnn.SOC_GROUPS`).
 
 Same Ultralytics model, wrapper and input contract as the xnnpack export
 (letterboxed RGB in [0, 1]; boxes [300,4], scores [300], labels [300]), fp16 on
@@ -91,7 +91,7 @@ def export(config: dict, out_dir: str) -> str:
     model = _YoloDetection(YOLO(f"yolo26{size}.pt").model).eval()
     inputs = (torch.randn(shape, dtype=torch.float32),)
 
-    compiler_specs = qnn.compiler_specs(use_fp16=True)
+    compiler_specs = qnn.compiler_specs(variant, use_fp16=True)
     edge = to_edge_transform_and_lower_to_qnn(
         model, inputs, compiler_specs, skip_node_op_set=_CPU_OPS
     )
