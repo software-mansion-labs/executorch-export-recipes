@@ -1,9 +1,9 @@
-"""YOLO26 detection -> Qualcomm QNN (HTP) .pte, one per Hexagon version.
+"""YOLO26 detection -> Qualcomm QNN (HTP) .pte, one for every supported Snapdragon
+SoC (`exporter.qnn.SOCS`).
 
 Same Ultralytics model, wrapper and input contract as the xnnpack export
 (letterboxed RGB in [0, 1]; boxes [300,4], scores [300], labels [300]), fp16 on
-the HTP, and the target Hexagon version read from the variant file's suffix
-(`..._v81.pte`).
+the HTP.
 
 TopK stays on the CPU (`skip_node_op_set`). The head takes the top 300 of 8400
 anchors and then of 24000 scores, and on the HTP that costs ~3 ms of fp16
@@ -26,8 +26,9 @@ first 100 COCO val2017 images, mAP50-95 fp32 / QNN, latency per inference):
     640:  n 48.17/48.09 3.6 ms   s 56.69/56.91 4.1 ms   m 63.06/63.12 8.2 ms
           l 62.24/62.29 9.8 ms   x 65.73/65.47 21.9 ms
 
-v69-v79 are compile-only. In the x86 HTP simulator (n, 20 images) v73-v79 match
-v81 exactly; v69 differs per pixel and scores the same within 1 mAP.
+Only the SM8850 context is device-validated. Per-version files, in the x86 HTP
+simulator (n, 20 images) v73-v79 match v81 exactly; v69 differs per pixel and
+scores the same within 1 mAP.
 
 Needs the software-mansion-labs 1.4.1 fork: without pytorch/executorch#24078
 (Remove0DTensor keeps the selected element) the anchor stride lowering fails,
@@ -44,15 +45,7 @@ from pathlib import Path
 
 import torch
 
-# Hexagon version -> a SoC that carries it. Flagship parts only: fp16 on the HTP
-# needs a premium-tier chip.
-_HEXAGON_SOC = {
-    "v69": "SM8450",  # Snapdragon 8 Gen 1
-    "v73": "SM8550",  # Snapdragon 8 Gen 2
-    "v75": "SM8650",  # Snapdragon 8 Gen 3
-    "v79": "SM8750",  # Snapdragon 8 Elite
-    "v81": "SM8850",  # Snapdragon 8 Elite Gen 5
-}
+from exporter import qnn
 
 _CPU_OPS = {"aten.topk.default"}
 
@@ -72,16 +65,6 @@ class _YoloDetection(torch.nn.Module):
         return p[:, :4], p[:, 4], p[:, 5]
 
 
-def _soc_for(file_name: str) -> str:
-    version = Path(file_name).stem.rsplit("_", 1)[-1]
-    if version not in _HEXAGON_SOC:
-        raise ValueError(
-            f"variant file '{file_name}' must end in a Hexagon version "
-            f"{sorted(_HEXAGON_SOC)}; it is what the .pte is compiled for"
-        )
-    return _HEXAGON_SOC[version]
-
-
 def export(config: dict, out_dir: str) -> str:
     # Checked before the imports below: without the SDK those fail deep in the
     # QNN AOT chain with an unrelated-looking error.
@@ -91,10 +74,7 @@ def export(config: dict, out_dir: str) -> str:
             "AI Engine Direct SDK (see skills/backends/qnn)."
         )
 
-    from executorch.backends.qualcomm.serialization.qc_schema import QcomChipset
     from executorch.backends.qualcomm.utils.utils import (
-        generate_htp_compiler_spec,
-        generate_qnn_executorch_compiler_spec,
         get_qnn_context_binary_alignment,
         to_edge_transform_and_lower_to_qnn,
     )
@@ -107,15 +87,11 @@ def export(config: dict, out_dir: str) -> str:
     if variant["precision"] != "fp16":
         raise ValueError(f"only fp16 is exported for QNN, got {variant['precision']}")
     shape = tuple(variant["methods"]["forward"]["inputs"][0]["shape"])
-    soc = _soc_for(variant["file"])
 
     model = _YoloDetection(YOLO(f"yolo26{size}.pt").model).eval()
     inputs = (torch.randn(shape, dtype=torch.float32),)
 
-    compiler_specs = generate_qnn_executorch_compiler_spec(
-        soc_model=getattr(QcomChipset, soc),
-        backend_options=generate_htp_compiler_spec(use_fp16=True),
-    )
+    compiler_specs = qnn.compiler_specs(use_fp16=True)
     edge = to_edge_transform_and_lower_to_qnn(
         model, inputs, compiler_specs, skip_node_op_set=_CPU_OPS
     )
@@ -131,5 +107,5 @@ def export(config: dict, out_dir: str) -> str:
     out_path = Path(out_dir) / variant["file"]
     out_path.parent.mkdir(parents=True, exist_ok=True)
     out_path.write_bytes(program.buffer)
-    logging.info("wrote %s for %s (%s)", out_path, soc, variant["precision"])
+    logging.info("wrote %s (%s)", out_path, variant["precision"])
     return str(out_path)

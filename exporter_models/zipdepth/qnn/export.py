@@ -1,8 +1,9 @@
-"""ZipDepth base -> Qualcomm QNN (HTP) .pte, one per Hexagon version.
+"""ZipDepth base -> Qualcomm QNN (HTP) .pte, one for every supported Snapdragon SoC
+(`exporter.qnn.SOCS`).
 
 Same contract as the other backends: float32 RGB [1, 3, 384, 384] in [0, 1]
 (ImageNet normalization is inside the model), raw depth [1, 384, 384]. fp16 on
-the HTP, one QNN partition, the Hexagon version read from the file suffix.
+the HTP, one QNN partition.
 
 As exported for the other backends the HTP output is wrong (NYUv2 AbsRel 18.2%
 against fp32 13.6%, worst-image correlation with fp32 0.26). Two changes, both
@@ -21,7 +22,7 @@ fp16 AbsRel 13.56% / delta1 83.54% against fp32 13.55% / 83.57%, at 3.0 ms per
 inference (shipped Vulkan fp16: 11.5 ms). a8w8 with the same changes runs at
 0.82 ms with AbsRel 13.97%, but five images fall below 0.95 correlation with
 fp32 (the worst 0.53) while CPU fake-quant keeps them above 0.9, so it is not
-shipped. Only v81 is device-validated.
+shipped. Only the SM8850 context is device-validated.
 """
 
 import importlib.util
@@ -33,15 +34,9 @@ from pathlib import Path
 import torch
 import torch.nn.functional as F
 
-_DIR = Path(__file__).resolve().parents[1]
+from exporter import qnn
 
-_HEXAGON_SOC = {
-    "v69": "SM8450",  # Snapdragon 8 Gen 1
-    "v73": "SM8550",  # Snapdragon 8 Gen 2
-    "v75": "SM8650",  # Snapdragon 8 Gen 3
-    "v79": "SM8750",  # Snapdragon 8 Elite
-    "v81": "SM8850",  # Snapdragon 8 Elite Gen 5
-}
+_DIR = Path(__file__).resolve().parents[1]
 
 
 def _load(path: Path, name: str):
@@ -105,16 +100,6 @@ def _build_model():
     return model.eval()
 
 
-def _soc_for(file_name: str) -> str:
-    version = Path(file_name).stem.rsplit("_", 1)[-1]
-    if version not in _HEXAGON_SOC:
-        raise ValueError(
-            f"variant file '{file_name}' must end in a Hexagon version "
-            f"{sorted(_HEXAGON_SOC)}; it is what the .pte is compiled for"
-        )
-    return _HEXAGON_SOC[version]
-
-
 def export(config: dict, out_dir: str) -> str:
     if "QNN_SDK_ROOT" not in os.environ:
         raise RuntimeError(
@@ -122,10 +107,7 @@ def export(config: dict, out_dir: str) -> str:
             "AI Engine Direct SDK (see skills/backends/qnn)."
         )
 
-    from executorch.backends.qualcomm.serialization.qc_schema import QcomChipset
     from executorch.backends.qualcomm.utils.utils import (
-        generate_htp_compiler_spec,
-        generate_qnn_executorch_compiler_spec,
         get_qnn_context_binary_alignment,
         to_edge_transform_and_lower_to_qnn,
     )
@@ -136,14 +118,10 @@ def export(config: dict, out_dir: str) -> str:
     if variant["precision"] != "fp16":
         raise ValueError(f"only fp16 is exported for QNN, got {variant['precision']}")
     shape = tuple(variant["methods"]["forward"]["inputs"][0]["shape"])
-    soc = _soc_for(variant["file"])
 
     model = _build_model()
     inputs = (torch.zeros(shape, dtype=torch.float32),)
-    compiler_specs = generate_qnn_executorch_compiler_spec(
-        soc_model=getattr(QcomChipset, soc),
-        backend_options=generate_htp_compiler_spec(use_fp16=True),
-    )
+    compiler_specs = qnn.compiler_specs(use_fp16=True)
     with torch.no_grad():
         traced = torch.export.export(model, inputs, strict=False).module()
         edge = to_edge_transform_and_lower_to_qnn(traced, inputs, compiler_specs)
@@ -159,5 +137,5 @@ def export(config: dict, out_dir: str) -> str:
     out_path = Path(out_dir) / variant["file"]
     out_path.parent.mkdir(parents=True, exist_ok=True)
     out_path.write_bytes(program.buffer)
-    logging.info("wrote %s for %s (%s)", out_path, soc, variant["precision"])
+    logging.info("wrote %s (%s)", out_path, variant["precision"])
     return str(out_path)

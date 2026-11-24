@@ -1,4 +1,5 @@
-"""Whisper -> Qualcomm QNN (HTP) .pte, one per Hexagon version.
+"""Whisper -> Qualcomm QNN (HTP) .pte, one for every supported Snapdragon SoC
+(`exporter.qnn.SOCS`).
 
 Same contract and model adaptations as the Vulkan export (reused from
 `../vulkan/export.py`): `encode` takes the raw waveform with a dynamic length
@@ -30,7 +31,7 @@ fp16 files on the S26 (median encode; 50 clips, WER fp32 -> device):
 The two variants differ only in the decoder, as in the Vulkan export: `fp16`
 keeps it in fp32 and `int8` quantizes its linears for XNNPACK.
 
-Only v81 is device-validated; v69-v79 target SoCs we do not have.
+Only the SM8850 context is device-validated.
 """
 
 import importlib
@@ -44,6 +45,7 @@ from pathlib import Path
 import torch
 from torch.export import Dim
 
+from exporter import qnn
 from exporter.schema import load_and_validate_schema
 
 _DIR = Path(__file__).resolve().parents[1]
@@ -52,14 +54,6 @@ _SAMPLE_RATE = 16000
 _AUDIO_SAMPLES = 30 * _SAMPLE_RATE
 _MIN_AUDIO_SAMPLES = 201  # one STFT frame; matches the other backends
 
-_HEXAGON_SOC = {
-    "v69": "SM8450",  # Snapdragon 8 Gen 1
-    "v73": "SM8550",  # Snapdragon 8 Gen 2
-    "v75": "SM8650",  # Snapdragon 8 Gen 3
-    "v79": "SM8750",  # Snapdragon 8 Elite
-    "v81": "SM8850",  # Snapdragon 8 Elite Gen 5
-}
-
 
 def _load(path: Path, name: str):
     spec = importlib.util.spec_from_file_location(name, path)
@@ -67,16 +61,6 @@ def _load(path: Path, name: str):
     sys.modules[name] = module
     spec.loader.exec_module(module)
     return module
-
-
-def _soc_for(file_name: str) -> str:
-    version = Path(file_name).stem.rsplit("_", 1)[-1]
-    if version not in _HEXAGON_SOC:
-        raise ValueError(
-            f"variant file '{file_name}' must end in a Hexagon version "
-            f"{sorted(_HEXAGON_SOC)}; it is what the .pte is compiled for"
-        )
-    return _HEXAGON_SOC[version]
 
 
 def export(config: dict, out_dir: str) -> str:
@@ -89,11 +73,8 @@ def export(config: dict, out_dir: str) -> str:
         )
 
     from executorch.backends.qualcomm.partition.qnn_partitioner import QnnPartitioner
-    from executorch.backends.qualcomm.serialization.qc_schema import QcomChipset
     from executorch.backends.qualcomm.utils.utils import (
         QnnManagerContext,
-        generate_htp_compiler_spec,
-        generate_qnn_executorch_compiler_spec,
         get_qnn_context_binary_alignment,
         get_qnn_pass_manager_cls,
         qnn_edge_config,
@@ -107,7 +88,6 @@ def export(config: dict, out_dir: str) -> str:
     from transformers import AutoProcessor
 
     variant = config["variant"]
-    soc = _soc_for(variant["file"])
 
     vulkan = _load(_DIR / "vulkan" / "export.py", "whisper_vulkan_for_qnn")
     cw = vulkan._load_custom_whisper()
@@ -193,10 +173,7 @@ def export(config: dict, out_dir: str) -> str:
         },
     )
 
-    compiler_specs = generate_qnn_executorch_compiler_spec(
-        soc_model=getattr(QcomChipset, soc),
-        backend_options=generate_htp_compiler_spec(use_fp16=True),
-    )
+    compiler_specs = qnn.compiler_specs(use_fp16=True)
     # What to_edge_transform_and_lower_to_qnn does, for encode only: decode
     # takes no QNN passes, and the preprocessor needs a second partitioner.
     pass_manager = get_qnn_pass_manager_cls()()
@@ -229,5 +206,5 @@ def export(config: dict, out_dir: str) -> str:
     out_path = Path(out_dir) / variant["file"]
     out_path.parent.mkdir(parents=True, exist_ok=True)
     out_path.write_bytes(program.buffer)
-    logging.info("wrote %s for %s (%s)", out_path, soc, variant["precision"])
+    logging.info("wrote %s (%s)", out_path, variant["precision"])
     return str(out_path)
