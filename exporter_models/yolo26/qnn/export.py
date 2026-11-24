@@ -30,6 +30,9 @@ Only the SM8850 context is device-validated. Per-version files, in the x86 HTP
 simulator (n, 20 images) v73-v79 match v81 exactly; v69 differs per pixel and
 scores the same within 1 mAP.
 
+With ET 1.6 + QAIRT 2.51 small inputs run slower on SM8850, FCB or not: m 384 3.25 ->
+3.88 ms.
+
 Needs the software-mansion-labs 1.4.1 fork: without pytorch/executorch#24078
 (Remove0DTensor keeps the selected element) the anchor stride lowering fails,
 without #24057 (exact integer floor_divide) fp16 decodes wrong class indices,

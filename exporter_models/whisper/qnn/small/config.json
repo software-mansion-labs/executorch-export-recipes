@@ -9,71 +9,7 @@
   "license": "apache-2.0",
   "variants": [
     {
-      "file": "whisper_small_qnn_fp16.pte",
-      "precision": "fp16",
-      "quantized": false,
-      "default": true,
-      "methods": {
-        "decode": {
-          "inputs": [
-            {
-              "shape": [
-                1,
-                1
-              ],
-              "dtype": "int64"
-            },
-            {
-              "shape": [
-                1
-              ],
-              "dtype": "int64"
-            },
-            {
-              "shape": [
-                1,
-                1500,
-                18432
-              ],
-              "dtype": "float32"
-            }
-          ],
-          "outputs": [
-            {
-              "shape": [
-                1,
-                1,
-                51865
-              ],
-              "dtype": "float32"
-            }
-          ]
-        },
-        "encode": {
-          "inputs": [
-            {
-              "shape": [
-                480000
-              ],
-              "dtype": "float32"
-            }
-          ],
-          "outputs": [
-            {
-              "shape": [
-                1,
-                1500,
-                18432
-              ],
-              "dtype": "float32"
-            }
-          ]
-        }
-      }
-    },
-    {
       "file": "whisper_small_qnn_fp16_v69.pte",
-      "soc_group": "v69",
       "precision": "fp16",
       "quantized": false,
       "default": false,
@@ -136,9 +72,198 @@
       }
     },
     {
-      "file": "whisper_small_qnn_int8.pte",
-      "precision": "int8",
-      "quantized": true,
+      "file": "whisper_small_qnn_fp16_v73.pte",
+      "precision": "fp16",
+      "quantized": false,
+      "default": false,
+      "methods": {
+        "decode": {
+          "inputs": [
+            {
+              "shape": [
+                1,
+                1
+              ],
+              "dtype": "int64"
+            },
+            {
+              "shape": [
+                1
+              ],
+              "dtype": "int64"
+            },
+            {
+              "shape": [
+                1,
+                1500,
+                18432
+              ],
+              "dtype": "float32"
+            }
+          ],
+          "outputs": [
+            {
+              "shape": [
+                1,
+                1,
+                51865
+              ],
+              "dtype": "float32"
+            }
+          ]
+        },
+        "encode": {
+          "inputs": [
+            {
+              "shape": [
+                480000
+              ],
+              "dtype": "float32"
+            }
+          ],
+          "outputs": [
+            {
+              "shape": [
+                1,
+                1500,
+                18432
+              ],
+              "dtype": "float32"
+            }
+          ]
+        }
+      }
+    },
+    {
+      "file": "whisper_small_qnn_fp16_v75.pte",
+      "precision": "fp16",
+      "quantized": false,
+      "default": false,
+      "methods": {
+        "decode": {
+          "inputs": [
+            {
+              "shape": [
+                1,
+                1
+              ],
+              "dtype": "int64"
+            },
+            {
+              "shape": [
+                1
+              ],
+              "dtype": "int64"
+            },
+            {
+              "shape": [
+                1,
+                1500,
+                18432
+              ],
+              "dtype": "float32"
+            }
+          ],
+          "outputs": [
+            {
+              "shape": [
+                1,
+                1,
+                51865
+              ],
+              "dtype": "float32"
+            }
+          ]
+        },
+        "encode": {
+          "inputs": [
+            {
+              "shape": [
+                480000
+              ],
+              "dtype": "float32"
+            }
+          ],
+          "outputs": [
+            {
+              "shape": [
+                1,
+                1500,
+                18432
+              ],
+              "dtype": "float32"
+            }
+          ]
+        }
+      }
+    },
+    {
+      "file": "whisper_small_qnn_fp16_v79.pte",
+      "precision": "fp16",
+      "quantized": false,
+      "default": false,
+      "methods": {
+        "decode": {
+          "inputs": [
+            {
+              "shape": [
+                1,
+                1
+              ],
+              "dtype": "int64"
+            },
+            {
+              "shape": [
+                1
+              ],
+              "dtype": "int64"
+            },
+            {
+              "shape": [
+                1,
+                1500,
+                18432
+              ],
+              "dtype": "float32"
+            }
+          ],
+          "outputs": [
+            {
+              "shape": [
+                1,
+                1,
+                51865
+              ],
+              "dtype": "float32"
+            }
+          ]
+        },
+        "encode": {
+          "inputs": [
+            {
+              "shape": [
+                480000
+              ],
+              "dtype": "float32"
+            }
+          ],
+          "outputs": [
+            {
+              "shape": [
+                1,
+                1500,
+                18432
+              ],
+              "dtype": "float32"
+            }
+          ]
+        }
+      }
+    },
+    {
+      "file": "whisper_small_qnn_fp16_v81.pte",
+      "precision": "fp16",
+      "quantized": false,
       "default": true,
       "methods": {
         "decode": {
@@ -200,10 +325,261 @@
     },
     {
       "file": "whisper_small_qnn_int8_v69.pte",
-      "soc_group": "v69",
       "precision": "int8",
       "quantized": true,
       "default": false,
+      "methods": {
+        "decode": {
+          "inputs": [
+            {
+              "shape": [
+                1,
+                1
+              ],
+              "dtype": "int64"
+            },
+            {
+              "shape": [
+                1
+              ],
+              "dtype": "int64"
+            },
+            {
+              "shape": [
+                1,
+                1500,
+                18432
+              ],
+              "dtype": "float32"
+            }
+          ],
+          "outputs": [
+            {
+              "shape": [
+                1,
+                1,
+                51865
+              ],
+              "dtype": "float32"
+            }
+          ]
+        },
+        "encode": {
+          "inputs": [
+            {
+              "shape": [
+                480000
+              ],
+              "dtype": "float32"
+            }
+          ],
+          "outputs": [
+            {
+              "shape": [
+                1,
+                1500,
+                18432
+              ],
+              "dtype": "float32"
+            }
+          ]
+        }
+      }
+    },
+    {
+      "file": "whisper_small_qnn_int8_v73.pte",
+      "precision": "int8",
+      "quantized": true,
+      "default": false,
+      "methods": {
+        "decode": {
+          "inputs": [
+            {
+              "shape": [
+                1,
+                1
+              ],
+              "dtype": "int64"
+            },
+            {
+              "shape": [
+                1
+              ],
+              "dtype": "int64"
+            },
+            {
+              "shape": [
+                1,
+                1500,
+                18432
+              ],
+              "dtype": "float32"
+            }
+          ],
+          "outputs": [
+            {
+              "shape": [
+                1,
+                1,
+                51865
+              ],
+              "dtype": "float32"
+            }
+          ]
+        },
+        "encode": {
+          "inputs": [
+            {
+              "shape": [
+                480000
+              ],
+              "dtype": "float32"
+            }
+          ],
+          "outputs": [
+            {
+              "shape": [
+                1,
+                1500,
+                18432
+              ],
+              "dtype": "float32"
+            }
+          ]
+        }
+      }
+    },
+    {
+      "file": "whisper_small_qnn_int8_v75.pte",
+      "precision": "int8",
+      "quantized": true,
+      "default": false,
+      "methods": {
+        "decode": {
+          "inputs": [
+            {
+              "shape": [
+                1,
+                1
+              ],
+              "dtype": "int64"
+            },
+            {
+              "shape": [
+                1
+              ],
+              "dtype": "int64"
+            },
+            {
+              "shape": [
+                1,
+                1500,
+                18432
+              ],
+              "dtype": "float32"
+            }
+          ],
+          "outputs": [
+            {
+              "shape": [
+                1,
+                1,
+                51865
+              ],
+              "dtype": "float32"
+            }
+          ]
+        },
+        "encode": {
+          "inputs": [
+            {
+              "shape": [
+                480000
+              ],
+              "dtype": "float32"
+            }
+          ],
+          "outputs": [
+            {
+              "shape": [
+                1,
+                1500,
+                18432
+              ],
+              "dtype": "float32"
+            }
+          ]
+        }
+      }
+    },
+    {
+      "file": "whisper_small_qnn_int8_v79.pte",
+      "precision": "int8",
+      "quantized": true,
+      "default": false,
+      "methods": {
+        "decode": {
+          "inputs": [
+            {
+              "shape": [
+                1,
+                1
+              ],
+              "dtype": "int64"
+            },
+            {
+              "shape": [
+                1
+              ],
+              "dtype": "int64"
+            },
+            {
+              "shape": [
+                1,
+                1500,
+                18432
+              ],
+              "dtype": "float32"
+            }
+          ],
+          "outputs": [
+            {
+              "shape": [
+                1,
+                1,
+                51865
+              ],
+              "dtype": "float32"
+            }
+          ]
+        },
+        "encode": {
+          "inputs": [
+            {
+              "shape": [
+                480000
+              ],
+              "dtype": "float32"
+            }
+          ],
+          "outputs": [
+            {
+              "shape": [
+                1,
+                1500,
+                18432
+              ],
+              "dtype": "float32"
+            }
+          ]
+        }
+      }
+    },
+    {
+      "file": "whisper_small_qnn_int8_v81.pte",
+      "precision": "int8",
+      "quantized": true,
+      "default": true,
       "methods": {
         "decode": {
           "inputs": [
