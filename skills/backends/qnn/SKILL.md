@@ -57,8 +57,8 @@ intent, no `uv.lock` is committed, and the export runs in the ET-source env with
 
 ## The .pte is compiled for one SoC
 
-QNN lowering bakes a context binary for a specific chipset — there is no
-portable QNN `.pte`. Read the target's chip and map it to a `QcomChipset`
+QNN lowering bakes a context binary for a specific chipset (see below for
+one `.pte` covering several). Read the target's chip and map it to a `QcomChipset`
 member; the exports take it from `QNN_SOC_MODEL`:
 
 ```bash
@@ -75,6 +75,21 @@ adb shell getprop ro.soc.model     # e.g. SM8650
 Full list: `backends/qualcomm/serialization/qc_schema.py`. Export each target
 into its own `--output-dir`, since the variant filename carries the precision
 but not the SoC. No device needs to be attached at export time.
+
+### One .pte for several SoCs (ET >= 1.6)
+
+A Flexible Context Binary holds one context per SoC: pass lists to
+`generate_qnn_executorch_compiler_spec(soc_model=[...], backend_options=[...])`.
+It needs QAIRT >= 2.48 at runtime. Keep `fcb_reference_weight_sharing` on.
+Measured on an S26 Ultra (v81), single v81 vs FCB v69-v81, ET 1.6.0 + QAIRT 2.51:
+
+| model | run ms | load ms | peak RSS MB | file MB |
+|---|---|---|---|---|
+| depth_anything_v2 small fp16 | 16.4 / 16.3 | 202 / 211 | 77 / 89 | 57 / 68 |
+| deeplab_v3 mobilenet a8w8 | 1.40 / 1.40 | 145 / 168 | 33 / 56 | 12 / 35 |
+| zipdepth base fp16 | 2.68 / 2.66 | 146 / 153 | 31 / 34 | 13 / 15 |
+
+Outputs are bit-identical. Without weight sharing, size and RSS grow ~5x.
 
 ## Recipe
 
