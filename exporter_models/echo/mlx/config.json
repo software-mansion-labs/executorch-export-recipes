@@ -1,0 +1,124 @@
+{
+  "$schema": "https://huggingface.co/software-mansion/react-native-executorch-spec/resolve/main/config.schema.json",
+  "model": "echo_mlx",
+  "family": "echo",
+  "capabilities": ["text-to-speech"],
+  "backend": "mlx",
+  "license": "unknown",
+  "variants": [
+    {
+      "file": "reverb_mlx_fp16.pte",
+      "precision": "fp16",
+      "quantized": false,
+      "default": true,
+      "methods": {
+        "prefill": {
+          "inputs": [
+            { "shape": [null], "dtype": "int64" },
+            { "shape": [8, null], "dtype": "int64" }
+          ],
+          "outputs": [
+            { "shape": [2, 24, 6, null, 128], "dtype": "float16" }
+          ]
+        },
+        "step": {
+          "inputs": [
+            { "shape": [8, null], "dtype": "int64" },
+            { "shape": [2, 24, 6, null, 128], "dtype": "float16" }
+          ],
+          "outputs": [
+            { "shape": [2, null], "dtype": "float32" },
+            { "shape": [2, null], "dtype": "int64" },
+            { "shape": [2, null], "dtype": "float32" }
+          ]
+        },
+        "polish": {
+          "inputs": [
+            { "shape": [8, null], "dtype": "int64" },
+            { "shape": [1], "dtype": "int64" },
+            { "shape": [2, 24, 6, null, 128], "dtype": "float16" }
+          ],
+          "outputs": [
+            { "shape": [6, null], "dtype": "int64" }
+          ]
+        }
+      }
+    },
+    {
+      "file": "reverb_mlx_int8.pte",
+      "precision": "int8",
+      "quantized": true,
+      "default": false,
+      "methods": {
+        "prefill": {
+          "inputs": [
+            { "shape": [null], "dtype": "int64" },
+            { "shape": [8, null], "dtype": "int64" }
+          ],
+          "outputs": [
+            { "shape": [2, 24, 6, null, 128], "dtype": "float16" }
+          ]
+        },
+        "step": {
+          "inputs": [
+            { "shape": [8, null], "dtype": "int64" },
+            { "shape": [2, 24, 6, null, 128], "dtype": "float16" }
+          ],
+          "outputs": [
+            { "shape": [2, null], "dtype": "float32" },
+            { "shape": [2, null], "dtype": "int64" },
+            { "shape": [2, null], "dtype": "float32" }
+          ]
+        },
+        "polish": {
+          "inputs": [
+            { "shape": [8, null], "dtype": "int64" },
+            { "shape": [1], "dtype": "int64" },
+            { "shape": [2, 24, 6, null, 128], "dtype": "float16" }
+          ],
+          "outputs": [
+            { "shape": [6, null], "dtype": "int64" }
+          ]
+        }
+      }
+    },
+    {
+      "file": "reverb_mlx_int4.pte",
+      "precision": "int4",
+      "quantized": true,
+      "default": false,
+      "methods": {
+        "prefill": {
+          "inputs": [
+            { "shape": [null], "dtype": "int64" },
+            { "shape": [8, null], "dtype": "int64" }
+          ],
+          "outputs": [
+            { "shape": [2, 24, 6, null, 128], "dtype": "float16" }
+          ]
+        },
+        "step": {
+          "inputs": [
+            { "shape": [8, null], "dtype": "int64" },
+            { "shape": [2, 24, 6, null, 128], "dtype": "float16" }
+          ],
+          "outputs": [
+            { "shape": [2, null], "dtype": "float32" },
+            { "shape": [2, null], "dtype": "int64" },
+            { "shape": [2, null], "dtype": "float32" }
+          ]
+        },
+        "polish": {
+          "inputs": [
+            { "shape": [8, null], "dtype": "int64" },
+            { "shape": [1], "dtype": "int64" },
+            { "shape": [2, 24, 6, null, 128], "dtype": "float16" }
+          ],
+          "outputs": [
+            { "shape": [6, null], "dtype": "int64" }
+          ]
+        }
+      }
+    }
+  ]
+}

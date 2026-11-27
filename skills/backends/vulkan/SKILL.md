@@ -175,3 +175,52 @@ the fork's `@ms/separate-backends-1.4.1` as
 [software-mansion-labs/executorch#10](https://github.com/software-mansion-labs/executorch/pull/10). migan's
 `vulkanize()` graph rewrite goes away once the RNE Vulkan lib is rebuilt with
 it.
+
+## fp16 precision: the runtime, not the graph (measured on a Samsung Xclipse 940)
+
+Echo (`exporter_models/echo/NOTES.md`, a 24-layer transformer in fp16) lost
+5% argmax agreement against fp32 on a Galaxy S24 FE where MLX fp16 on an
+iPhone loses 0.3%. All of it was runtime precision:
+
+- **The Xclipse driver rounds fp16 toward zero**: fp32 -> fp16 conversions
+  and fp16 arithmetic alike (2x the error of round-to-nearest-even, and
+  biased, so it compounds through a residual stream). The SPIR-V execution
+  mode `RoundingModeRTE` for 16-bit, which the driver advertises, fixes the
+  conversions but not the arithmetic.
+- **`linear_vec`, the quantized tiled linears and `custom_sdpa`'s tiled q . k
+  accumulate in fp16.** fp32 accumulation costs nothing in a shared-memory
+  kernel there.
+- A runtime patch (fp32 accumulation, `RoundingModeRTE`, fp32 elementwise math)
+  brought Echo to MLX's accuracy; it is not in the fork (Echo's NOTES.md). Its
+  round-to-nearest is opt-in per program, through the `fp16_round_to_nearest`
+  partitioner option: the runtime then adds the execution mode to the shader
+  binaries at load, on GPUs that report support for it. Other programs run the
+  shaders as built.
+
+## Runtime gotchas found with dynamic shapes
+
+- `llama.custom_sdpa` without an `attn_mask` is causal. Non-causal attention
+  takes an additive [S, C] mask, which needs the runtime from fork 9c1e9b63c
+  (react-native-executorch native libs v0.11.1); v0.11.0 aborts at load.
+- The fork's `causal_sdpa` pattern asserts on a `custom_sdpa` that has no LLM
+  `update_cache`; disable its detector for such graphs (Echo's `lower_vulkan`).
+- `squeeze_copy`'s resize ignores negative dims (write `squeeze(2)`, not
+  `squeeze(-1)`); `arange`'s resize miscounts negative steps.
+- `aten.silu` and `aten.log` have no Vulkan kernel: spell SiLU as
+  `x * sigmoid(x)`, take logs through `log_softmax`.
+- Each method is its own delegate with its own prepacked weights and its own
+  working memory sized for the bounds: a three-method program holds three
+  copies of each. Echo's patched runtime (its NOTES.md) shares packed weights
+  between delegates by their data hash, and the `shared_workspace` compile
+  option (`VulkanPartitioner({..., "shared_workspace": True})`) gives graphs
+  that never run at once one pool of working memory: int4 Echo 1.72 -> 0.61
+  GB. Runtimes without the patch ignore the option. Only for graphs that keep
+  no state in working memory between executions.
+- The int4 linear fusion packs a weight in place at its first use, so a second
+  linear on the same weight (a method that runs the network twice) stays
+  unfused, as dequantize + fp16 linear. Wrapping the `quantized_linear`
+  pattern's replacement so that later uses reuse the first packing works
+  (Echo's NOTES.md); the proper fix is in the fork's pattern.
+- flatcc's CMake writes its libraries into the source tree
+  (`third-party/flatcc/lib/`), so builds for different targets overwrite
+  each other's there.

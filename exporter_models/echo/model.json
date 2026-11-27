@@ -1,0 +1,16 @@
+{
+  "hf": "https://huggingface.co/software-mansion/react-native-executorch-echo",
+  "repo": "software-mansion/Echo",
+  "extras": [
+    "tts",
+    "quant"
+  ],
+  "backends": [
+    "xnnpack",
+    "vulkan",
+    "mlx",
+    "coreml"
+  ],
+  "config": "{backend}/config.json",
+  "multi_pte": true
+}

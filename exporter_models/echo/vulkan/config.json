@@ -1,0 +1,48 @@
+{
+  "$schema": "https://huggingface.co/software-mansion/react-native-executorch-spec/resolve/main/config.schema.json",
+  "model": "echo_vulkan",
+  "family": "echo",
+  "capabilities": ["text-to-speech"],
+  "backend": "vulkan",
+  "license": "unknown",
+  "variants": [
+    {
+      "file": "echo_vulkan_fp16.pte",
+      "precision": "fp16",
+      "quantized": false,
+      "default": true,
+      "methods": {
+        "prefill": {
+          "inputs": [
+            { "shape": [null], "dtype": "int64" },
+            { "shape": [8, null], "dtype": "int64" }
+          ],
+          "outputs": [
+            { "shape": [2, 24, 6, null, 128], "dtype": "float16" }
+          ]
+        },
+        "step": {
+          "inputs": [
+            { "shape": [8, null], "dtype": "int64" },
+            { "shape": [2, 24, 6, null, 128], "dtype": "float16" }
+          ],
+          "outputs": [
+            { "shape": [2, null], "dtype": "float32" },
+            { "shape": [2, null], "dtype": "int64" },
+            { "shape": [2, null], "dtype": "float32" }
+          ]
+        },
+        "polish": {
+          "inputs": [
+            { "shape": [8, null], "dtype": "int64" },
+            { "shape": [1], "dtype": "int64" },
+            { "shape": [2, 24, 6, null, 128], "dtype": "float16" }
+          ],
+          "outputs": [
+            { "shape": [6, null], "dtype": "int64" }
+          ]
+        }
+      }
+    }
+  ]
+}
