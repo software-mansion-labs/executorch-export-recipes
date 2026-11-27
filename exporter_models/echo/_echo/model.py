@@ -58,11 +58,13 @@ def dequantize(weights: dict, quantization: dict) -> dict:
     group = quantization.get("group_size")
     for key in [k for k in weights if k.endswith("_scale")]:
         scale, codes = weights.pop(key), weights[key[: -len("_scale")]]
-        if quantization["bits"] == 4:
+        # Only packed tensors (uint8) hold int4 pairs: a 4-bit checkpoint's embeddings can be int8 per row.
+        if quantization["bits"] == 4 and codes.dtype == torch.uint8:
             codes = torch.stack([codes & 0xF, codes >> 4], dim=-1).flatten(-2).float() - 8
         codes = codes.float()
+        per_group = group and scale.shape[-1] > 1  # a [rows, 1] scale is per row, whatever group_size says
         weights[key[: -len("_scale")]] = (
-            (codes.unflatten(-1, (-1, group)) * scale[..., None]).flatten(-2) if group else codes * scale
+            (codes.unflatten(-1, (-1, group)) * scale[..., None]).flatten(-2) if per_group else codes * scale
         )
     return {k: v.float() if v.is_floating_point() else v for k, v in weights.items()}
 
@@ -243,7 +245,8 @@ class Echo(nn.Module):
         self.vocab = config["audio_vocab_size"]
         self.mask_id = config["audio_mask_id"]
         d = cfg["hidden_size"]
-        self.llm = _LLM(cfg, config["echo"]["architecture"]["embedding_rank"])
+        # a Reverb-TTS checkpoint (the released Echo) names this section "reverb"
+        self.llm = _LLM(cfg, (config.get("reverb") or config["echo"])["architecture"]["embedding_rank"])
         self.audio_embeddings = nn.Embedding(self.n_cb * self.vocab, d)
         self.audio_heads = nn.Linear(d, self.n_cb * self.vocab, bias=False)
         self.register_buffer("codebook_layer_offsets", torch.arange(self.n_cb) * self.vocab)

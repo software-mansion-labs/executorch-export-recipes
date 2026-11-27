@@ -383,17 +383,33 @@
       }
     },
     {
+      "file": "codec_decoder_coreml_int8.pte",
+      "precision": "int8",
+      "quantized": true,
+      "default": true,
+      "methods": {
+        "forward": {
+          "inputs": [
+            { "shape": [8, null], "dtype": "int64" }
+          ],
+          "outputs": [
+            { "shape": [null], "dtype": "float32" }
+          ]
+        }
+      }
+    },
+    {
       "file": "codec_decoder_coreml_fp16.pte",
       "precision": "fp16",
       "quantized": false,
-      "default": true,
+      "default": false,
       "methods": {
-        "decode": {
+        "forward": {
           "inputs": [
-            { "shape": [8, 250], "dtype": "int64" }
+            { "shape": [8, null], "dtype": "int64" }
           ],
           "outputs": [
-            { "shape": [240000], "dtype": "float32" }
+            { "shape": [null], "dtype": "float32" }
           ]
         }
       }

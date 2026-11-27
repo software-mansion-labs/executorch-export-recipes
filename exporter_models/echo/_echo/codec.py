@@ -7,9 +7,11 @@ the backends allow.
 """
 
 import importlib.machinery
+import json
 import math
 import sys
 import types
+from pathlib import Path
 
 import torch
 import torch.nn.functional as F
@@ -77,6 +79,35 @@ def load_codec(path: str):
     return HiggsAudioV2TokenizerModel.from_pretrained(path).eval()
 
 
+def drop_training_buffers(codec):
+    """The codebooks' training buffers: decode never reads them, but ExecuTorch keeps every buffer (2 MB)."""
+    for quantizer in codec.quantizer.quantizers:
+        for name in ("inited", "cluster_size", "embed_avg"):
+            delattr(quantizer.codebook, name)
+    return codec
+
+
+def load_decoder_int8(codec, path: str):
+    """Puts the int8 decode path (GPTQ, then QAT of its scales; Echo's scripts/export/quantize_decoder.py) into `codec`,
+    each weight as its integers times their fp16 scale. The integers are the equivalent conv's [out, in, taps] (a
+    transposed conv's transposed, taps reversed), one scale per 8 inputs x every tap: Core ML's per-block 8 grid, so
+    its quantizer gets the integers back wherever a block reaches +-127 (99.7% of them)."""
+    from safetensors.torch import load_file
+
+    meta = json.loads((Path(path) / "quantization.json").read_text())
+    state = load_file(Path(path) / "decoder.safetensors")
+    for name, w in meta["weights"].items():
+        assert w["bits"] == 8 and w["symmetric"] and w["granularity"] == "group", (name, w)
+        scale, ints = state.pop(f"{name}_scale").float(), state[name].float()
+        weight = (ints.view(ints.shape[0], scale.shape[1], -1) * scale[..., None]).view(w["shape"])
+        if isinstance(codec.get_submodule(name[: -len(".weight")]), nn.ConvTranspose1d):
+            weight = weight.transpose(0, 1).flip(-1)
+        state[name] = weight
+    unexpected = codec.load_state_dict({k: v.float() for k, v in state.items()}, strict=False).unexpected_keys
+    assert not unexpected, f"{path}: unexpected {unexpected}"
+    return codec
+
+
 class Snake(nn.Module):
     """DAC's Snake1d with 1/alpha baked in: the original recomputes
     (alpha + 1e-9).reciprocal() from the parameter on every call, which no
@@ -91,20 +122,36 @@ class Snake(nn.Module):
         return x + self.inv * torch.sin(self.alpha * x).pow(2)
 
 
-def _swap_snake(m):
+class Fp16Snake(nn.Module):
+    """Snake1d as x + sign(a) (sin(a x) / sqrt|a|)^2, for fp16 compute: the smallest |alpha| is 4.1e-7, so 1/alpha
+    overflows fp16, while 1/sqrt|alpha| stays below 1560. 950 of the 7968 alphas are negative."""
+
+    def __init__(self, s):
+        super().__init__()
+        alpha = s.alpha.detach().clone()
+        self.register_buffer("alpha", alpha)
+        self.register_buffer("rsqrt", (alpha.abs() + 1e-9).rsqrt())
+        self.register_buffer("sign", alpha.sign())
+
+    def forward(self, x):
+        r = torch.sin(self.alpha * x) * self.rsqrt
+        return x + self.sign * (r * r)
+
+
+def _swap_snake(m, snake):
     for name, child in m.named_children():
         if type(child).__name__ == "Snake1d":
-            setattr(m, name, Snake(child))
+            setattr(m, name, snake(child))
         else:
-            _swap_snake(child)
+            _swap_snake(child, snake)
 
 
 class Decoder(nn.Module):
     """codec.decode() for one clip: codes [C, T] -> audio [T * 960]."""
 
-    def __init__(self, codec):
+    def __init__(self, codec, snake=Snake):
         super().__init__()
-        _swap_snake(codec.acoustic_decoder)
+        _swap_snake(codec.acoustic_decoder, snake)
         self.q = codec.quantizer
         self.fc2 = codec.fc2
         self.dec = codec.acoustic_decoder
@@ -146,15 +193,30 @@ class Encoder(nn.Module):
         return c.quantizer.encode(emb, cfg.target_bandwidths[-1])[:, 0]  # [C, T]
 
 
-def export_decoder(codec, t_static: int | None = None, t_max: int = 1024):
-    """ExportedProgram of `decode`; dynamic T in [4, t_max] unless t_static."""
-    dec = Decoder(codec).eval()
+def export_decoder(codec, t_static: int | None = None, t_max: int = 1024, fp16: bool = False):
+    """ExportedProgram of `decode`; dynamic T in [4, t_max] unless t_static. fp16: for a backend computing in fp16."""
+    dec = Decoder(codec, Fp16Snake if fp16 else Snake).eval()
     t = t_static or 120
     ex = (torch.randint(0, 1024, (8, t)),)
     ref = codec.decode(ex[0][None]).audio_values.reshape(-1)
     assert (dec(*ex) - ref).abs().max() < 1e-4, "decoder wrapper diverges from codec.decode"
     ds = None if t_static else ({1: torch.export.Dim("T", min=4, max=t_max)},)
     return torch.export.export(dec, ex, dynamic_shapes=ds, strict=False)
+
+
+def decoder_schema(t_max: int = 1024, hop: int = 960) -> str:
+    """The `get_model_schema` JSON of export_decoder's dynamic-T program: codes [8, T] -> audio [T * hop]."""
+    frames = {"kind": "range", "range": {"min": 4, "max": t_max, "step": 1}}
+    samples = {"kind": "range", "range": {"min": 4 * hop, "max": t_max * hop, "step": hop}}
+    return json.dumps({"forward": {
+        "inputs": [{"kind": "Tensor", "dtype": "int64", "shape": [{"kind": "constant", "value": 8}, frames]}],
+        "outputs": [{"kind": "Tensor", "dtype": "float32", "shape": [samples]}],
+        "runtimeConstraints": [{
+            "kind": "linear", "coefficients": [hop, 0],
+            "dimLhs": {"paramSide": "output", "tensorIdx": 0, "dimIdx": 0},
+            "dimRhs": {"paramSide": "input", "tensorIdx": 0, "dimIdx": 1},
+        }],
+    }})
 
 
 def export_encoder(codec, seconds: float = 10.0):

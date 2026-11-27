@@ -1,15 +1,12 @@
-"""Echo -> ExecuTorch MLX (multi_pte, Apple GPU, physical devices only).
+"""Echo -> ExecuTorch MLX (multi_pte, Apple GPU, physical devices only), the programs react-native-executorch ships.
 
-  echo_mlx_fp16.pte          backbone: prefill / step / polish (_echo/v2.py), fp16, stacked fp16 K/V
-  codec_decoder_mlx_fp32.pte decode: codes [8, T] -> audio [T * 960]
+  reverb_mlx_{fp16,int8,int4}.pte  backbone: prefill / step / polish (_echo/v3.py), one fp16 cache
 
-The backbone uses the v2 contract rather than encode_prefix / denoise: fused
-linears, MLX SDPA and RoPE kernels, sampler reductions in-graph. It is 15-20%
-faster than the v1 contract on MLX (iPhone 16: 698 vs 821 ms for 5 s, 1262 vs
-1580 ms for 10 s; NOTES.md).
+iOS pairs them with the Core ML codec files (coreml/).
 
-RMSNorm stays aten.rms_norm ("native"): the residual stream reaches |x| ~ 1.1e4,
-so a decomposed x * x overflows fp16, while MLX's fused kernel does not.
+fp16 comes from the fp32 checkpoint, int8 and int4 from w8a16 and w4a16, whose own codes run in MLX's quantized
+matmul. On an iPhone 17 fp16 is 1.6-2x faster than both; on an M4 Pro int8 and int4 are 5-10% ahead (NOTES.md).
+
 Needs executorch from the software-mansion-labs fork (see pyproject.toml here).
 """
 
@@ -22,6 +19,8 @@ import torch
 _MODEL_DIR = Path(__file__).resolve().parent.parent
 _PKG = "echo_mlx_echo"
 
+_CHECKPOINTS = {"fp16": "fp32", "int8": "w8a16", "int4": "w4a16"}
+
 
 def _vendored():
     if _PKG not in sys.modules:
@@ -31,38 +30,24 @@ def _vendored():
         mod = importlib.util.module_from_spec(spec)
         sys.modules[_PKG] = mod
         spec.loader.exec_module(mod)
-    return tuple(importlib.import_module(f"{_PKG}.{m}") for m in ("backbone", "codec", "hub", "v2"))
+    return tuple(importlib.import_module(f"{_PKG}.{m}") for m in ("hub", "v3"))
 
 
-def _programs(variant: dict) -> dict:
-    backbone, codec, hub, v2 = _vendored()
-    name = variant["file"]
-    if name.startswith("echo_"):
-        return v2.export(backbone.load(hub.checkpoint("fp32"), rms_norm="native"), dtype=torch.float16)
-    if name.startswith("codec_decoder_"):
-        return {"decode": codec.export_decoder(codec.load_codec(hub.codec()))}
-    raise ValueError(f"unknown Echo program for variant file '{name}'")
+def _program(variant: dict) -> bytes:
+    hub, v3 = _vendored()
+    echo = v3.Echo(hub.checkpoint(_CHECKPOINTS[variant["precision"]]))
+    return v3.lower(v3.export(echo), v3.schema(echo))
 
 
 def export(config: dict, out_dir: str):
-    from executorch.backends.mlx import MLXPartitioner
-    from executorch.backends.mlx.passes import get_default_passes
-    from executorch.exir import EdgeCompileConfig, to_edge_transform_and_lower
-
     out_dir = Path(out_dir)
     out_dir.mkdir(parents=True, exist_ok=True)
     written = []
     for variant in config["variants"]:
         with torch.no_grad():
-            eps = _programs(variant)
-            program = to_edge_transform_and_lower(
-                eps,
-                partitioner=[MLXPartitioner()],
-                compile_config=EdgeCompileConfig(_check_ir_validity=False),
-                transform_passes=get_default_passes(),
-            ).to_executorch()
+            program = _program(variant)
         out_path = out_dir / variant["file"]
-        out_path.write_bytes(program.buffer)
+        out_path.write_bytes(program)
         written.append(str(out_path))
-        del eps, program
+        del program
     return written

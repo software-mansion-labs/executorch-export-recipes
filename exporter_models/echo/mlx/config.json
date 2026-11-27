@@ -7,7 +7,7 @@
   "license": "unknown",
   "variants": [
     {
-      "file": "echo_mlx_fp16.pte",
+      "file": "reverb_mlx_fp16.pte",
       "precision": "fp16",
       "quantized": false,
       "default": true,
@@ -18,27 +18,25 @@
             { "shape": [8, null], "dtype": "int64" }
           ],
           "outputs": [
-            { "shape": [24, 1, 6, null, 128], "dtype": "float16" },
-            { "shape": [24, 1, 6, null, 128], "dtype": "float16" }
+            { "shape": [2, 24, 6, null, 128], "dtype": "float16" }
           ]
         },
         "step": {
           "inputs": [
             { "shape": [8, null], "dtype": "int64" },
-            { "shape": [24, 1, 6, null, 128], "dtype": "float16" },
-            { "shape": [24, 1, 6, null, 128], "dtype": "float16" }
+            { "shape": [2, 24, 6, null, 128], "dtype": "float16" }
           ],
           "outputs": [
             { "shape": [2, null], "dtype": "float32" },
-            { "shape": [2, null], "dtype": "int64" }
+            { "shape": [2, null], "dtype": "int64" },
+            { "shape": [2, null], "dtype": "float32" }
           ]
         },
         "polish": {
           "inputs": [
             { "shape": [8, null], "dtype": "int64" },
-            { "shape": [1, 1, 1, null], "dtype": "float16" },
-            { "shape": [24, 1, 6, null, 128], "dtype": "float16" },
-            { "shape": [24, 1, 6, null, 128], "dtype": "float16" }
+            { "shape": [1], "dtype": "int64" },
+            { "shape": [2, 24, 6, null, 128], "dtype": "float16" }
           ],
           "outputs": [
             { "shape": [6, null], "dtype": "int64" }
@@ -47,17 +45,77 @@
       }
     },
     {
-      "file": "codec_decoder_mlx_fp32.pte",
-      "precision": "fp32",
-      "quantized": false,
-      "default": true,
+      "file": "reverb_mlx_int8.pte",
+      "precision": "int8",
+      "quantized": true,
+      "default": false,
       "methods": {
-        "decode": {
+        "prefill": {
           "inputs": [
+            { "shape": [null], "dtype": "int64" },
             { "shape": [8, null], "dtype": "int64" }
           ],
           "outputs": [
-            { "shape": [null], "dtype": "float32" }
+            { "shape": [2, 24, 6, null, 128], "dtype": "float16" }
+          ]
+        },
+        "step": {
+          "inputs": [
+            { "shape": [8, null], "dtype": "int64" },
+            { "shape": [2, 24, 6, null, 128], "dtype": "float16" }
+          ],
+          "outputs": [
+            { "shape": [2, null], "dtype": "float32" },
+            { "shape": [2, null], "dtype": "int64" },
+            { "shape": [2, null], "dtype": "float32" }
+          ]
+        },
+        "polish": {
+          "inputs": [
+            { "shape": [8, null], "dtype": "int64" },
+            { "shape": [1], "dtype": "int64" },
+            { "shape": [2, 24, 6, null, 128], "dtype": "float16" }
+          ],
+          "outputs": [
+            { "shape": [6, null], "dtype": "int64" }
+          ]
+        }
+      }
+    },
+    {
+      "file": "reverb_mlx_int4.pte",
+      "precision": "int4",
+      "quantized": true,
+      "default": false,
+      "methods": {
+        "prefill": {
+          "inputs": [
+            { "shape": [null], "dtype": "int64" },
+            { "shape": [8, null], "dtype": "int64" }
+          ],
+          "outputs": [
+            { "shape": [2, 24, 6, null, 128], "dtype": "float16" }
+          ]
+        },
+        "step": {
+          "inputs": [
+            { "shape": [8, null], "dtype": "int64" },
+            { "shape": [2, 24, 6, null, 128], "dtype": "float16" }
+          ],
+          "outputs": [
+            { "shape": [2, null], "dtype": "float32" },
+            { "shape": [2, null], "dtype": "int64" },
+            { "shape": [2, null], "dtype": "float32" }
+          ]
+        },
+        "polish": {
+          "inputs": [
+            { "shape": [8, null], "dtype": "int64" },
+            { "shape": [1], "dtype": "int64" },
+            { "shape": [2, 24, 6, null, 128], "dtype": "float16" }
+          ],
+          "outputs": [
+            { "shape": [6, null], "dtype": "int64" }
           ]
         }
       }

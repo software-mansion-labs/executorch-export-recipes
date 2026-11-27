@@ -1,0 +1,218 @@
+diff --git a/backends/qualcomm/_passes/insert_cast_for_fp_act_quantized_weight.py b/backends/qualcomm/_passes/insert_cast_for_fp_act_quantized_weight.py
+index 90dc09d54..63f12debb 100644
+--- a/backends/qualcomm/_passes/insert_cast_for_fp_act_quantized_weight.py
++++ b/backends/qualcomm/_passes/insert_cast_for_fp_act_quantized_weight.py
+@@ -60,7 +60,8 @@ class InsertCastForFpActQuantizedWeight(ExportPass):
+         """Return the underlying parameter node for a weight, unwrapping a DQ op if present."""
+         if is_parameter(weight, self.edge_program):
+             return weight
+-        if weight.target in dq_ops:
++        # torchao.dequantize_affine: a block-quantized weight (fp16 activations x BW_FLOAT_BLOCK)
++        if weight.target in dq_ops or weight.target == exir_ops.edge.torchao.dequantize_affine.default:
+             param_node = weight.args[0]
+             if isinstance(param_node, torch.fx.Node) and is_parameter(
+                 param_node, self.edge_program
+@@ -107,7 +108,13 @@ class InsertCastForFpActQuantizedWeight(ExportPass):
+         # back to CPU instead of being delegated.
+         weight = node.args[1]
+         if weight.target in dq_ops and weight.meta["val"].dtype == torch.float32:
+-            weight.kwargs = {**weight.kwargs, "out_dtype": torch.float16}
++            # torchao.dequantize_affine (block-quantized weights) calls it output_dtype
++            dtype_kwarg = (
++                "output_dtype"
++                if weight.target == exir_ops.edge.torchao.dequantize_affine.default
++                else "out_dtype"
++            )
++            weight.kwargs = {**weight.kwargs, dtype_kwarg: torch.float16}
+             weight.meta["val"] = weight.meta["val"].to(torch.float16)
+ 
+         users = list(node.users.keys())
+diff --git a/backends/qualcomm/aot/python/PyQnnManagerAdaptor.cpp b/backends/qualcomm/aot/python/PyQnnManagerAdaptor.cpp
+index 8d7e8aae6..f8435ebd6 100644
+--- a/backends/qualcomm/aot/python/PyQnnManagerAdaptor.cpp
++++ b/backends/qualcomm/aot/python/PyQnnManagerAdaptor.cpp
+@@ -98,6 +98,22 @@ std::unique_ptr<QuantizeParamsWrapper> CreateQuantizationParamWrapper(
+             block_scale_bitwidth,
+             block_storage_type,
+             std::move(block_scales_vec));
++  } else if (encoding == QNN_QUANTIZATION_ENCODING_BW_FLOAT_BLOCK) {
++    uint32_t bitwidth = quant_info["bitwidth"].cast<uint32_t>();
++    std::vector<uint32_t> block_size =
++        quant_info["block_size"].cast<std::vector<uint32_t>>();
++    auto so_arr = quant_info["float_scale_offset"]
++                      .cast<py::array_t<float, py::array::c_style | py::array::forcecast>>();
++    auto so_buf = so_arr.request();
++    const float* so_ptr = static_cast<const float*>(so_buf.ptr);
++    std::vector<Qnn_FloatScaleOffset_t> scale_offset(so_buf.size / 2);
++    for (size_t i = 0; i < scale_offset.size(); ++i) {
++      scale_offset[i].scale = so_ptr[2 * i];
++      scale_offset[i].offset = so_ptr[2 * i + 1];
++    }
++    quantize_param_wrapper =
++        std::make_unique<BwFloatBlockQuantizeParamsWrapper>(
++            bitwidth, std::move(block_size), std::move(scale_offset));
+   } else {
+     QNN_EXECUTORCH_LOG_ERROR(
+         "Unknown the encoding of quantization: %d", encoding);
+@@ -322,6 +338,9 @@ PYBIND11_MODULE(PyQnnManagerAdaptor, m) {
+           "QNN_QUANTIZATION_ENCODING_BLOCKWISE_EXPANSION",
+           Qnn_QuantizationEncoding_t::
+               QNN_QUANTIZATION_ENCODING_BLOCKWISE_EXPANSION)
++      .value(
++          "QNN_QUANTIZATION_ENCODING_BW_FLOAT_BLOCK",
++          Qnn_QuantizationEncoding_t::QNN_QUANTIZATION_ENCODING_BW_FLOAT_BLOCK)
+       .value(
+           "QNN_QUANTIZATION_ENCODING_UNDEFINED",
+           Qnn_QuantizationEncoding_t::QNN_QUANTIZATION_ENCODING_UNDEFINED)
+diff --git a/backends/qualcomm/aot/wrappers/QuantizeParamsWrapper.cpp b/backends/qualcomm/aot/wrappers/QuantizeParamsWrapper.cpp
+index 3b5ffbc4e..79b0cc7f9 100644
+--- a/backends/qualcomm/aot/wrappers/QuantizeParamsWrapper.cpp
++++ b/backends/qualcomm/aot/wrappers/QuantizeParamsWrapper.cpp
+@@ -63,6 +63,24 @@ std::unique_ptr<QuantizeParamsWrapper> CreateQuantizationParamWrapper(
+     quantize_param_wrapper = std::make_unique<ScaleOffsetQuantizeParamsWrapper>(
+         quantization.scaleOffsetEncoding.scale,
+         quantization.scaleOffsetEncoding.offset);
++  } else if (
++      quantization.quantizationEncoding ==
++      QNN_QUANTIZATION_ENCODING_BW_FLOAT_BLOCK) {
++    const auto& encoding = quantization.bwFloatBlockEncoding;
++    const uint32_t rank = QNN_TENSOR_VER_PTR(tensor)->rank;
++    std::vector<uint32_t> block_size(
++        encoding.blockSize, encoding.blockSize + rank);
++    size_t num_blocks = 1;
++    for (uint32_t i = 0; i < rank; ++i) {
++      num_blocks *= (QNN_TENSOR_VER_PTR(tensor)->dimensions[i] +
++                     block_size[i] - 1) /
++          block_size[i];
++    }
++    std::vector<Qnn_FloatScaleOffset_t> scale_offsets(
++        encoding.floatScaleOffset, encoding.floatScaleOffset + num_blocks);
++    quantize_param_wrapper =
++        std::make_unique<BwFloatBlockQuantizeParamsWrapper>(
++            encoding.bitwidth, std::move(block_size), std::move(scale_offsets));
+   } else if (
+       quantization.quantizationEncoding ==
+       QNN_QUANTIZATION_ENCODING_BLOCKWISE_EXPANSION) {
+diff --git a/backends/qualcomm/aot/wrappers/QuantizeParamsWrapper.h b/backends/qualcomm/aot/wrappers/QuantizeParamsWrapper.h
+index f22f3dbf6..5f694775c 100644
+--- a/backends/qualcomm/aot/wrappers/QuantizeParamsWrapper.h
++++ b/backends/qualcomm/aot/wrappers/QuantizeParamsWrapper.h
+@@ -346,6 +346,56 @@ class BlockwiseExpansionQuantizeParamsWrapper final
+   Qnn_BlockwiseExpansion_t block_expansion_;
+ };
+ 
++// Per-block float scale-offsets with a bit width (QNN_QUANTIZATION_ENCODING_BW_FLOAT_BLOCK): the HTP encoding for
++// 2/4/8-bit block-quantized weights under fp16 activations (blockwise expansion needs integer activations).
++class BwFloatBlockQuantizeParamsWrapper final : public QuantizeParamsWrapper {
++ public:
++  explicit BwFloatBlockQuantizeParamsWrapper(
++      std::uint32_t bitwidth,
++      std::vector<std::uint32_t> block_size,
++      std::vector<Qnn_FloatScaleOffset_t> scale_offsets)
++      : QuantizeParamsWrapper(
++            QNN_DEFINITION_DEFINED,
++            QNN_QUANTIZATION_ENCODING_BW_FLOAT_BLOCK),
++        bitwidth_(bitwidth),
++        block_size_(std::move(block_size)),
++        scale_offsets_(std::move(scale_offsets)) {}
++
++  BwFloatBlockQuantizeParamsWrapper(const BwFloatBlockQuantizeParamsWrapper& rhs)
++      : QuantizeParamsWrapper(
++            rhs.GetEncodingDefinition(),
++            rhs.GetQuantizationEncoding()),
++        bitwidth_(rhs.bitwidth_),
++        block_size_(rhs.block_size_),
++        scale_offsets_(rhs.scale_offsets_) {}
++
++  BwFloatBlockQuantizeParamsWrapper& operator=(
++      const BwFloatBlockQuantizeParamsWrapper& rhs) = delete;
++  BwFloatBlockQuantizeParamsWrapper& operator=(
++      BwFloatBlockQuantizeParamsWrapper&& rhs) = delete;
++
++  ~BwFloatBlockQuantizeParamsWrapper() override = default;
++
++  std::unique_ptr<QuantizeParamsWrapper> Clone() override {
++    return std::make_unique<BwFloatBlockQuantizeParamsWrapper>(*this);
++  }
++
++  Qnn_QuantizeParams_t CreateQuantizeParams() override {
++    Qnn_QuantizeParams_t rval;
++    rval.encodingDefinition = GetEncodingDefinition();
++    rval.quantizationEncoding = GetQuantizationEncoding();
++    rval.bwFloatBlockEncoding.bitwidth = bitwidth_;
++    rval.bwFloatBlockEncoding.blockSize = block_size_.data();
++    rval.bwFloatBlockEncoding.floatScaleOffset = scale_offsets_.data();
++    return rval;
++  }
++
++ private:
++  std::uint32_t bitwidth_;
++  std::vector<std::uint32_t> block_size_;
++  std::vector<Qnn_FloatScaleOffset_t> scale_offsets_;
++};
++
+ // Factory function to create quantization param wrapper from QnnQuantization
+ std::unique_ptr<QuantizeParamsWrapper> CreateQuantizationParamWrapper(
+     const Qnn_Tensor_t& tensor);
+diff --git a/backends/qualcomm/builders/node_visitor.py b/backends/qualcomm/builders/node_visitor.py
+index 60785901c..6c07f8d1b 100644
+--- a/backends/qualcomm/builders/node_visitor.py
++++ b/backends/qualcomm/builders/node_visitor.py
+@@ -14,6 +14,7 @@ from executorch.backends.qualcomm.utils.constants import (
+     QCOM_AXIS,
+     QCOM_AXIS_ORDER,
+     QCOM_BITWIDTH,
++    QCOM_BLOCK_SIZE,
+     QCOM_BLOCK_SCALE_BITWIDTH,
+     QCOM_BLOCK_SCALE_OFFSET,
+     QCOM_BLOCK_SCALES,
+@@ -236,6 +237,40 @@ class NodeVisitor:
+             quant_config,
+         )
+ 
++    def is_weight_of_float_linear(self, node: torch.fx.Node) -> bool:
++        """A block-quantized linear weight whose activation is not quantized (fp16 activations): the HTP takes that
++        pair as QNN_QUANTIZATION_ENCODING_BW_FLOAT_BLOCK, while blockwise expansion (LPBQ) needs quantized
++        activations."""
++        # the weight may still sit behind its dequantize_affine here (partitioner op checks run before QDQ folding)
++        user = self.get_first_user(node)
++        if user.target != exir_ops.edge.aten.linear.default or user.args[0] is node:
++            return False
++        return not user.args[0].meta.get(QCOM_QUANT_ATTRS)
++
++    def make_qnn_bw_float_block_config(self, quant_attrs: Dict):
++        """Per-block float scales kept exactly (no 4-bit scale expansion), offset -zero_point * scale."""
++        scales = torch.as_tensor(quant_attrs[QCOM_SCALE]).flatten().float()
++        zero_points = quant_attrs.get(QCOM_ZERO_POINT)
++        zero_points = (
++            torch.zeros_like(scales)
++            if zero_points is None
++            else torch.as_tensor(zero_points).flatten().float()
++        )
++        q_range = quant_attrs[QCOM_QUANT_MAX] - quant_attrs[QCOM_QUANT_MIN]
++        scale_offset = np.stack([scales.numpy(), (-zero_points * scales).numpy()], axis=-1)
++        quant_config = {
++            QCOM_DTYPE: quant_attrs[QCOM_DTYPE],
++            QCOM_QUANT_MAX: quant_attrs[QCOM_QUANT_MAX],
++            QCOM_QUANT_MIN: quant_attrs[QCOM_QUANT_MIN],
++            QCOM_BITWIDTH: 2 if q_range <= 3 else 4 if q_range <= 15 else 8,
++            QCOM_BLOCK_SIZE: [int(b) for b in quant_attrs[QCOM_BLOCK_SIZE]],
++            "float_scale_offset": np.ascontiguousarray(scale_offset, dtype=np.float32),
++        }
++        return (
++            PyQnnManager.Qnn_QuantizationEncoding_t.QNN_QUANTIZATION_ENCODING_BW_FLOAT_BLOCK,
++            quant_config,
++        )
++
+     def make_qnn_per_channel_config(self, node: torch.fx.Node, quant_attrs: Dict):
+         quant_config = {
+             QCOM_DTYPE: quant_attrs[QCOM_DTYPE],
+@@ -334,6 +369,8 @@ class NodeVisitor:
+             exir_ops.edge.torchao.dequantize_affine.default,
+         }
+         if quant_attrs[QCOM_ENCODING] in per_block_encoding:
++            if self.is_weight_of_float_linear(node):
++                return self.make_qnn_bw_float_block_config(quant_attrs)
+             return self.make_qnn_per_block_config(node, quant_attrs)
+ 
+         if quant_attrs[QCOM_ENCODING] in PER_CHANNEL_ENCODING:
