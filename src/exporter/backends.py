@@ -30,7 +30,9 @@ def lower(
 # by the wheel therefore tags its quantized matmuls 121 where the runtime reads
 # 121 as ArgPartition, and loading it fails with `Error::InvalidProgram` -- no
 # version check catches it, because both sides write schema version "1".
-_MLX_FORK_ANCHOR = (112, "CumMaxNode")
+# ExecuTorch 1.6 runtime (@ms/separate-backends-1.6.0) uses upstream's order, where
+# 112 is StackNode and CummaxNode is appended last.
+_MLX_FORK_ANCHOR = (112, "StackNode")
 
 
 def require_mlx_runtime_fork() -> None:
@@ -44,7 +46,7 @@ def require_mlx_runtime_fork() -> None:
         raise BackendError(
             f"MLX op union value {value} is {MLX_OP_TYPE_NAMES.get(value)!r}, expected "
             f"{name!r}: this env's executorch is not the runtime-locked fork "
-            "(software-mansion-labs/executorch @ @ms/separate-backends-1.4.1). "
+            "(software-mansion-labs/executorch @ @ms/separate-backends-1.6.0). "
             "A .pte exported here would fail to load with Error::InvalidProgram. "
             "Overlay the fork's backends/mlx into the env and regenerate the "
             "bindings -- see the model's NOTES.md."

@@ -132,7 +132,7 @@ wheels = [
 [[package]]
 name = "executorch"
 version = "1.4.1+67ccaf9"
-source = { git = "https://github.com/software-mansion-labs/executorch?branch=%40ms%2Fseparate-backends-1.4.1#67ccaf9f5f87710920039748ed6cbc936f4ab63a" }
+source = { git = "https://github.com/software-mansion-labs/executorch?branch=%40ms%2Fseparate-backends-1.6.0#63b80af6a931434fc558c8ded4971d7238ee3da0" }
 dependencies = [
     { name = "coremltools", marker = "platform_machine == 'arm64' and sys_platform == 'darwin'" },
     { name = "expecttest", marker = "platform_machine == 'arm64' and sys_platform == 'darwin'" },
@@ -197,7 +197,7 @@ dependencies = [
 
 [package.metadata]
 requires-dist = [
-    { name = "executorch", git = "https://github.com/software-mansion-labs/executorch?branch=%40ms%2Fseparate-backends-1.4.1" },
+    { name = "executorch", git = "https://github.com/software-mansion-labs/executorch?branch=%40ms%2Fseparate-backends-1.6.0" },
     { name = "exporter", editable = "../../../" },
     { name = "safetensors", specifier = "==0.8.0" },
     { name = "torch", url = "https://download.pytorch.org/whl/nightly/cpu/torch-2.14.0.dev20260702-cp310-cp310-macosx_14_0_arm64.whl" },
