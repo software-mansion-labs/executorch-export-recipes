@@ -103,7 +103,7 @@ def _make_paired_rope_standalone_forward():
         ring_indices: Optional[torch.Tensor] = None,
         ring_mask: Optional[torch.Tensor] = None,
     ):
-        from .sdpa import _build_mask4d_for_sliding
+        from .sdpa import _build_mask4d_for_sliding, _sdpa_with_kv_cache
 
         attn_t = type(self)
         if not getattr(attn_t, "use_bshd_kv", False):
@@ -133,7 +133,7 @@ def _make_paired_rope_standalone_forward():
 
         k_cache = self.kv_cache.k_cache
         v_cache = self.kv_cache.v_cache
-        out_bshd = torch.ops.et_vk.gemma_sdpa_with_kv_cache(
+        out_bshd = _sdpa_with_kv_cache(
             q, k, v,
             k_cache, v_cache,
             start_pos_arg, S,
