@@ -43,6 +43,24 @@ import torch.nn as nn
 
 # Side-effect: defines torch.ops.et_vk.gemma_{sdpa_with_kv_cache,custom_sdpa}.
 from .. import custom_sdpa_ops  # noqa: F401
+# Side-effect: defines torch.ops.llama.sdpa_with_kv_cache.
+import executorch.extension.llm.custom_ops.custom_ops  # noqa: F401
+
+
+def _sdpa_with_kv_cache(q, k, v, k_cache, v_cache, start_pos, seq_len, mask4d, is_causal):
+    """Gemma attention (scale 1.0, no softcap) on the upstream
+    `llama.sdpa_with_kv_cache`, which ET-VK lowers with a 2D [S, C] additive
+    mask (pytorch/executorch#23539). Replaces the fork-only
+    `et_vk.gemma_sdpa_with_kv_cache`, which ET 1.6 does not register."""
+    # The llama op requires one dtype across q/k/v/caches/mask; the fork op
+    # did not, and the Vulkan fp16 promotion leaves q in fp32 here.
+    dtype = k_cache.dtype
+    mask = None if mask4d is None else mask4d.reshape(seq_len, mask4d.shape[-1]).to(dtype)
+    out = torch.ops.llama.sdpa_with_kv_cache(
+        q.to(dtype), k.to(dtype), v.to(dtype), k_cache, v_cache,
+        start_pos, seq_len, mask, 0.0, is_causal, 1.0,
+    )
+    return out.to(q.dtype)
 
 
 # When set, replace `self.q_norm(q)` / `self.k_norm(k)` with a fp32-internal
@@ -179,7 +197,7 @@ def _make_standalone_or_source_forward(orig_forward):
         k_cache = self.kv_cache.k_cache
         v_cache = self.kv_cache.v_cache
 
-        out_bshd = torch.ops.et_vk.gemma_sdpa_with_kv_cache(
+        out_bshd = _sdpa_with_kv_cache(
             q, k, v,
             k_cache, v_cache,
             start_pos_arg, S,
@@ -267,7 +285,7 @@ def _make_consumer_forward(orig_forward):
         v_cache = self.kv_cache.v_cache
         start_pos_arg = input_pos[0].item()
 
-        out_bshd = torch.ops.et_vk.gemma_sdpa_with_kv_cache(
+        out_bshd = _sdpa_with_kv_cache(
             q, shared_k, shared_v,
             k_cache, v_cache,
             start_pos_arg, S,

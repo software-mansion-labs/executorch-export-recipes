@@ -571,13 +571,19 @@ class Gemma4EdgeVisionAttention(nn.Module):
             #
             # Layout: BSHD (no `.transpose(1,2)` after RoPE). GQA broadcast
             # is handled inside the shader.
-            attn_output = torch.ops.et_vk.gemma_custom_sdpa.default(
+            # Upstream llama.custom_sdpa with a 2D [S, S] additive mask
+            # (ET-VK, pytorch/executorch#23539) in place of the fork-only
+            # et_vk.gemma_custom_sdpa, which ET 1.6 does not register.
+            # Gemma uses QK-norm, so scale is 1.0.
+            mask2d = attention_mask.reshape(S, attention_mask.shape[-1]).to(q.dtype)
+            attn_output = torch.ops.llama.custom_sdpa.default(
                 q,
-                k, v,        # key_cache=k, value_cache=v (direct pass-through)
+                k.to(q.dtype), v.to(q.dtype),
                 0,           # start_pos
-                S,           # seq_len
-                attention_mask,
-                False,       # is_causal (ignored when attn_mask is provided)
+                mask2d,
+                0.0,         # dropout_p
+                False,       # is_causal (must be unset with a mask)
+                1.0,         # scale
             )
             # Output shape: (B, S, H_q, D) -> (B, S, H_q * D)
             attn_output = attn_output.contiguous().view(B, S, -1)
