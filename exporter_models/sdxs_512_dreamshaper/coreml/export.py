@@ -20,6 +20,9 @@ def _load_pipeline():
 def export(config: dict, out_dir: str) -> str:
     import coremltools as ct
     from executorch.backends.apple.coreml.compiler import CoreMLBackend
+    from executorch.backends.apple.coreml.compiler.coreml_preprocess import (
+        MULTIMETHOD_WEIGHT_SHARING_STRATEGY,
+    )
     from executorch.backends.apple.coreml.partition import CoreMLPartitioner
     from executorch.exir import to_edge_transform_and_lower
 
@@ -41,6 +44,13 @@ def export(config: dict, out_dir: str) -> str:
         compute_precision=precision,
         minimum_deployment_target=ct.target.iOS17,
         compute_unit=ct.ComputeUnit.CPU_AND_GPU,
+    )
+    # One Core ML model per method: the weight-shared multifunction model fails to
+    # load `decode` on iOS 27. The methods share no weights, so the size is unchanged.
+    compile_specs.append(
+        CoreMLBackend.generate_multimethod_weight_sharing_strategy_compile_spec(
+            MULTIMETHOD_WEIGHT_SHARING_STRATEGY.DISABLED
+        )
     )
 
     executorch_program = to_edge_transform_and_lower(
