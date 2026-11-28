@@ -53,6 +53,10 @@ UNet is too big for the ANE compiler. `export.py` pins
 `compute_unit=ct.ComputeUnit.CPU_AND_GPU`. Delegation with that setting is ~99.7%
 (denoise 1212/1216 ops), verified with the executorch-profiler.
 
+Multi-method weight sharing is `DISABLED`: on iOS 27 the default weight-shared
+multifunction model fails to load `decode` (Core ML BNNS compile error, then E5RT 9 and
+`InvalidProgram`). `encode`/`denoise`/`decode` share no weights, so the size is unchanged.
+
 `minimum_deployment_target` is `iOS17` here (not the `iOS18` in
 `skills/backends/coreml`) — that is what produced the shipped, device-verified `.pte`.
 
